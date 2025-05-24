@@ -38,7 +38,7 @@ const AppContent: React.FC = () => {
             <p style={{ color: '#374151', lineHeight: '1.6' }}>
               Your React TypeScript foundation is now set up with:
               <br />• Modern component architecture
-              <br />• Type-safe data interfaces  
+              <br />• Type-safe data interfaces
               <br />• Context for state management
               <br />• Beautiful styling system
             </p>
