@@ -1,0 +1,806 @@
+// src/utils/dataProcessing.ts
+import * as XLSX from 'xlsx';
+import { 
+  VoyageEvent, 
+  VesselManifest, 
+  MasterFacility, 
+  CostAllocation,
+  VesselClassification,
+  VoyageList,
+  BulkAction 
+} from '../types';
+
+// ===================== RAW DATA INTERFACES =====================
+// These represent the data as it comes from Excel files
+
+interface RawVoyageEvent {
+  Mission: string;
+  Event?: string | null;
+  "Parent Event": string;
+  Location: string;
+  Quay?: string;
+  Remarks?: string | null;
+  "Is active?": string;
+  From: string;
+  To?: string;
+  Hours: number;
+  "Port Type": string;
+  "Event Category"?: string;
+  Year: number;
+  "Ins. 500m"?: string;
+  "Cost Dedicated to"?: string | null;
+  Vessel: string;
+  "Voyage #": number;
+}
+
+interface RawVesselManifest {
+  "Voyage Id": number;
+  "Manifest Number": string;
+  Transporter: string;
+  Type?: string;
+  "Manifest Date": string;
+  "Cost Code"?: string;
+  From: string;
+  "Offshore Location": string;
+  "Deck Lbs": number;
+  "Deck Tons": number;
+  "RT Tons": number;
+  Lifts: number;
+  "Wet Bulk (bbls)": number;
+  "Wet Bulk (gals)": number;
+  "Deck Sqft": number;
+  Remarks?: string;
+  Year: number;
+}
+
+interface RawMasterFacility {
+  LocationName: string;
+  FacilityType: string;
+  ParentFacility?: string;
+  IsProductionCapable: boolean;
+  IsDrillingCapable: boolean;
+  ProductionLCs?: string;
+  Region?: string;
+  IsActive: boolean;
+}
+
+interface RawCostAllocation {
+  "LC Number": string;
+  "Location Reference": string;
+  Description?: string;
+  "Cost Element"?: string;
+  "Month-Year"?: string;
+  Mission?: string;
+}
+
+interface RawVoyageList {
+  Edit?: string;
+  Vessel: string;
+  "Voyage Number": number;
+  Year: number;
+  Month: string;
+  "Start Date": string;
+  "End Date"?: string;
+  Type?: string;
+  Mission: string;
+  "Route Type"?: string;
+  Locations: string;
+}
+
+// ===================== PROCESSING RESULTS INTERFACE =====================
+
+export interface ProcessingResults {
+  voyageEvents: VoyageEvent[];
+  vesselManifests: VesselManifest[];
+  masterFacilities: MasterFacility[];
+  costAllocation: CostAllocation[];
+  vesselClassifications: VesselClassification[];
+  voyageList: VoyageList[];
+  bulkActions: BulkAction[];
+}
+
+// ===================== MAIN PROCESSING FUNCTION =====================
+
+/**
+ * Process Excel files and return structured data arrays
+ */
+export const processExcelFiles = async (
+  voyageEventsFile: File,
+  vesselManifestsFile: File,
+  masterFacilitiesFile: File,
+  costAllocationFile: File,
+  voyageListFile?: File,
+  vesselClassificationsFile?: File,
+  bulkActionsFile?: File
+): Promise<ProcessingResults> => {
+  try {
+    console.log('Starting Excel file processing...');
+
+    // Read all required Excel files
+    const [
+      rawVoyageEvents,
+      rawVesselManifests,
+      rawMasterFacilities,
+      rawCostAllocation
+    ] = await Promise.all([
+      readExcelFile<RawVoyageEvent>(voyageEventsFile),
+      readExcelFile<RawVesselManifest>(vesselManifestsFile),
+      readExcelFile<RawMasterFacility>(masterFacilitiesFile),
+      readExcelFile<RawCostAllocation>(costAllocationFile)
+    ]);
+
+    console.log('Excel files read successfully:', {
+      voyageEvents: rawVoyageEvents.length,
+      vesselManifests: rawVesselManifests.length,
+      masterFacilities: rawMasterFacilities.length,
+      costAllocation: rawCostAllocation.length
+    });
+
+    // Read optional files
+    const rawVoyageList = voyageListFile ? await readExcelFile<RawVoyageList>(voyageListFile) : [];
+    const rawVesselClassifications = vesselClassificationsFile ? await readExcelFile<any>(vesselClassificationsFile) : [];
+    const rawBulkActions = bulkActionsFile ? await readExcelFile<any>(bulkActionsFile) : [];
+
+    // Process reference data first (needed for lookups)
+    const masterFacilities = processMasterFacilities(rawMasterFacilities);
+    const costAllocation = processCostAllocation(rawCostAllocation);
+
+    console.log('Reference data processed');
+
+    // Create lookup maps for better performance
+    const facilitiesMap = createFacilitiesMap(masterFacilities);
+    const costAllocationMap = createCostAllocationMap(costAllocation);
+
+    // Process main data entities
+    const voyageEvents = processVoyageEvents(rawVoyageEvents, facilitiesMap, costAllocationMap);
+    const vesselManifests = processVesselManifests(rawVesselManifests, facilitiesMap, costAllocationMap);
+    const voyageList = processVoyageList(rawVoyageList);
+
+    console.log('Main data processed:', {
+      voyageEvents: voyageEvents.length,
+      vesselManifests: vesselManifests.length,
+      voyageList: voyageList.length
+    });
+
+    // Process optional data
+    const vesselClassifications = processVesselClassifications(rawVesselClassifications);
+    const bulkActions = processBulkActions(rawBulkActions);
+
+    return {
+      voyageEvents,
+      vesselManifests,
+      masterFacilities,
+      costAllocation,
+      vesselClassifications,
+      voyageList,
+      bulkActions
+    };
+
+  } catch (error) {
+    console.error('Error processing Excel files:', error);
+    throw new Error(`Failed to process Excel files: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
+// ===================== EXCEL FILE READING =====================
+
+/**
+ * Read an Excel file and return its data as an array of objects
+ */
+const readExcelFile = async <T>(file: File): Promise<T[]> => {
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    const data = XLSX.utils.sheet_to_json(worksheet, { 
+      raw: false,
+      dateNF: 'yyyy-mm-dd'
+    });
+    
+    return data as T[];
+  } catch (error) {
+    console.error(`Error reading Excel file ${file.name}:`, error);
+    throw new Error(`Failed to read Excel file ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
+// ===================== REFERENCE DATA PROCESSING =====================
+
+/**
+ * Process MasterFacilities raw data
+ */
+const processMasterFacilities = (rawFacilities: RawMasterFacility[]): MasterFacility[] => {
+  return rawFacilities.map((facility, index) => ({
+    locationName: facility.LocationName,
+    facilityType: facility.FacilityType as 'Production' | 'Drilling' | 'Integrated' | 'Logistics',
+    parentFacility: facility.ParentFacility,
+    isProductionCapable: facility.IsProductionCapable,
+    isDrillingCapable: facility.IsDrillingCapable,
+    productionLCs: facility.ProductionLCs ? facility.ProductionLCs.split(',').map(lc => lc.trim()) : undefined,
+    region: facility.Region,
+    notes: undefined,
+    isActive: facility.IsActive
+  }));
+};
+
+/**
+ * Process CostAllocation raw data
+ */
+const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): CostAllocation[] => {
+  return rawCostAllocation.map((costAlloc, index) => ({
+    lcNumber: costAlloc["LC Number"],
+    locationReference: costAlloc["Location Reference"],
+    description: costAlloc.Description,
+    costElement: costAlloc["Cost Element"],
+    monthYear: costAlloc["Month-Year"],
+    month: costAlloc["Month-Year"] ? parseInt(costAlloc["Month-Year"].split('-')[1]) : undefined,
+    year: costAlloc["Month-Year"] ? parseInt(costAlloc["Month-Year"].split('-')[0]) : undefined,
+    mission: costAlloc.Mission,
+    department: inferDepartmentFromDescription(costAlloc.Description),
+    isActive: true
+  }));
+};
+
+// ===================== MAIN DATA PROCESSING =====================
+
+/**
+ * Process Voyage Events with complex LC allocation logic
+ */
+const processVoyageEvents = (
+  rawEvents: RawVoyageEvent[],
+  facilitiesMap: Map<string, MasterFacility>,
+  costAllocationMap: Map<string, CostAllocation>
+): VoyageEvent[] => {
+  const processedEvents: VoyageEvent[] = [];
+
+  for (const event of rawEvents) {
+    try {
+      // Parse dates
+      const from = parseDate(event.From);
+      const to = event.To ? parseDate(event.To) : from;
+      
+      // Calculate duration
+      let hours = event.Hours;
+      if ((hours === 0 || !hours) && from && to) {
+        hours = (to.getTime() - from.getTime()) / (1000 * 60 * 60);
+      }
+      hours = Number(hours.toFixed(2));
+
+      // Process LC allocations
+      const lcAllocations = processLCAllocations(
+        event["Cost Dedicated to"],
+        event.Location,
+        event["Parent Event"],
+        event.Event || null, // Convert undefined to null
+        event.Remarks || null, // Convert undefined to null
+        event["Port Type"],
+        facilitiesMap,
+        costAllocationMap
+      );
+
+      // Create an event for each LC allocation
+      lcAllocations.forEach((allocation, allocIndex) => {
+        const finalHours = hours * (allocation.percentage / 100);
+        const eventDate = from || new Date();
+
+        processedEvents.push({
+          id: `${event.Vessel}-${event["Voyage #"]}-${processedEvents.length}`,
+          mission: event.Mission,
+          vessel: event.Vessel,
+          voyageNumber: String(event["Voyage #"]),
+          event: event.Event || undefined, // Convert null to undefined
+          parentEvent: event["Parent Event"],
+          location: event.Location,
+          originalLocation: event.Location,
+          mappedLocation: allocation.mappedLocation,
+          quay: event.Quay,
+          remarks: event.Remarks || undefined, // Convert null to undefined
+          from,
+          to,
+          hours,
+          finalHours: Number(finalHours.toFixed(2)),
+          eventDate,
+          eventYear: eventDate.getFullYear(),
+          quarter: `Q${Math.ceil((eventDate.getMonth() + 1) / 3)}`,
+          monthNumber: eventDate.getMonth() + 1,
+          monthName: eventDate.toLocaleString('default', { month: 'long' }),
+          weekOfYear: getWeekNumber(eventDate),
+          dayOfWeek: eventDate.toLocaleString('default', { weekday: 'long' }),
+          dayOfMonth: eventDate.getDate(),
+          portType: event["Port Type"] as 'rig' | 'base',
+          locationType: event["Port Type"] === "rig" ? "Offshore" : event["Port Type"] === "base" ? "Onshore" : "Other",
+          activityCategory: classifyActivity(event["Parent Event"], event.Event || null), // Convert undefined to null
+          eventCategory: event["Event Category"],
+          department: allocation.department || undefined, // Convert null to undefined
+          costDedicatedTo: event["Cost Dedicated to"] || undefined, // Convert null to undefined
+          lcNumber: allocation.lcNumber,
+          originalLCLocation: allocation.originalLocation || undefined, // Convert null to undefined
+          lcPercentage: allocation.percentage,
+          mappingStatus: allocation.isSpecialCase ? "Special Case Mapping" : 
+                         allocation.lcNumber ? "LC Mapped" : "No LC Info",
+          dataIntegrity: allocation.isSpecialCase ? "Valid - Special Case" :
+                         allocation.lcNumber ? "Valid" : "Missing LC",
+          isActive: event["Is active?"] === "Yes",
+          ins500m: event["Ins. 500m"],
+          year: event.Year,
+          company: inferCompanyFromVessel(event.Vessel),
+          standardizedVoyageNumber: String(event["Voyage #"]).trim()
+        });
+      });
+    } catch (error) {
+      console.error('Error processing voyage event:', error, event);
+    }
+  }
+
+  return processedEvents;
+};
+
+/**
+ * Process Vessel Manifests
+ */
+const processVesselManifests = (
+  rawManifests: RawVesselManifest[],
+  facilitiesMap: Map<string, MasterFacility>,
+  costAllocationMap: Map<string, CostAllocation>
+): VesselManifest[] => {
+  return rawManifests.map((manifest, index) => {
+    try {
+      const manifestDate = parseDate(manifest["Manifest Date"]);
+      
+      // Process location mapping
+      const { mappedLocation, department } = processMappedLocationForManifest(
+        manifest["Cost Code"],
+        manifest.From,
+        manifest["Offshore Location"],
+        manifest.Remarks,
+        facilitiesMap,
+        costAllocationMap
+      );
+
+      return {
+        id: `manifest-${index}`,
+        voyageId: String(manifest["Voyage Id"]),
+        standardizedVoyageId: createStandardizedVoyageId(manifest["Voyage Id"], manifestDate),
+        manifestNumber: manifest["Manifest Number"],
+        transporter: manifest.Transporter,
+        from: manifest.From,
+        offshoreLocation: manifest["Offshore Location"],
+        mappedLocation,
+        deckLbs: manifest["Deck Lbs"] || 0,
+        deckTons: manifest["Deck Tons"] || 0,
+        rtTons: manifest["RT Tons"] || 0,
+        lifts: manifest.Lifts || 0,
+        wetBulkBbls: manifest["Wet Bulk (bbls)"] || 0,
+        wetBulkGals: manifest["Wet Bulk (gals)"] || 0,
+        deckSqft: manifest["Deck Sqft"] || 0,
+        manifestDate,
+        manifestDateOnly: new Date(manifestDate.getFullYear(), manifestDate.getMonth(), manifestDate.getDate()),
+        month: manifestDate.toLocaleString('default', { month: 'long' }),
+        monthNumber: manifestDate.getMonth() + 1,
+        quarter: `Q${Math.ceil((manifestDate.getMonth() + 1) / 3)}`,
+        year: manifest.Year,
+        costCode: manifest["Cost Code"],
+        finalDepartment: department || undefined, // Convert null to undefined
+        cargoType: determineCargoType(
+          manifest["Deck Tons"] || 0,
+          manifest["RT Tons"] || 0,
+          manifest["Wet Bulk (bbls)"] || 0,
+          manifest["Wet Bulk (gals)"] || 0,
+          manifest.Lifts || 0
+        ),
+        remarks: manifest.Remarks,
+        company: inferCompanyFromVessel(manifest.Transporter),
+        vesselType: inferVesselType(manifest.Transporter)
+      };
+    } catch (error) {
+      console.error('Error processing vessel manifest:', error, manifest);
+      return createEmptyManifest(index, manifest);
+    }
+  });
+};
+
+/**
+ * Process Voyage List
+ */
+const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => {
+  return rawVoyages.map((voyage, index) => {
+    const locations = voyage.Locations ? voyage.Locations.split('->').map(loc => loc.trim()) : [];
+    const startDate = parseDate(voyage["Start Date"]);
+    const endDate = voyage["End Date"] ? parseDate(voyage["End Date"]) : undefined;
+    
+    return {
+      id: `voyage-${index}`,
+      uniqueVoyageId: `${voyage.Year}_${voyage.Month}_${voyage.Vessel.replace(/\s+/g, '')}_${voyage["Voyage Number"]}`,
+      standardizedVoyageId: createStandardizedVoyageIdFromVoyage(voyage),
+      vessel: voyage.Vessel,
+      standardizedVesselName: voyage.Vessel.trim(),
+      voyageNumber: voyage["Voyage Number"],
+      year: voyage.Year,
+      month: voyage.Month,
+      monthNumber: getMonthNumber(voyage.Month),
+      startDate,
+      endDate,
+      voyageDate: startDate,
+      durationHours: startDate && endDate ? (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) : undefined,
+      type: voyage.Type,
+      mission: voyage.Mission,
+      routeType: voyage["Route Type"],
+      locations: voyage.Locations,
+      locationList: locations,
+      stopCount: locations.length,
+      includesProduction: includesProductionLocation(locations),
+      includesDrilling: includesDrillingLocation(locations),
+      voyagePurpose: determineVoyagePurpose(locations),
+      originPort: locations.length > 0 ? locations[0] : undefined,
+      mainDestination: locations.length > 1 ? locations[1] : undefined,
+      edit: voyage.Edit,
+      isActive: true
+    };
+  });
+};
+
+// ===================== PLACEHOLDER PROCESSORS FOR OPTIONAL DATA =====================
+
+const processVesselClassifications = (rawData: any[]): VesselClassification[] => {
+  return rawData.map((item, index) => ({
+    vesselName: item["Vessel Name"] || `Unknown-${index}`,
+    standardizedVesselName: (item["Vessel Name"] || `Unknown-${index}`).trim(),
+    company: item.Company || 'Unknown',
+    size: item.Size || 0,
+    vesselType: item["Vessel Type"] || 'Other',
+    vesselCategory: item["Vessel Type"] || 'Other',
+    sizeCategory: (item.Size || 0) <= 200 ? 'Small' : (item.Size || 0) <= 280 ? 'Medium' : 'Large',
+    yearBuilt: item["Year Built"],
+    flag: item.Flag,
+    isActive: true
+  }));
+};
+
+const processBulkActions = (rawData: any[]): BulkAction[] => {
+  return rawData.map((item, index) => ({
+    id: `bulk-${index}`,
+    portType: item["Port Type"] || 'base',
+    vesselName: item["Vessel Name"] || 'Unknown',
+    startDate: parseDate(item["Start Date"]) || new Date(),
+    action: item.Action || 'Unknown',
+    qty: item.Qty || 0,
+    unit: item.Unit || 'bbl',
+    ppg: item.PPG,
+    bulkType: item["Bulk Type"] || 'Unknown',
+    bulkDescription: item["Bulk Description"],
+    fluidClassification: 'Other',
+    fluidCategory: 'Other',
+    productionChemicalType: undefined,
+    atPort: item["At Port"] || 'Unknown',
+    standardizedOrigin: (item["At Port"] || 'Unknown').trim(),
+    destinationPort: item["Destination Port"],
+    standardizedDestination: item["Destination Port"] ? item["Destination Port"].trim() : undefined,
+    productionPlatform: undefined,
+    volumeBbls: item.Unit === 'gal' ? (item.Qty || 0) / 42 : (item.Qty || 0),
+    isReturn: (item.Remarks || '').toLowerCase().includes('return'),
+    monthNumber: (parseDate(item["Start Date"]) || new Date()).getMonth() + 1,
+    year: (parseDate(item["Start Date"]) || new Date()).getFullYear(),
+    monthName: (parseDate(item["Start Date"]) || new Date()).toLocaleString('default', { month: 'long' }),
+    monthYear: (parseDate(item["Start Date"]) || new Date()).toISOString().substring(0, 7),
+    remarks: item.Remarks,
+    tank: item.Tank
+  }));
+};
+
+// ===================== HELPER FUNCTIONS =====================
+
+const createFacilitiesMap = (facilities: MasterFacility[]): Map<string, MasterFacility> => {
+  const map = new Map<string, MasterFacility>();
+  for (const facility of facilities) {
+    map.set(facility.locationName.toLowerCase(), facility);
+  }
+  return map;
+};
+
+const createCostAllocationMap = (costAllocations: CostAllocation[]): Map<string, CostAllocation> => {
+  const map = new Map<string, CostAllocation>();
+  for (const costAlloc of costAllocations) {
+    map.set(costAlloc.lcNumber, costAlloc);
+  }
+  return map;
+};
+
+const parseDate = (dateStr: string | null | undefined): Date => {
+  if (!dateStr) return new Date();
+  
+  try {
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+    return new Date();
+  } catch (error) {
+    console.warn(`Error parsing date: ${dateStr}`, error);
+    return new Date();
+  }
+};
+
+const getWeekNumber = (date: Date): number => {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+};
+
+const getMonthNumber = (month: string): number => {
+  const monthMap: {[key: string]: number} = {
+    jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+    jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12
+  };
+  
+  return monthMap[month.toLowerCase().substring(0, 3)] || 1;
+};
+
+const classifyActivity = (
+  parentEvent: string | null,
+  event: string | null
+): "Productive" | "Non-Productive" | "Uncategorized" => {
+  if (!parentEvent) return "Uncategorized";
+  
+  if (!event) {
+    const productiveParentEvents = [
+      "End Voyage", "Standby inside 500m zone", "Standby Inside 500m zone",
+      "Standby - Close", "Cargo Ops", "Marine Trial"
+    ];
+    
+    const nonProductiveParentEvents = [
+      "Waiting on Weather", "Waiting on Installation",
+      "Waiting on Quay", "Port or Supply Base closed"
+    ];
+    
+    if (productiveParentEvents.includes(parentEvent)) {
+      return "Productive";
+    } else if (nonProductiveParentEvents.includes(parentEvent)) {
+      return "Non-Productive";
+    } else {
+      return "Uncategorized";
+    }
+  }
+  
+  const productiveCombinations = [
+    "ROV Operations,ROV Operational duties",
+    "Cargo Ops,Load - Fuel, Water or Methanol",
+    "Cargo Ops,Offload - Fuel, Water or Methanol",
+    "Cargo Ops,Cargo Loading or Discharging",
+    "Cargo Ops,Simops ",
+    "Installation Productive Time,Bulk Displacement",
+    "Installation Productive Time,Floating Storage",
+    "Maintenance,Vessel Under Maintenance",
+    "Maintenance,Training",
+    "Marine Trial, ",
+    "Maneuvering,Shifting",
+    "Maneuvering,Set Up",
+    "Maneuvering,Pilotage",
+    "Standby,Close - Standby",
+    "Standby,Emergency Response Standby",
+    "Transit,Steam from Port",
+    "Transit,Steam to Port",
+    "Transit,Steam Infield",
+    "Transit,Enter 500 mtr zone Setup Maneuver",
+    "Stop the Job,Installation, Vessel, Supply Base",
+    "Standby,Standby - Close",
+    "Tank Cleaning,Tank Cleaning"
+  ];
+  
+  if (productiveCombinations.includes(`${parentEvent},${event}`)) {
+    return "Productive";
+  }
+  
+  const nonProductiveParentEvents = [
+    "Waiting on Weather", "Waiting on Installation",
+    "Waiting on Quay", "Port or Supply Base closed"
+  ];
+  
+  if (nonProductiveParentEvents.includes(parentEvent)) {
+    return "Non-Productive";
+  }
+  
+  return "Uncategorized";
+};
+
+// LC Allocation Processing (simplified version)
+interface LCAllocation {
+  lcNumber: string;
+  percentage: number;
+  originalLocation: string | null;
+  mappedLocation: string;
+  department: "Drilling" | "Production" | "Logistics" | null;
+  isSpecialCase: boolean;
+}
+
+const processLCAllocations = (
+  costDedicatedTo: string | null | undefined,
+  location: string,
+  parentEvent: string | null,
+  event: string | null,
+  remarks: string | null | undefined,
+  portType: string,
+  facilitiesMap: Map<string, MasterFacility>,
+  costAllocationMap: Map<string, CostAllocation>
+): LCAllocation[] => {
+  // Default allocation if no LC info
+  if (!costDedicatedTo) {
+    if (location === "Fourchon" && portType === "base") {
+      return [{
+        lcNumber: "AUTO",
+        percentage: 100,
+        originalLocation: "Fourchon",
+        mappedLocation: "Fourchon",
+        department: "Logistics",
+        isSpecialCase: true
+      }];
+    }
+    
+    return [{
+      lcNumber: "",
+      percentage: 100,
+      originalLocation: null,
+      mappedLocation: location,
+      department: null,
+      isSpecialCase: false
+    }];
+  }
+  
+  // Simple LC processing - single LC with 100%
+  const lcNumber = costDedicatedTo.split(' ')[0];
+  const costAlloc = costAllocationMap.get(lcNumber);
+  
+  return [{
+    lcNumber,
+    percentage: 100,
+    originalLocation: costAlloc?.locationReference || null,
+    mappedLocation: costAlloc?.locationReference || location,
+    department: costAlloc?.department || null,
+    isSpecialCase: false
+  }];
+};
+
+// Simplified helper functions
+const processMappedLocationForManifest = (
+  costCode: string | undefined,
+  from: string,
+  offshoreLocation: string,
+  remarks: string | undefined,
+  facilitiesMap: Map<string, MasterFacility>,
+  costAllocationMap: Map<string, CostAllocation>
+): { mappedLocation: string, department: "Drilling" | "Production" | "Logistics" | null } => {
+  if (costCode && costAllocationMap.has(costCode)) {
+    const costAlloc = costAllocationMap.get(costCode)!;
+    return {
+      mappedLocation: costAlloc.locationReference,
+      department: costAlloc.department || null // Convert undefined to null, then we'll convert back to undefined in the calling function
+    };
+  }
+  
+  return {
+    mappedLocation: offshoreLocation,
+    department: null
+  };
+};
+
+const createStandardizedVoyageId = (voyageId: number, manifestDate: Date): string => {
+  const year = manifestDate.getFullYear();
+  const month = String(manifestDate.getMonth() + 1).padStart(2, '0');
+  const paddedVoyageId = String(voyageId).padStart(3, '0');
+  return `${year}-${month}-UNKNOWN-${paddedVoyageId}`;
+};
+
+const createStandardizedVoyageIdFromVoyage = (voyage: RawVoyageList): string => {
+  const monthNumber = getMonthNumber(voyage.Month);
+  const paddedMonth = String(monthNumber).padStart(2, '0');
+  const vesselNoSpaces = voyage.Vessel.replace(/\s+/g, '');
+  const paddedVoyageNumber = String(voyage["Voyage Number"]).padStart(3, '0');
+  return `${voyage.Year}-${paddedMonth}-${vesselNoSpaces}-${paddedVoyageNumber}`;
+};
+
+const determineCargoType = (
+  deckTons: number,
+  rtTons: number,
+  wetBulkBbls: number,
+  wetBulkGals: number,
+  lifts: number
+): "Deck Cargo" | "Below Deck Cargo" | "Liquid Bulk" | "Lift Only" | "Other/Mixed" => {
+  if (deckTons > 0) return "Deck Cargo";
+  if (rtTons > 0) return "Below Deck Cargo";
+  if (wetBulkBbls > 0 || wetBulkGals > 0) return "Liquid Bulk";
+  if (lifts > 0 && deckTons === 0 && rtTons === 0) return "Lift Only";
+  return "Other/Mixed";
+};
+
+const includesProductionLocation = (locations: string[]): boolean => {
+  const productionLocations = [
+    "Atlantis PQ", "Na Kika", "Mad Dog Prod", 
+    "Thunder Horse PDQ", "Thunder Horse Prod", "Mad Dog"
+  ];
+  
+  return locations.some(location => 
+    productionLocations.some(prodLoc => location.includes(prodLoc))
+  );
+};
+
+const includesDrillingLocation = (locations: string[]): boolean => {
+  const drillingLocations = [
+    "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean Blackhornet",
+    "Ocean BlackLion", "Stena IceMAX", "Ocean Blacktip", "Island Venture",
+    "Argos", "Deepwater Invictus"
+  ];
+  
+  return locations.some(location => 
+    drillingLocations.some(drillLoc => location.includes(drillLoc))
+  );
+};
+
+const determineVoyagePurpose = (locations: string[]): "Production" | "Drilling" | "Mixed" | "Other" => {
+  const hasProduction = includesProductionLocation(locations);
+  const hasDrilling = includesDrillingLocation(locations);
+  
+  if (hasProduction && hasDrilling) return "Mixed";
+  if (hasProduction) return "Production";
+  if (hasDrilling) return "Drilling";
+  return "Other";
+};
+
+const inferDepartmentFromDescription = (description: string | undefined): "Drilling" | "Production" | "Logistics" | undefined => {
+  if (!description) return undefined;
+  
+  const desc = description.toLowerCase();
+  if (desc.includes('drill')) return "Drilling";
+  if (desc.includes('production') || desc.includes('prod')) return "Production";
+  if (desc.includes('logistics') || desc.includes('fourchon')) return "Logistics";
+  
+  return undefined;
+};
+
+const inferCompanyFromVessel = (vesselName: string): string => {
+  const name = vesselName.toLowerCase();
+  if (name.includes('hos')) return 'Hornbeck';
+  if (name.includes('chouest')) return 'Edison Chouest';
+  if (name.includes('harvey')) return 'Harvey Gulf';
+  if (name.includes('seacor')) return 'Seacor';
+  return 'Unknown';
+};
+
+const inferVesselType = (vesselName: string): string => {
+  const name = vesselName.toLowerCase();
+  if (name.includes('fsv') || name.includes('fast')) return 'FSV';
+  if (name.includes('osv')) return 'OSV';
+  return 'Other';
+};
+
+const createEmptyManifest = (index: number, originalManifest: RawVesselManifest): VesselManifest => {
+  return {
+    id: `manifest-error-${index}`,
+    voyageId: String(originalManifest["Voyage Id"] || 0),
+    standardizedVoyageId: '',
+    manifestNumber: originalManifest["Manifest Number"] || '',
+    transporter: originalManifest.Transporter || '',
+    from: originalManifest.From || '',
+    offshoreLocation: originalManifest["Offshore Location"] || '',
+    mappedLocation: '',
+    deckLbs: 0,
+    deckTons: 0,
+    rtTons: 0,
+    lifts: 0,
+    wetBulkBbls: 0,
+    wetBulkGals: 0,
+    deckSqft: 0,
+    manifestDate: new Date(),
+    manifestDateOnly: new Date(),
+    month: '',
+    monthNumber: 0,
+    quarter: '',
+    year: originalManifest.Year || new Date().getFullYear(),
+    costCode: originalManifest["Cost Code"],
+    finalDepartment: undefined, // Changed from null to undefined
+    cargoType: "Other/Mixed",
+    remarks: originalManifest.Remarks,
+    company: 'Unknown',
+    vesselType: 'Other'
+  };
+};
