@@ -1,65 +1,211 @@
-import React from 'react';
-import './DashboardLayout.css';
+import React, { useState, useEffect } from 'react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-const BPLogo: React.FC = () => (
-  <svg width="60" height="60" viewBox="0 0 100 100" className="bp-logo">
-    <defs>
-      <linearGradient id="bpGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFCB05" />
-        <stop offset="50%" stopColor="#FFD700" />
-        <stop offset="100%" stopColor="#FFA500" />
-      </linearGradient>
-    </defs>
-    
-    {/* BP Helios Sun rays */}
-    <g transform="translate(50,50)">
-      {/* Outer rays */}
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(0)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(45)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(90)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(135)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(180)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(225)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(270)" />
-      <path d="M0,-40 L5,-25 L-5,-25 Z" fill="url(#bpGradient)" transform="rotate(315)" />
-      
-      {/* Inner rays */}
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(22.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(67.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(112.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(157.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(202.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(247.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(292.5)" />
-      <path d="M0,-30 L3,-18 L-3,-18 Z" fill="#00914F" transform="rotate(337.5)" />
-      
-      {/* Center circle */}
-      <circle r="12" fill="#00914F" />
-    </g>
-  </svg>
-);
-
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <div className="dashboard-layout">
-      <header className="dashboard-header">
-        <div className="header-content">
-          <div className="header-brand">
-            <BPLogo />
-            <div className="brand-text">
-              <h1 className="dashboard-title">BP Logistics Dashboard</h1>
-              <p className="dashboard-subtitle">Offshore Vessel Operations Analytics</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Background Pattern */}
+      <div className="fixed inset-0 bg-gradient-to-br from-gray-100 to-gray-50 opacity-5 pointer-events-none" />
+      
+      {/* Header */}
+      <header className="bg-white shadow-lg relative z-20">
+        <div className="border-b-4 border-green-600">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              {/* Left Section - Logo */}
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-14 h-14 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center shadow-md">
+                    <span className="text-white font-bold text-2xl">bp</span>
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Logistics Analytics
+                  </h1>
+                  <p className="text-sm text-gray-600">
+                    Offshore Vessel Operations
+                  </p>
+                </div>
+              </div>
+
+              {/* Center Section - Navigation */}
+              <nav className="hidden md:flex items-center gap-8">
+                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                  Dashboard
+                </button>
+                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                  Analytics
+                </button>
+                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                  Reports
+                </button>
+                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                  Settings
+                </button>
+              </nav>
+
+              {/* Right Section - User Info */}
+              <div className="flex items-center gap-6">
+                <div className="text-right hidden lg:block">
+                  <p className="text-sm font-medium text-gray-900">
+                    {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button className="p-2 hover:bg-gray-100 rounded-md transition-colors">
+                    <svg className="w-5 h-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                    </svg>
+                  </button>
+                  <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center text-white font-semibold">
+                    <span>JD</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-header with breadcrumb */}
+        <div className="bg-gray-50 border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-500">Home</span>
+                <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-gray-700 font-medium">Dashboard</span>
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2">
+                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm hover:bg-gray-50 transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Export
+                </button>
+                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
+                  </svg>
+                  New Report
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </header>
-      <main className="dashboard-main">
-        {children}
+      
+      {/* Main Content */}
+      <main className="relative z-10">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Performance Metrics Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-green-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Active Vessels</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">24</p>
+                  <p className="text-xs text-green-600 mt-1">+12% from last month</p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-md flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M12 17v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-blue-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Total Cargo</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">157K MT</p>
+                  <p className="text-xs text-blue-600 mt-1">98.5% capacity</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-md flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" stroke="currentColor" strokeWidth="2"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-yellow-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Efficiency Rate</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">87.3%</p>
+                  <p className="text-xs text-yellow-600 mt-1">Above target</p>
+                </div>
+                <div className="w-12 h-12 bg-yellow-100 rounded-md flex items-center justify-center">
+                  <svg className="w-6 h-6 text-yellow-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-gray-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Cost Savings</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">$2.4M</p>
+                  <p className="text-xs text-green-600 mt-1">This quarter</p>
+                </div>
+                <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Main Content Area */}
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            {children}
+          </div>
+        </div>
       </main>
+      
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-auto">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center gap-6">
+              <span>© 2024 BP p.l.c.</span>
+              <a href="#" className="hover:text-green-600 transition-colors">Privacy</a>
+              <a href="#" className="hover:text-green-600 transition-colors">Terms</a>
+              <a href="#" className="hover:text-green-600 transition-colors">Support</a>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+              <span>All systems operational</span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
