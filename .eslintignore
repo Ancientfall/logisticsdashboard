@@ -1,0 +1,16 @@
+# Config files
+postcss.config.js
+tailwind.config.js
+config/webpack.config.js
+config/**/*.js
+
+# Build output
+build/
+dist/
+
+# Dependencies
+node_modules/
+
+# Production
+*.min.js
+*.min.css
