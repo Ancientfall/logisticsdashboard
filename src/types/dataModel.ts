@@ -3,6 +3,14 @@
 // ===================== RAW DATA INTERFACES =====================
 // These match the structure of the Excel files
 
+export interface RawVesselClassification {
+  [key: string]: any; // Placeholder - structure to be defined
+}
+
+export interface RawBulkAction {
+  [key: string]: any; // Placeholder - structure to be defined
+}
+
 export interface RawVoyageEvent {
   Vessel: string;
   "Voyage #": number;
@@ -278,6 +286,8 @@ export interface DataStore {
     vesselManifests: RawVesselManifest[];
     masterFacilities: RawMasterFacility[];
     costAllocation: RawCostAllocation[];
+    vesselClassifications?: RawVesselClassification[];
+    bulkActions?: RawBulkAction[];
   };
   
   // Processed data after transformations

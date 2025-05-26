@@ -1,5 +1,6 @@
 // src/utils/dataProcessing.ts
 import * as XLSX from 'xlsx';
+import { DataStore } from '../types/dataModel';
 import { 
   VoyageEvent, 
   VesselManifest, 
@@ -7,7 +8,10 @@ import {
   CostAllocation,
   VesselClassification,
   VoyageList,
-  BulkAction 
+  BulkAction,
+  KPIMetrics,
+  DateRange,
+  DashboardFilters 
 } from '../types';
 
 // ===================== RAW DATA INTERFACES =====================
@@ -87,8 +91,21 @@ interface RawVoyageList {
   Locations: string;
 }
 
-// ===================== PROCESSING RESULTS INTERFACE =====================
+// ===================== PROCESSING OPTIONS & RESULTS =====================
 
+// Processing options interface
+interface ProcessingOptions {
+  voyageEventsFile: File | null;
+  voyageListFile: File | null;
+  vesselManifestsFile: File | null;
+  masterFacilitiesFile: File | null;
+  costAllocationFile: File | null;
+  vesselClassificationsFile?: File | null;
+  bulkActionsFile?: File | null;
+  useMockData?: boolean;
+}
+
+// Processing results interface
 export interface ProcessingResults {
   voyageEvents: VoyageEvent[];
   vesselManifests: VesselManifest[];
@@ -97,49 +114,121 @@ export interface ProcessingResults {
   vesselClassifications: VesselClassification[];
   voyageList: VoyageList[];
   bulkActions: BulkAction[];
+  metrics: KPIMetrics;
+  errors: string[];
+  warnings: string[];
 }
 
 // ===================== MAIN PROCESSING FUNCTION =====================
 
 /**
- * Process Excel files and return structured data arrays
+ * Process Excel files and return a data store
  */
-export const processExcelFiles = async (
-  voyageEventsFile: File,
-  vesselManifestsFile: File,
-  masterFacilitiesFile: File,
-  costAllocationFile: File,
-  voyageListFile?: File,
-  vesselClassificationsFile?: File,
-  bulkActionsFile?: File
-): Promise<ProcessingResults> => {
+export const processExcelFiles = async (options: ProcessingOptions): Promise<ProcessingResults & { metrics: KPIMetrics; dateRange: DateRange; filters: DashboardFilters }> => {
+  const {
+    voyageEventsFile,
+    voyageListFile,
+    vesselManifestsFile,
+    masterFacilitiesFile,
+    costAllocationFile,
+    vesselClassificationsFile,
+    bulkActionsFile,
+    useMockData = false
+  } = options;
+
+  // If using mock data, return mock data store
+  if (useMockData) {
+    return createMockDataStore();
+  }
+
+  // Validate files
+  if (!voyageEventsFile || !masterFacilitiesFile || !costAllocationFile) {
+    throw new Error('All required files must be provided');
+  }
+
+  try {
+    // Process files
+    const results = await processFiles({
+      voyageEventsFile,
+      voyageListFile,
+      vesselManifestsFile,
+      masterFacilitiesFile,
+      costAllocationFile,
+      vesselClassificationsFile,
+      bulkActionsFile
+    });
+
+    // Calculate metrics
+    const metrics = calculateMetrics(
+      results.voyageEvents,
+      results.vesselManifests
+    );
+
+    // Create data store
+    return {
+      voyageEvents: results.voyageEvents,
+      vesselManifests: results.vesselManifests,
+      masterFacilities: results.masterFacilities,
+      costAllocation: results.costAllocation,
+      vesselClassifications: results.vesselClassifications,
+      voyageList: results.voyageList,
+      bulkActions: results.bulkActions,
+      metrics,
+      errors: results.errors,
+      warnings: results.warnings,
+      dateRange: getDateRange(results.voyageEvents),
+      filters: getDefaultFilters()
+    };
+  } catch (error) {
+    console.error('Error processing files:', error);
+    throw error;
+  }
+};
+
+/**
+ * Process all Excel files and return processed data
+ */
+const processFiles = async (files: {
+  voyageEventsFile: File | null;
+  voyageListFile: File | null;
+  vesselManifestsFile: File | null;
+  masterFacilitiesFile: File | null;
+  costAllocationFile: File | null;
+  vesselClassificationsFile?: File | null;
+  bulkActionsFile?: File | null;
+}): Promise<ProcessingResults> => {
   try {
     console.log('Starting Excel file processing...');
 
     // Read all required Excel files
-    const [
-      rawVoyageEvents,
-      rawVesselManifests,
-      rawMasterFacilities,
-      rawCostAllocation
-    ] = await Promise.all([
-      readExcelFile<RawVoyageEvent>(voyageEventsFile),
-      readExcelFile<RawVesselManifest>(vesselManifestsFile),
-      readExcelFile<RawMasterFacility>(masterFacilitiesFile),
-      readExcelFile<RawCostAllocation>(costAllocationFile)
-    ]);
+    const voyageEventsFile = files.voyageEventsFile!;
+    const masterFacilitiesFile = files.masterFacilitiesFile!;
+    const costAllocationFile = files.costAllocationFile!;
+    
+    // Read required Excel files
+    const rawVoyageEvents = await readExcelFile<RawVoyageEvent>(voyageEventsFile);
+    const rawMasterFacilities = await readExcelFile<RawMasterFacility>(masterFacilitiesFile);
+    const rawCostAllocation = await readExcelFile<RawCostAllocation>(costAllocationFile);
+    
+    // Read optional files with null checks
+    const rawVesselManifests = files.vesselManifestsFile ? 
+      await readExcelFile<RawVesselManifest>(files.vesselManifestsFile) : [];
+    const rawVoyageList = files.voyageListFile ? 
+      await readExcelFile<RawVoyageList>(files.voyageListFile) : [];
+    const rawVesselClassifications = files.vesselClassificationsFile ? 
+      await readExcelFile<any>(files.vesselClassificationsFile) : [];
+    const rawBulkActions = files.bulkActionsFile ? 
+      await readExcelFile<any>(files.bulkActionsFile) : [];
 
     console.log('Excel files read successfully:', {
       voyageEvents: rawVoyageEvents.length,
       vesselManifests: rawVesselManifests.length,
       masterFacilities: rawMasterFacilities.length,
-      costAllocation: rawCostAllocation.length
+      costAllocation: rawCostAllocation.length,
+      voyageList: rawVoyageList.length,
+      vesselClassifications: rawVesselClassifications.length,
+      bulkActions: rawBulkActions.length
     });
-
-    // Read optional files
-    const rawVoyageList = voyageListFile ? await readExcelFile<RawVoyageList>(voyageListFile) : [];
-    const rawVesselClassifications = vesselClassificationsFile ? await readExcelFile<any>(vesselClassificationsFile) : [];
-    const rawBulkActions = bulkActionsFile ? await readExcelFile<any>(bulkActionsFile) : [];
 
     // Process reference data first (needed for lookups)
     const masterFacilities = processMasterFacilities(rawMasterFacilities);
@@ -173,11 +262,42 @@ export const processExcelFiles = async (
       costAllocation,
       vesselClassifications,
       voyageList,
-      bulkActions
+      bulkActions,
+      metrics: {
+        totalOffshoreTime: 0,
+        totalOnshoreTime: 0,
+        productiveHours: 0,
+        nonProductiveHours: 0,
+        drillingHours: 0,
+        drillingNPTHours: 0,
+        drillingNPTPercentage: 0,
+        drillingCargoOpsHours: 0,
+        waitingTimeOffshore: 0,
+        waitingTimePercentage: 0,
+        weatherWaitingHours: 0,
+        installationWaitingHours: 0,
+        cargoOpsHours: 0,
+        liftsPerCargoHour: 0,
+        totalLifts: 0,
+        totalDeckTons: 0,
+        totalRTTons: 0,
+        vesselUtilizationRate: 0,
+        averageTripDuration: 0,
+        cargoTonnagePerVisit: 0,
+        momChanges: {
+          waitingTimePercentage: 0,
+          cargoOpsHours: 0,
+          liftsPerCargoHour: 0,
+          drillingNPTPercentage: 0,
+          vesselUtilizationRate: 0
+        }
+      },
+      errors: [],
+      warnings: []
     };
 
   } catch (error) {
-    console.error('Error processing Excel files:', error);
+    console.error('Error processing files:', error);
     throw new Error(`Failed to process Excel files: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
@@ -441,7 +561,7 @@ const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => {
   });
 };
 
-// ===================== PLACEHOLDER PROCESSORS FOR OPTIONAL DATA =====================
+// ===================== OPTIONAL DATA PROCESSORS =====================
 
 const processVesselClassifications = (rawData: any[]): VesselClassification[] => {
   return rawData.map((item, index) => ({
@@ -487,6 +607,114 @@ const processBulkActions = (rawData: any[]): BulkAction[] => {
     remarks: item.Remarks,
     tank: item.Tank
   }));
+};
+
+// ===================== METRICS CALCULATION =====================
+
+/**
+ * Calculate KPI metrics from processed data
+ */
+const calculateMetrics = (
+  voyageEvents: VoyageEvent[],
+  vesselManifests: VesselManifest[]
+): KPIMetrics => {
+  // Default time period (current month)
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  
+  // Filter for current month
+  const currentMonthEvents = voyageEvents.filter(event => 
+    event.eventDate.getMonth() === currentMonth && 
+    event.eventDate.getFullYear() === currentYear
+  );
+  
+  // Filter for previous month
+  const prevMonthEvents = voyageEvents.filter(event => {
+    const date = event.eventDate;
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    return date.getMonth() === prevMonth && date.getFullYear() === prevYear;
+  });
+  
+  // Calculate current month metrics
+  const totalOffshoreTime = calculateTotalHours(currentMonthEvents.filter(e => e.portType === 'rig'));
+  const totalOnshoreTime = calculateTotalHours(currentMonthEvents.filter(e => e.portType === 'base'));
+  const productiveHours = calculateTotalHours(currentMonthEvents.filter(e => e.activityCategory === 'Productive'));
+  const nonProductiveHours = calculateTotalHours(currentMonthEvents.filter(e => e.activityCategory === 'Non-Productive'));
+  
+  // Drilling metrics
+  const drillingEvents = currentMonthEvents.filter(e => e.department === 'Drilling');
+  const drillingHours = calculateTotalHours(drillingEvents);
+  const drillingNPTHours = calculateTotalHours(drillingEvents.filter(e => e.activityCategory === 'Non-Productive'));
+  const drillingNPTPercentage = drillingHours > 0 ? (drillingNPTHours / drillingHours) * 100 : 0;
+  const drillingCargoOpsHours = calculateTotalHours(drillingEvents.filter(e => e.parentEvent === 'Cargo Ops'));
+  
+  // Waiting time metrics
+  const waitingTimeOffshore = calculateTotalHours(currentMonthEvents.filter(e => 
+    e.portType === 'rig' && e.parentEvent === 'Waiting on Installation'
+  ));
+  const waitingTimePercentage = totalOffshoreTime > 0 ? (waitingTimeOffshore / totalOffshoreTime) * 100 : 0;
+  const weatherWaitingHours = calculateTotalHours(currentMonthEvents.filter(e => e.parentEvent === 'Waiting on Weather'));
+  const installationWaitingHours = calculateTotalHours(currentMonthEvents.filter(e => e.parentEvent === 'Waiting on Installation'));
+  
+  // Cargo metrics
+  const cargoOpsHours = calculateTotalHours(currentMonthEvents.filter(e => e.parentEvent === 'Cargo Ops'));
+  const totalLifts = vesselManifests.reduce((sum, manifest) => sum + manifest.lifts, 0);
+  const liftsPerCargoHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
+  const totalDeckTons = vesselManifests.reduce((sum, manifest) => sum + manifest.deckTons, 0);
+  const totalRTTons = vesselManifests.reduce((sum, manifest) => sum + manifest.rtTons, 0);
+  
+  // Efficiency metrics
+  const vesselUtilizationRate = (totalOffshoreTime + totalOnshoreTime) > 0 ? 
+    (productiveHours / (totalOffshoreTime + totalOnshoreTime)) * 100 : 0;
+  const averageTripDuration = calculateAverageTripDuration(voyageEvents);
+  const cargoTonnagePerVisit = vesselManifests.length > 0 ? 
+    (totalDeckTons + totalRTTons) / vesselManifests.length : 0;
+  
+  // Calculate previous month metrics
+  const prevTotalOffshoreTime = calculateTotalHours(prevMonthEvents.filter(e => e.portType === 'rig'));
+  const prevWaitingTimeOffshore = calculateTotalHours(prevMonthEvents.filter(e => 
+    e.portType === 'rig' && e.parentEvent === 'Waiting on Installation'
+  ));
+  const prevWaitingTimePercentage = prevTotalOffshoreTime > 0 ? 
+    (prevWaitingTimeOffshore / prevTotalOffshoreTime) * 100 : 0;
+  const prevCargoOpsHours = calculateTotalHours(prevMonthEvents.filter(e => e.parentEvent === 'Cargo Ops'));
+  
+  // Month-over-month changes
+  const waitingTimePercentageMoM = waitingTimePercentage - prevWaitingTimePercentage;
+  const cargoOpsHoursMoM = prevCargoOpsHours > 0 ? 
+    ((cargoOpsHours - prevCargoOpsHours) / prevCargoOpsHours) * 100 : 0;
+  
+  return {
+    totalOffshoreTime,
+    totalOnshoreTime,
+    productiveHours,
+    nonProductiveHours,
+    drillingHours,
+    drillingNPTHours,
+    drillingNPTPercentage,
+    drillingCargoOpsHours,
+    waitingTimeOffshore,
+    waitingTimePercentage,
+    weatherWaitingHours,
+    installationWaitingHours,
+    cargoOpsHours,
+    liftsPerCargoHour,
+    totalLifts,
+    totalDeckTons,
+    totalRTTons,
+    vesselUtilizationRate,
+    averageTripDuration,
+    cargoTonnagePerVisit,
+    momChanges: {
+      waitingTimePercentage: waitingTimePercentageMoM,
+      cargoOpsHours: cargoOpsHoursMoM,
+      liftsPerCargoHour: 0, // Would need previous month manifests
+      drillingNPTPercentage: 0, // Would need previous month calculation
+      vesselUtilizationRate: 0 // Would need previous month calculation
+    }
+  };
 };
 
 // ===================== HELPER FUNCTIONS =====================
@@ -797,10 +1025,127 @@ const createEmptyManifest = (index: number, originalManifest: RawVesselManifest)
     quarter: '',
     year: originalManifest.Year || new Date().getFullYear(),
     costCode: originalManifest["Cost Code"],
-    finalDepartment: undefined, // Changed from null to undefined
+    finalDepartment: undefined,
     cargoType: "Other/Mixed",
     remarks: originalManifest.Remarks,
     company: 'Unknown',
     vesselType: 'Other'
+  };
+};
+
+const calculateTotalHours = (events: VoyageEvent[]): number => {
+  return Number(events.reduce((sum, event) => sum + event.finalHours, 0).toFixed(1));
+};
+
+const calculateAverageTripDuration = (events: VoyageEvent[]): number => {
+  // Group by mission to get all events for each voyage
+  const missionMap = new Map<string, VoyageEvent[]>();
+  events.forEach(event => {
+    if (!missionMap.has(event.mission)) {
+      missionMap.set(event.mission, []);
+    }
+    missionMap.get(event.mission)!.push(event);
+  });
+  
+  // Calculate the duration of each mission
+  const durations: number[] = [];
+  missionMap.forEach(missionEvents => {
+    // Find earliest and latest timestamps
+    const timestamps = missionEvents.flatMap(event => [event.from.getTime(), event.to.getTime()]);
+    if (timestamps.length > 0) {
+      const earliest = Math.min(...timestamps);
+      const latest = Math.max(...timestamps);
+      const durationHours = (latest - earliest) / (1000 * 60 * 60);
+      durations.push(durationHours);
+    }
+  });
+  
+  // Calculate average
+  return durations.length > 0 
+    ? Number((durations.reduce((sum, duration) => sum + duration, 0) / durations.length).toFixed(1))
+    : 0;
+};
+
+const getDateRange = (voyageEvents: VoyageEvent[]): DateRange => {
+  if (voyageEvents.length === 0) {
+    return {
+      startDate: new Date(new Date().getFullYear(), 0, 1), // January 1st of current year
+      endDate: new Date()
+    };
+  }
+  
+  const dates = voyageEvents.flatMap(event => [event.from, event.to]);
+  const startDate = new Date(Math.min(...dates.map(date => date.getTime())));
+  const endDate = new Date(Math.max(...dates.map(date => date.getTime())));
+  
+  return { startDate, endDate };
+};
+
+const getDefaultFilters = (): DashboardFilters => {
+  const now = new Date();
+  return {
+    selectedDepartment: 'Drilling',
+    selectedMonth: now.toISOString().slice(0, 7), // Current month in YYYY-MM format
+    selectedYear: now.getFullYear()
+  };
+};
+
+/**
+ * Create a mock data store for testing
+ */
+export const createMockDataStore = (): ProcessingResults & { metrics: KPIMetrics; dateRange: DateRange; filters: DashboardFilters } => {
+  // Create mock metrics
+  const metrics: KPIMetrics = {
+    totalOffshoreTime: 1250.5,
+    totalOnshoreTime: 450.3,
+    productiveHours: 950.2,
+    nonProductiveHours: 300.3,
+    drillingHours: 720.8,
+    drillingNPTHours: 180.5,
+    drillingNPTPercentage: 25.04,
+    drillingCargoOpsHours: 310.6,
+    waitingTimeOffshore: 220.4,
+    waitingTimePercentage: 17.62,
+    weatherWaitingHours: 90.3,
+    installationWaitingHours: 130.1,
+    cargoOpsHours: 410.7,
+    liftsPerCargoHour: 1.8,
+    totalLifts: 739,
+    totalDeckTons: 3250.6,
+    totalRTTons: 450.2,
+    vesselUtilizationRate: 76.5,
+    averageTripDuration: 48.2,
+    cargoTonnagePerVisit: 92.3,
+    momChanges: {
+      waitingTimePercentage: -2.3,
+      cargoOpsHours: 5.2,
+      liftsPerCargoHour: 0.3,
+      drillingNPTPercentage: -1.5,
+      vesselUtilizationRate: 3.1
+    }
+  };
+
+  // Create mock date range (last 6 months)
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 6);
+
+  // Create mock data store
+  return {
+    voyageEvents: [],
+    vesselManifests: [],
+    masterFacilities: [],
+    costAllocation: [],
+    vesselClassifications: [],
+    voyageList: [],
+    bulkActions: [],
+    metrics,
+    errors: [],
+    warnings: [],
+    dateRange: { startDate, endDate },
+    filters: {
+      selectedDepartment: 'Drilling',
+      selectedMonth: new Date().toISOString().slice(0, 7)
+    }
   };
 };

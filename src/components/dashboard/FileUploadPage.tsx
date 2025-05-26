@@ -1,387 +1,362 @@
 // src/components/dashboard/FileUploadPage.tsx
 import React, { useState, useCallback, useRef } from 'react';
-import { Upload, FileSpreadsheet, Database, Factory, CheckCircle, ArrowRight, AlertCircle, Loader2, Ship, DollarSign, Building, List } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
-import './FileUploadPage.css';
+import './FileUploadPage.css'; // Import your beautiful CSS
+
+// Mock data option for testing without file uploads
+const useMockData = false;
 
 const FileUploadPage: React.FC = () => {
-  console.log('FileUploadPage is mounting!');
-  
   const { 
-    setVoyageEvents, 
-    setVesselManifests, 
-    setMasterFacilities, 
+    setVoyageEvents,
+    setVesselManifests,
+    setMasterFacilities,
     setCostAllocation,
     setVesselClassifications,
     setVoyageList,
     setBulkActions,
-    setLoading, 
-    setError,
-    error
+    setIsDataReady,
+    setIsLoading,
+    setError
   } = useData();
-
+  
+  // Add drag state for styling
+  const [dragOver, setDragOver] = useState(false);
+  
   // File references
   const [files, setFiles] = useState<{
     voyageEvents: File | null;
+    voyageList: File | null;
     vesselManifests: File | null;
     masterFacilities: File | null;
     costAllocation: File | null;
-    voyageList: File | null;
-    vesselClassifications: File | null;
-    bulkActions: File | null;
   }>({
     voyageEvents: null,
+    voyageList: null,
     vesselManifests: null,
     masterFacilities: null,
-    costAllocation: null,
-    voyageList: null,
-    vesselClassifications: null,
-    bulkActions: null
+    costAllocation: null
   });
-
-  // UI State
-  const [dragOver, setDragOver] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   
-  // File input refs
+  
+  // Processing status
+  const [processingStatus, setProcessingStatus] = useState<
+    'idle' | 'processing' | 'success' | 'error'
+  >('idle');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // File input refs for browse button
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Check if required files are uploaded
-  const requiredFilesUploaded = !!(files.voyageEvents && files.vesselManifests && files.masterFacilities && files.costAllocation);
-  const uploadedCount = Object.values(files).filter(Boolean).length;
-
-  // Helper function to get the appropriate icon based on uploaded files
-  const getUploadIcon = () => {
-    if (processingStatus === 'processing') {
-      return <Loader2 className="upload-icon spinning" />;
-    }
-    if (processingStatus === 'success') {
-      return <CheckCircle className="upload-icon success" />;
-    }
-    
-    // Show specific icons based on which files are uploaded
-    if (files.voyageEvents && !files.vesselManifests && !files.masterFacilities && !files.costAllocation) {
-      return <Ship className="upload-icon voyage-icon" />;
-    }
-    if (files.costAllocation && !files.voyageEvents && !files.vesselManifests && !files.masterFacilities) {
-      return <DollarSign className="upload-icon cost-icon" />;
-    }
-    if (files.masterFacilities && !files.voyageEvents && !files.vesselManifests && !files.costAllocation) {
-      return <Factory className="upload-icon facility-icon" />;
-    }
-    if (files.vesselManifests && !files.voyageEvents && !files.masterFacilities && !files.costAllocation) {
-      return <FileSpreadsheet className="upload-icon manifest-icon" />;
-    }
-    if (files.voyageList && !files.voyageEvents && !files.vesselManifests && !files.masterFacilities && !files.costAllocation) {
-      return <List className="upload-icon list-icon" />;
-    }
-    
-    // Multiple files or default
-    if (uploadedCount > 1) {
-      return <Database className="upload-icon multi-files" />;
-    }
-    
-    return <Upload className="upload-icon" />;
-  };
-
+  
   // Handle file change
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('File change triggered');
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: keyof typeof files) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFiles = Array.from(e.target.files);
-      console.log('Files selected:', selectedFiles.map(f => f.name));
+      const file = e.target.files[0];
       
-      // Process each file and try to match it to the correct type
-      selectedFiles.forEach(file => {
-        const fileName = file.name.toLowerCase();
-        
-        if (fileName.includes('voyage') && fileName.includes('event')) {
-          setFiles(prev => ({ ...prev, voyageEvents: file }));
-        } else if (fileName.includes('vessel') && fileName.includes('manifest')) {
-          setFiles(prev => ({ ...prev, vesselManifests: file }));
-        } else if (fileName.includes('master') && fileName.includes('facilit')) {
-          setFiles(prev => ({ ...prev, masterFacilities: file }));
-        } else if (fileName.includes('cost') && fileName.includes('allocation')) {
-          setFiles(prev => ({ ...prev, costAllocation: file }));
-        } else if (fileName.includes('voyage') && fileName.includes('list')) {
-          setFiles(prev => ({ ...prev, voyageList: file }));
-        } else if (fileName.includes('vessel') && fileName.includes('classification')) {
-          setFiles(prev => ({ ...prev, vesselClassifications: file }));
-        } else if (fileName.includes('bulk') && fileName.includes('action')) {
-          setFiles(prev => ({ ...prev, bulkActions: file }));
-        } else {
-          // If we can't auto-detect, add to the first empty required slot
-          setFiles(prev => {
-            if (!prev.voyageEvents) return { ...prev, voyageEvents: file };
-            if (!prev.vesselManifests) return { ...prev, vesselManifests: file };
-            if (!prev.masterFacilities) return { ...prev, masterFacilities: file };
-            if (!prev.costAllocation) return { ...prev, costAllocation: file };
-            return prev;
-          });
-        }
-      });
+      // Validate file type
+      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.csv')) {
+        setErrorMessage(`${fileType} file must be an Excel or CSV file`);
+        return;
+      }
       
-      setError(null);
+      // Update files state
+      setFiles(prev => ({
+        ...prev,
+        [fileType]: file
+      }));
     }
   };
-
-  // Drag and drop handlers
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    console.log('Files dropped');
-    e.preventDefault();
-    setDragOver(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      console.log('Dropped files:', droppedFiles.map(f => f.name));
-      
-      // Process dropped files the same way as selected files
-      droppedFiles.forEach(file => {
-        if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.csv')) {
-          setError(`File ${file.name} must be an Excel or CSV file`);
-          return;
-        }
-        
-        const fileName = file.name.toLowerCase();
-        
-        if (fileName.includes('voyage') && fileName.includes('event')) {
-          setFiles(prev => ({ ...prev, voyageEvents: file }));
-        } else if (fileName.includes('vessel') && fileName.includes('manifest')) {
-          setFiles(prev => ({ ...prev, vesselManifests: file }));
-        } else if (fileName.includes('master') && fileName.includes('facilit')) {
-          setFiles(prev => ({ ...prev, masterFacilities: file }));
-        } else if (fileName.includes('cost') && fileName.includes('allocation')) {
-          setFiles(prev => ({ ...prev, costAllocation: file }));
-        } else if (fileName.includes('voyage') && fileName.includes('list')) {
-          setFiles(prev => ({ ...prev, voyageList: file }));
-        } else if (fileName.includes('vessel') && fileName.includes('classification')) {
-          setFiles(prev => ({ ...prev, vesselClassifications: file }));
-        } else if (fileName.includes('bulk') && fileName.includes('action')) {
-          setFiles(prev => ({ ...prev, bulkActions: file }));
-        }
-      });
-      
-      setError(null);
-    }
-  }, [setError]);
-
+  
+  // Reset file input
+  const resetFileInput = (fileType: keyof typeof files) => {
+    setFiles(prev => ({
+      ...prev,
+      [fileType]: null
+    }));
+  };
+  
   // Process files
   const processFiles = async () => {
-    console.log('Process files clicked!');
-    
-    // Check if all required files are uploaded
-    if (!files.voyageEvents || !files.vesselManifests || 
-        !files.masterFacilities || !files.costAllocation) {
-      setError('Please upload all required files (Voyage Events, Vessel Manifests, Master Facilities, Cost Allocation)');
-      return;
+    // Check if using mock data or if required files are uploaded
+    if (!useMockData) {
+      // Required files
+      if (!files.voyageEvents || !files.masterFacilities || !files.costAllocation) {
+        setErrorMessage('Voyage Events, Master Facilities, and Cost Allocation files are required');
+        return;
+      }
     }
     
     // Set loading state
     setProcessingStatus('processing');
-    setLoading(true);
-    setError(null);
+    setIsLoading(true);
+    setErrorMessage('');
     
     try {
-      console.log('Starting file processing...');
-      
       // Process Excel files
-      const results = await processExcelFiles(
-        files.voyageEvents,
-        files.vesselManifests,
-        files.masterFacilities,
-        files.costAllocation,
-        files.voyageList || undefined,
-        files.vesselClassifications || undefined,
-        files.bulkActions || undefined
-      );
+      const dataStore = await processExcelFiles({
+        voyageEventsFile: files.voyageEvents,
+        voyageListFile: files.voyageList,
+        vesselManifestsFile: files.vesselManifests,
+        masterFacilitiesFile: files.masterFacilities,
+        costAllocationFile: files.costAllocation,
+        vesselClassificationsFile: null, // Optional
+        bulkActionsFile: null, // Optional
+        useMockData
+      });
       
-      console.log('Processing complete, updating context...');
+      // Update individual data arrays
+      setVoyageEvents(dataStore.voyageEvents);
+      setVesselManifests(dataStore.vesselManifests);
+      setMasterFacilities(dataStore.masterFacilities);
+      setCostAllocation(dataStore.costAllocation);
+      setVoyageList(dataStore.voyageList || []);
+      setVesselClassifications(dataStore.vesselClassifications || []);
+      setBulkActions(dataStore.bulkActions || []);
       
-      // Update data context
-      setVoyageEvents(results.voyageEvents);
-      setVesselManifests(results.vesselManifests);
-      setMasterFacilities(results.masterFacilities);
-      setCostAllocation(results.costAllocation);
-      setVesselClassifications(results.vesselClassifications);
-      setVoyageList(results.voyageList);
-      setBulkActions(results.bulkActions);
-      
+      setIsDataReady(true);
       setProcessingStatus('success');
-      console.log('Data context updated successfully');
-      
     } catch (error) {
       console.error('Error processing files:', error);
-      setError(`Error processing files: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMsg = `Error processing files: ${error instanceof Error ? error.message : String(error)}`;
+      setErrorMessage(errorMsg);
+      setError(errorMsg);
       setProcessingStatus('error');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
-
+  
+  // Drag and drop handlers with visual feedback
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+  
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+  
+  const handleDrop = useCallback((e: React.DragEvent, fileType: keyof typeof files) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      
+      // Validate file type
+      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.csv')) {
+        setErrorMessage(`${fileType} file must be an Excel or CSV file`);
+        return;
+      }
+      
+      // Update files state
+      setFiles(prev => ({
+        ...prev,
+        [fileType]: file
+      }));
+    }
+  }, []);
+  
   // Handle browse button click
   const handleBrowseClick = () => {
-    console.log('Browse button clicked - this should appear in console!');
     if (fileInputRef.current) {
-      console.log('File input found, triggering click');
       fileInputRef.current.click();
-    } else {
-      console.log('ERROR: File input ref is null');
     }
   };
-
+  
+  // Option to load mock data for testing
+  const handleShowMockData = () => {
+    processFiles();
+  };
+  
+  // Check if any files are uploaded
+  const anyFilesUploaded = Object.values(files).some(file => file !== null);
+  const allRequiredFilesUploaded = files.voyageEvents && files.masterFacilities && files.costAllocation;
+  
+  // Generate file input
+  const FileInput = ({ 
+    fileType, 
+    label,
+    required = false
+  }: { 
+    fileType: keyof typeof files; 
+    label: string;
+    required?: boolean;
+  }) => (
+    <div className={`requirement-item ${files[fileType] ? 'uploaded' : ''}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" className="req-icon" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+      </svg>
+      <span>{label}{required && ' *'}</span>
+      {files[fileType] ? (
+        <button 
+          onClick={() => resetFileInput(fileType)}
+          className="remove-file-btn"
+          title="Remove file"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className={`check-icon ${files[fileType] ? 'active' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+      )}
+    </div>
+  );
+  
   return (
     <div className="file-upload-container">
+      {/* BP Logo/Helios Animation */}
       <div className="upload-hero">
-        <div className="hero-icon">
-          <div className="bp-logo-container">
-            <div className="bp-logo">
-              <div className="bp-helios">
-                <div className="helios-ray helios-ray-1"></div>
-                <div className="helios-ray helios-ray-2"></div>
-                <div className="helios-ray helios-ray-3"></div>
-                <div className="helios-ray helios-ray-4"></div>
-                <div className="helios-ray helios-ray-5"></div>
-                <div className="helios-ray helios-ray-6"></div>
-                <div className="helios-ray helios-ray-7"></div>
-                <div className="helios-ray helios-ray-8"></div>
-                <div className="helios-center"></div>
-              </div>
+        <div className="bp-logo-container">
+          <div className="bp-logo">
+            <div className="bp-helios">
+              <div className="helios-ray helios-ray-1"></div>
+              <div className="helios-ray helios-ray-2"></div>
+              <div className="helios-ray helios-ray-3"></div>
+              <div className="helios-ray helios-ray-4"></div>
+              <div className="helios-ray helios-ray-5"></div>
+              <div className="helios-ray helios-ray-6"></div>
+              <div className="helios-ray helios-ray-7"></div>
+              <div className="helios-ray helios-ray-8"></div>
+              <div className="helios-center"></div>
             </div>
           </div>
         </div>
-        <h2 className="hero-title">BP Logistics Dashboard</h2>
-        <p className="hero-subtitle">
-          Transform your offshore vessel data into powerful insights and analytics
-        </p>
+        <h1 className="hero-title">BP Logistics Dashboard</h1>
+        <p className="hero-subtitle">Upload your Excel files to process data for the offshore vessel logistics analytics dashboard.</p>
       </div>
-
-      {error && (
+      
+      {/* Error Banner */}
+      {errorMessage && (
         <div className="error-banner">
-          <AlertCircle size={20} />
-          <span>{error}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className="req-icon" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <span>{errorMessage}</span>
         </div>
       )}
-
-      <div
-        className={`upload-zone ${dragOver ? 'drag-over' : ''} ${requiredFilesUploaded ? 'files-ready' : ''}`}
+      
+      {/* Upload Zone */}
+      <div 
+        className={`upload-zone ${dragOver ? 'drag-over' : ''} ${anyFilesUploaded ? 'files-ready' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDrop={(e) => handleDrop(e, 'voyageEvents')} // You may want to handle this differently
       >
         <div className="upload-icon-container">
-          {getUploadIcon()}
+          {processingStatus === 'processing' ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="upload-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="2" x2="12" y2="6"></line>
+              <line x1="12" y1="18" x2="12" y2="22"></line>
+              <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+              <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+              <line x1="2" y1="12" x2="6" y2="12"></line>
+              <line x1="18" y1="12" x2="22" y2="12"></line>
+              <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+              <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+          ) : processingStatus === 'success' ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="upload-icon success" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="upload-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
         </div>
         
-        <h3 className="upload-title">
-          {processingStatus === 'processing' ? 'Processing Files...' :
-           processingStatus === 'success' ? 'Files Processed Successfully!' :
-           uploadedCount > 0 ? `${uploadedCount} Files Uploaded` :
-           'Drag & Drop Files Here'}
-        </h3>
+        <h2 className="upload-title">
+          {processingStatus === 'processing' ? 'Processing Files...' : 
+           processingStatus === 'success' ? 'Processing Complete!' : 
+           'Upload Excel Files'}
+        </h2>
         
         <p className="upload-description">
-          {processingStatus === 'processing' ? 'Please wait while we process your data...' :
-           processingStatus === 'success' ? 'Dashboard will load automatically' :
-           'or click to browse'}
+          {processingStatus === 'processing' ? 'Please wait while we process your files. This may take a few moments.' : 
+           processingStatus === 'success' ? 'All files processed successfully! Loading dashboard...' : 
+           'Drag and drop your Excel files here, or click to browse'}
         </p>
-
-        <div className="file-requirements">
-          <div className={`requirement-item ${files.voyageEvents ? 'uploaded' : ''}`}>
-            <Ship className="req-icon voyage-file" />
-            <span>{files.voyageEvents ? files.voyageEvents.name : 'Voyage Events.xlsx'}</span>
-            <CheckCircle className={`check-icon ${files.voyageEvents ? 'active' : ''}`} />
-          </div>
-          <div className={`requirement-item ${files.vesselManifests ? 'uploaded' : ''}`}>
-            <FileSpreadsheet className="req-icon manifest-file" />
-            <span>{files.vesselManifests ? files.vesselManifests.name : 'Vessel Manifests.xlsx'}</span>
-            <CheckCircle className={`check-icon ${files.vesselManifests ? 'active' : ''}`} />
-          </div>
-          <div className={`requirement-item ${files.masterFacilities ? 'uploaded' : ''}`}>
-            <Factory className="req-icon facility-file" />
-            <span>{files.masterFacilities ? files.masterFacilities.name : 'Master Facilities.xlsx'}</span>
-            <CheckCircle className={`check-icon ${files.masterFacilities ? 'active' : ''}`} />
-          </div>
-          <div className={`requirement-item ${files.costAllocation ? 'uploaded' : ''}`}>
-            <DollarSign className="req-icon cost-file" />
-            <span>{files.costAllocation ? files.costAllocation.name : 'Cost Allocation.xlsx'}</span>
-            <CheckCircle className={`check-icon ${files.costAllocation ? 'active' : ''}`} />
-          </div>
-          
-          {/* Optional Files */}
-          {(files.voyageList || files.vesselClassifications || files.bulkActions) && (
-            <div className="optional-files-divider">
-              <span>Optional Files</span>
+        
+        {processingStatus === 'idle' && (
+          <>
+            {/* File Requirements */}
+            <div className="file-requirements">
+              <FileInput 
+                fileType="voyageEvents" 
+                label="Voyage Events"
+                required={true}
+              />
+              
+              <FileInput 
+                fileType="masterFacilities" 
+                label="Master Facilities"
+                required={true}
+              />
+              
+              <FileInput 
+                fileType="costAllocation" 
+                label="Cost Allocation"
+                required={true}
+              />
+              
+              <FileInput 
+                fileType="voyageList" 
+                label="Voyage List (optional)"
+              />
+              
+              <FileInput 
+                fileType="vesselManifests" 
+                label="Vessel Manifests (optional)"
+              />
             </div>
-          )}
-          
-          {files.voyageList && (
-            <div className="requirement-item uploaded optional">
-              <List className="req-icon list-file" />
-              <span>{files.voyageList.name}</span>
-              <CheckCircle className="check-icon active" />
-            </div>
-          )}
-          
-          {files.vesselClassifications && (
-            <div className="requirement-item uploaded optional">
-              <Building className="req-icon vessel-file" />
-              <span>{files.vesselClassifications.name}</span>
-              <CheckCircle className="check-icon active" />
-            </div>
-          )}
-          
-          {files.bulkActions && (
-            <div className="requirement-item uploaded optional">
-              <Database className="req-icon bulk-file" />
-              <span>{files.bulkActions.name}</span>
-              <CheckCircle className="check-icon active" />
-            </div>
-          )}
-        </div>
-
-        {processingStatus !== 'processing' && processingStatus !== 'success' && (
-          <button 
-            className="upload-button"
-            onClick={handleBrowseClick}
-          >
-            <Upload size={20} />
-            Choose Files
-            <ArrowRight size={16} />
-          </button>
+            
+            <button className="upload-button" onClick={handleBrowseClick}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+              Browse Files
+            </button>
+            <input 
+              type="file" 
+              multiple 
+              accept=".xlsx,.csv" 
+              ref={fileInputRef}
+              onChange={(e) => {
+                // Detect the file type by name and call the appropriate handler
+                if (e.target.files && e.target.files.length > 0) {
+                  const file = e.target.files[0];
+                  const fileName = file.name.toLowerCase();
+                  
+                  if (fileName.includes('voyage') && fileName.includes('event')) {
+                    handleFileChange(e, 'voyageEvents');
+                  } else if (fileName.includes('master') && fileName.includes('facilit')) {
+                    handleFileChange(e, 'masterFacilities');
+                  } else if (fileName.includes('cost') && fileName.includes('alloc')) {
+                    handleFileChange(e, 'costAllocation');
+                  } else if (fileName.includes('vessel') && fileName.includes('manifest')) {
+                    handleFileChange(e, 'vesselManifests');
+                  } else if (fileName.includes('voyage') && fileName.includes('list')) {
+                    handleFileChange(e, 'voyageList');
+                  } else {
+                    // Default to voyage events if can't detect
+                    handleFileChange(e, 'voyageEvents');
+                  }
+                }
+              }}
+              style={{ display: 'none' }}
+            />
+          </>
         )}
-
-        {requiredFilesUploaded && processingStatus === 'idle' && (
-          <button 
-            className="process-button"
-            onClick={processFiles}
-          >
-            <Database size={20} />
-            Process Files
-            <ArrowRight size={16} />
-          </button>
-        )}
-
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".xlsx,.csv"
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-        />
-
+        
         {processingStatus === 'processing' && (
           <div className="processing-indicator">
             <div className="progress-bar">
@@ -390,24 +365,57 @@ const FileUploadPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      <div className="features-grid">
-        <div className="feature-card">
-          <div className="feature-icon">⚡</div>
-          <h4>Lightning Fast</h4>
-          <p>Process files instantly in your browser</p>
+      
+      {/* Process Button */}
+      {anyFilesUploaded && processingStatus === 'idle' && (
+        <div className="text-center">
+          <button 
+            className="process-button"
+            onClick={processFiles}
+            disabled={!allRequiredFilesUploaded && !useMockData}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            Process Files
+          </button>
         </div>
-        <div className="feature-card">
-          <div className="feature-icon">🔒</div>
-          <h4>Secure & Private</h4>
-          <p>Your data never leaves your device</p>
+      )}
+      
+      {/* Mock Data Option */}
+      {useMockData && processingStatus === 'idle' && (
+        <div className="text-center mt-4">
+          <button
+            onClick={handleShowMockData}
+            className="text-blue-500 underline"
+          >
+            Use mock data for testing
+          </button>
         </div>
-        <div className="feature-card">
-          <div className="feature-icon">📊</div>
-          <h4>Advanced Analytics</h4>
-          <p>Powerful insights and visualizations</p>
+      )}
+      
+      {/* Features Grid */}
+      {processingStatus === 'idle' && (
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon">📊</div>
+            <h4>Interactive Analytics</h4>
+            <p>Explore drilling efficiency metrics with intuitive visualizations and real-time filtering options.</p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="feature-icon">⏱️</div>
+            <h4>Time Tracking</h4>
+            <p>Analyze productive vs. non-productive time with month-over-month comparisons and trending.</p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="feature-icon">🚢</div>
+            <h4>Vessel Performance</h4>
+            <p>Compare vessel efficiency across operations with detailed cargo and transit metrics.</p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
