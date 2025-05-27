@@ -103,7 +103,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                       : 'text-gray-700 hover:text-green-600'
                   }`}
                 >
-                  Overview
+                  Data Settings
                 </button>
               </nav>
 
@@ -150,7 +150,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   {currentView === 'drilling' && 'Drilling Dashboard'}
                   {currentView === 'production' && 'Production Dashboard'}
                   {currentView === 'comparison' && 'Comparison Dashboard'}
-                  {currentView === 'dashboard' && 'Overview Dashboard'}
+                  {currentView === 'dashboard' && 'Data Settings Dashboard'}
                 </span>
               </div>
               

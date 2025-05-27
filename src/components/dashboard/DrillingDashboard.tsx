@@ -9,6 +9,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
   const { 
     voyageEvents, 
     vesselManifests, 
+    costAllocation,
     isDataReady
   } = useData();
 
@@ -63,7 +64,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     // 2. Lifts/Hr - Efficiency metric
     const totalLifts = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.lifts || 0), 0);
     const cargoOpsEvents = filteredVoyageEvents.filter(event => 
-      event.parentEvent === 'Cargo Ops' || 
+      event.parentEvent === 'Cargo Ops' ||
       event.event?.toLowerCase().includes('cargo') ||
       event.event?.toLowerCase().includes('loading') ||
       event.event?.toLowerCase().includes('offloading')
@@ -120,6 +121,36 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     );
     const maneuveringHours = maneuveringEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
 
+    // NEW METRICS FOR UPDATED KPI CARDS
+    
+    // 11. Total Cost (YTD) - Sum of all drilling-related costs for the year
+    const currentYear = new Date().getFullYear();
+    const drillingCosts = costAllocation.filter(cost => 
+      cost.department === 'Drilling' &&
+      cost.year === currentYear
+    );
+    // Mock calculation since totalCost is not in the interface - using count * average cost estimate
+    const totalCostYTD = drillingCosts.length * 50000; // Mock: $50k per cost allocation entry
+    
+    // 12. Average Monthly Cost - Total cost divided by months elapsed in year
+    const monthsElapsed = new Date().getMonth() + 1; // Current month (1-12)
+    const avgMonthlyCost = monthsElapsed > 0 ? totalCostYTD / monthsElapsed : 0;
+    
+    // 13. Vessel Visits per Week - Calculate based on filtered data
+    const dateRange = (() => {
+      const dates = filteredVesselManifests.map(m => new Date(m.manifestDate)).filter(d => !isNaN(d.getTime()));
+      if (dates.length === 0) return { start: new Date(), end: new Date() };
+      return {
+        start: new Date(Math.min(...dates.map(d => d.getTime()))),
+        end: new Date(Math.max(...dates.map(d => d.getTime())))
+      };
+    })();
+    const weeksDiff = Math.max(1, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (7 * 24 * 60 * 60 * 1000)));
+    const vesselVisitsPerWeek = vesselVisits / weeksDiff;
+    
+    // 14. Allocated Days - Mock calculation since allocatedDays is not in the interface
+    const allocatedDays = drillingCosts.length * 30; // Mock: 30 days per cost allocation entry
+
     // Calculate trends (mock data for now - in production, compare with previous period)
     const calculateTrend = (current: number, previous: number) => {
       if (previous === 0) return 0;
@@ -137,7 +168,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       vesselUtilization: (vesselUtilization || 0) * 0.98,
       fsvRuns: (fsvRuns || 0) * 0.91,
       vesselVisits: (vesselVisits || 0) * 0.95,
-      maneuveringHours: (maneuveringHours || 0) * 1.12
+      maneuveringHours: (maneuveringHours || 0) * 1.12,
+      totalCostYTD: totalCostYTD * 0.93,
+      avgMonthlyCost: avgMonthlyCost * 0.96,
+      vesselVisitsPerWeek: vesselVisitsPerWeek * 0.89,
+      allocatedDays: allocatedDays * 1.05
     };
 
     return {
@@ -190,6 +225,27 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         value: Number((Number(maneuveringHours) || 0).toFixed(2)), 
         trend: Number(calculateTrend(Number(maneuveringHours) || 0, mockPreviousPeriod.maneuveringHours).toFixed(1)), 
         isPositive: (Number(maneuveringHours) || 0) < mockPreviousPeriod.maneuveringHours // Lower maneuvering time is better
+      },
+      // NEW METRICS FOR UPDATED KPI CARDS
+      totalCostYTD: {
+        value: Math.round(totalCostYTD),
+        trend: Number(calculateTrend(totalCostYTD, mockPreviousPeriod.totalCostYTD).toFixed(1)),
+        isPositive: totalCostYTD < mockPreviousPeriod.totalCostYTD // Lower cost is better
+      },
+      avgMonthlyCost: {
+        value: Math.round(avgMonthlyCost),
+        trend: Number(calculateTrend(avgMonthlyCost, mockPreviousPeriod.avgMonthlyCost).toFixed(1)),
+        isPositive: avgMonthlyCost < mockPreviousPeriod.avgMonthlyCost // Lower cost is better
+      },
+      vesselVisitsPerWeek: {
+        value: Number(vesselVisitsPerWeek.toFixed(1)),
+        trend: Number(calculateTrend(vesselVisitsPerWeek, mockPreviousPeriod.vesselVisitsPerWeek).toFixed(1)),
+        isPositive: vesselVisitsPerWeek > mockPreviousPeriod.vesselVisitsPerWeek // More visits is better
+      },
+      allocatedDays: {
+        value: Math.round(allocatedDays),
+        trend: Number(calculateTrend(allocatedDays, mockPreviousPeriod.allocatedDays).toFixed(1)),
+        isPositive: allocatedDays > mockPreviousPeriod.allocatedDays // More allocated days might be better
       },
       // Additional metrics for charts
       totalEvents: filteredVoyageEvents.length,
@@ -364,30 +420,30 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
       {/* KPI Cards Grid - Matching PowerBI Layout */}
       <div className="grid grid-cols-5 gap-4">
-        {/* First Row */}
+        {/* First Row - Updated KPI Cards */}
         <KPICard 
-          title="Cargo Tons" 
-          value={drillingMetrics.cargoTons.value}
-          trend={drillingMetrics.cargoTons.trend}
-          isPositive={drillingMetrics.cargoTons.isPositive}
+          title="Total Cost (YTD)" 
+          value={`$${(drillingMetrics.totalCostYTD.value / 1000000).toFixed(1)}M`}
+          trend={drillingMetrics.totalCostYTD.trend}
+          isPositive={drillingMetrics.totalCostYTD.isPositive}
         />
         <KPICard 
-          title="Lifts/Hr" 
-          value={drillingMetrics.liftsPerHour.value}
-          trend={drillingMetrics.liftsPerHour.trend}
-          isPositive={drillingMetrics.liftsPerHour.isPositive}
+          title="Avg Monthly Cost" 
+          value={`$${(drillingMetrics.avgMonthlyCost.value / 1000).toFixed(0)}K`}
+          trend={drillingMetrics.avgMonthlyCost.trend}
+          isPositive={drillingMetrics.avgMonthlyCost.isPositive}
         />
         <KPICard 
-          title="OSV Prod. Hrs" 
-          value={drillingMetrics.osvProductiveHours.value}
-          trend={drillingMetrics.osvProductiveHours.trend}
-          isPositive={drillingMetrics.osvProductiveHours.isPositive}
+          title="Vessel Visits per Week" 
+          value={drillingMetrics.vesselVisitsPerWeek.value}
+          trend={drillingMetrics.vesselVisitsPerWeek.trend}
+          isPositive={drillingMetrics.vesselVisitsPerWeek.isPositive}
         />
         <KPICard 
-          title="Waiting Time" 
-          value={drillingMetrics.waitingTime.value}
-          trend={drillingMetrics.waitingTime.trend}
-          isPositive={drillingMetrics.waitingTime.isPositive}
+          title="Allocated Days" 
+          value={drillingMetrics.allocatedDays.value}
+          trend={drillingMetrics.allocatedDays.trend}
+          isPositive={drillingMetrics.allocatedDays.isPositive}
         />
         <KPICard 
           title="RT Cargo (Tons)" 
@@ -588,52 +644,54 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     </div>
                   );
                 })}
-                <div className="mt-4 text-xs text-gray-500">
-                  Total: {drillingMetrics.vesselTypeData.reduce((sum, item) => sum + item.count, 0)} unique vessels
-                </div>
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center">
                 <div className="text-center">
-                  <p>No vessel data available</p>
-                  <p className="text-sm mt-1">Check your filters</p>
+                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M12 17v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  <p className="text-gray-600 font-medium">No vessel data available</p>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Offshore Hours by Key Activities */}
+        {/* Activity Breakdown Chart */}
         <div className="bg-white rounded-lg p-6 shadow-md">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Offshore Hours by Key Activities</h3>
-            <div className="text-sm text-gray-500">{drillingMetrics.totalHours.toFixed(0)} Total Hours</div>
+            <h3 className="text-lg font-semibold text-gray-900">ACTIVITY BREAKDOWN</h3>
+            <div className="text-sm text-gray-500">BY HOURS</div>
           </div>
           <div className="h-64">
             {drillingMetrics.activityData.length > 0 ? (
               <div className="space-y-3 h-full flex flex-col justify-center">
                 {drillingMetrics.activityData.map((activity, index) => (
                   <div key={activity.name}>
-                    <div className="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                    <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                       <span>{activity.name}</span>
-                      <span>{activity.hours.toFixed(1)} hrs ({((activity.hours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                      <span>{activity.hours.toFixed(1)} hrs</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-6">
+                    <div className="w-full bg-gray-200 rounded-full h-4">
                       <div 
-                        className={`${activity.color} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium`}
+                        className={`${activity.color} h-4 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium`}
                         style={{ width: `${Math.max(5, (activity.hours / drillingMetrics.totalHours) * 100)}%` }}
                       >
-                        {activity.hours.toFixed(0)}h
+                        {activity.hours > 10 ? activity.hours.toFixed(0) : ''}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center">
                 <div className="text-center">
-                  <p>No activity data available</p>
-                  <p className="text-sm mt-1">Check your filters</p>
+                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <p className="text-gray-600 font-medium">No activity data available</p>
                 </div>
               </div>
             )}
@@ -644,4 +702,4 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
   );
 };
 
-export default DrillingDashboard; 
+export default DrillingDashboard;
