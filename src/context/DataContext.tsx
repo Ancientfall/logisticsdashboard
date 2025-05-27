@@ -231,8 +231,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
   
   const setIsDataReady = (ready: boolean) => {
+    console.log('📊 DataContext: setIsDataReady called with:', ready);
     setIsDataReadyState(ready);
     if (ready) {
+      console.log('💾 Saving data to localStorage...');
       // Save current data state to localStorage when data becomes ready
       saveDataToStorage({
         voyageEvents,

@@ -6,15 +6,18 @@ import MainDashboard from './components/dashboard/MainDashboard';
 import LandingPage from './components/LandingPage';
 import { DataProvider, useData } from './context/DataContext';
 import './index.css';
+import DrillingDashboard from './components/dashboard/DrillingDashboard';
 
 // Main application content component
 const AppContent: React.FC = () => {
   const { isDataReady, isLoading } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
+    console.log('🔄 App: isDataReady changed to:', isDataReady);
     if (isDataReady) {
+      console.log('🎯 App: Navigating to dashboard...');
       setCurrentView('dashboard');
     }
     // Note: We don't automatically redirect to upload anymore - user chooses from landing page
@@ -54,10 +57,18 @@ const AppContent: React.FC = () => {
     setCurrentView('landing');
   };
 
+  const handleNavigateToDashboard = () => {
+    if (isDataReady) {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
   // Navigation functions for different dashboard views
   const handleNavigateToDrilling = () => {
     if (isDataReady) {
-      setCurrentView('dashboard');
+      setCurrentView('drilling');
     } else {
       setCurrentView('upload');
     }
@@ -92,7 +103,9 @@ const AppContent: React.FC = () => {
       )}
       {currentView === 'dashboard' && (
         <DashboardLayout 
+          currentView="dashboard"
           onNavigateHome={handleNavigateHome}
+          onNavigateToDashboard={handleNavigateToDashboard}
           onNavigateToDrilling={handleNavigateToDrilling}
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
@@ -107,6 +120,18 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
         />
+      )}
+      {currentView === 'drilling' && (
+        <DashboardLayout 
+          currentView="drilling"
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDashboard={handleNavigateToDashboard}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+        >
+          <DrillingDashboard />
+        </DashboardLayout>
       )}
     </>
   );

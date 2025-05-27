@@ -73,13 +73,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       title: 'Drilling Dashboard',
       description: 'Monitor drilling operations, rig efficiency, and operational KPIs',
       image: '🛢️',
-      metrics: ['Active Rigs', 'Drilling Efficiency', 'Safety Metrics', 'Cost Analysis']
+      metrics: ['Lifts/Hr', 'Productive/Non-Productive Time', 'Cargo Ops Hours', 'Cost Analysis']
     },
     {
       title: 'Production Dashboard',
       description: 'Track production facilities, output metrics, and performance indicators',
       image: '⚡',
-      metrics: ['Production Volume', 'Facility Status', 'Output Trends', 'Quality Metrics']
+      metrics: ['Cost Analysis', 'Productive Hours', 'Waiting Time', 'Vessel Visits']
     },
     {
       title: 'Comparison View',

@@ -90,7 +90,6 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   });
   
   // Load data from localStorage on component mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedData = localStorage.getItem('bp-logistics-data');
     if (savedData) {
@@ -112,7 +111,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         addLog('Failed to load saved data', 'error');
       }
     }
-  }, []);
+  }, [setVoyageEvents, setVesselManifests, setMasterFacilities, setCostAllocation, setVoyageList, setVesselClassifications, setBulkActions, setIsDataReady]);
   
   // Save data to localStorage whenever dataStore changes
   useEffect(() => {
@@ -130,13 +129,91 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     }]);
   };
   
+  const processFilesWithMockData = async () => {
+    setProcessingState('processing');
+    setIsLoading(true);
+    addLog('Loading mock data for testing...', 'info');
+    
+    try {
+      // Use mock data from the processing utility
+      const dataStoreResult = await processExcelFiles({
+        voyageEventsFile: null,
+        voyageListFile: null,
+        vesselManifestsFile: null,
+        costAllocationFile: null,
+        vesselClassificationsFile: null,
+        bulkActionsFile: null,
+        useMockData: true
+      });
+      
+      const newData = {
+        voyageEvents: dataStoreResult.voyageEvents,
+        vesselManifests: dataStoreResult.vesselManifests,
+        masterFacilities: dataStoreResult.masterFacilities,
+        costAllocation: dataStoreResult.costAllocation,
+        voyageList: dataStoreResult.voyageList,
+        vesselClassifications: dataStoreResult.vesselClassifications || [],
+        bulkActions: dataStoreResult.bulkActions || []
+      };
+      
+      const totalRecords = Object.values(newData).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+      const updatedDataStore = {
+        ...newData,
+        metadata: {
+          lastUpdated: new Date(),
+          dateRange: { start: new Date(2024, 0, 1), end: new Date() },
+          totalRecords,
+          dataVersion: '1.0-mock'
+        }
+      };
+      
+      setDataStore(updatedDataStore);
+      
+      // Update context
+      setVoyageEvents(newData.voyageEvents);
+      setVesselManifests(newData.vesselManifests);
+      setMasterFacilities(newData.masterFacilities);
+      setCostAllocation(newData.costAllocation);
+      setVoyageList(newData.voyageList);
+      setVesselClassifications(newData.vesselClassifications);
+      setBulkActions(newData.bulkActions);
+      setIsDataReady(true);
+      
+      addLog(`Mock data loaded successfully: ${totalRecords} records`, 'success');
+      setProcessingState('complete');
+      
+      // Auto-redirect to dashboard after successful processing
+      setTimeout(() => {
+        addLog('Redirecting to dashboard...', 'success');
+      }, 2000);
+      
+    } catch (error) {
+      console.error('❌ Mock data loading failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      addLog(`Mock data loading failed: ${errorMessage}`, 'error');
+      setProcessingState('error');
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const processFiles = async (mode = 'initial') => {
+    console.log('🚀 Starting file processing...', { mode, files });
     setProcessingState('processing');
     setIsLoading(true);
     addLog(`Starting ${mode} data processing...`);
     
     try {
+      console.log('📁 Files to process:', {
+        voyageEvents: files.voyageEvents?.name,
+        voyageList: files.voyageList?.name,
+        vesselManifests: files.vesselManifests?.name,
+        costAllocation: files.costAllocation?.name
+      });
+      
       // Process Excel files using existing utility
+      console.log('🔄 Calling processExcelFiles...');
       const dataStoreResult = await processExcelFiles({
         voyageEventsFile: files.voyageEvents,
         voyageListFile: files.voyageList,
@@ -146,6 +223,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         bulkActionsFile: null,
         useMockData: false
       });
+      console.log('✅ processExcelFiles completed:', dataStoreResult);
       
       const newData = {
         voyageEvents: dataStoreResult.voyageEvents,
@@ -181,6 +259,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         setVesselClassifications(newData.vesselClassifications);
         setBulkActions(newData.bulkActions);
         setIsDataReady(true);
+        console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
         
         addLog(`Initial data load complete: ${totalRecords} records`, 'success');
       } else {
@@ -208,6 +287,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       }, 2000);
       
     } catch (error) {
+      console.error('❌ File processing failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       addLog(`Processing failed: ${errorMessage}`, 'error');
       setProcessingState('error');
@@ -364,10 +444,57 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       }
     }, [fileType, label]);
     
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFile = e.target.files?.[0];
       if (selectedFile) {
-        setFiles(prev => ({ ...prev, [fileType]: selectedFile }));
+        // Validate file before adding
+        if (selectedFile.size > 50 * 1024 * 1024) {
+          addLog(`File ${selectedFile.name} is too large (${Math.round(selectedFile.size / 1024 / 1024)}MB). Maximum size is 50MB.`, 'error');
+          return;
+        }
+        
+        if (!selectedFile.name.toLowerCase().endsWith('.xlsx') && !selectedFile.name.toLowerCase().endsWith('.xls')) {
+          addLog(`File ${selectedFile.name} must be an Excel file (.xlsx or .xls)`, 'error');
+          return;
+        }
+
+        // Check if file is readable
+        try {
+          addLog(`Validating file ${selectedFile.name}...`, 'info');
+          
+          // Try to read first few bytes to check if file is accessible
+          const testSlice = selectedFile.slice(0, 1024);
+          const testBuffer = await testSlice.arrayBuffer();
+          
+          if (testBuffer.byteLength === 0) {
+            addLog(`File ${selectedFile.name} appears to be empty or corrupted`, 'error');
+            return;
+          }
+
+          // Check Excel file signature
+          const uint8Array = new Uint8Array(testBuffer);
+          const isValidExcel = (
+            // XLSX signature (ZIP format)
+            (uint8Array[0] === 0x50 && uint8Array[1] === 0x4B) ||
+            // XLS signature
+            (uint8Array[0] === 0xD0 && uint8Array[1] === 0xCF && uint8Array[2] === 0x11 && uint8Array[3] === 0xE0)
+          );
+
+          if (!isValidExcel) {
+            addLog(`File ${selectedFile.name} does not appear to be a valid Excel file`, 'warning');
+          }
+
+          // Check for Safari/WebKit file size issues
+          if (selectedFile.size > 2 * 1024 * 1024) { // 2MB threshold
+            addLog(`Large file detected (${Math.round(selectedFile.size / 1024 / 1024)}MB). Safari may have issues with files >2MB. Consider using Chrome/Firefox or splitting the data.`, 'warning');
+          }
+          
+          addLog(`File ${selectedFile.name} validated successfully (${Math.round(selectedFile.size / 1024)}KB)`, 'success');
+          setFiles(prev => ({ ...prev, [fileType]: selectedFile }));
+          
+        } catch (error) {
+          addLog(`Failed to validate file ${selectedFile.name}: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        }
       }
     };
     
@@ -557,7 +684,14 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     </div>
   );
 
-  const hasRequiredFiles = files.voyageEvents && files.costAllocation && files.voyageList;
+  const hasRequiredFiles = files.voyageEvents && files.costAllocation;
+  
+  console.log('🔍 File validation:', {
+    voyageEvents: !!files.voyageEvents,
+    costAllocation: !!files.costAllocation,
+    voyageList: !!files.voyageList,
+    hasRequiredFiles
+  });
   
   return (
     <DataManagementLayout 
@@ -624,11 +758,11 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         <div className="space-y-4">
           <FileUploadZone label="Voyage Events (2024-April 2025)" fileType="voyageEvents" required />
           <FileUploadZone label="Cost Allocation (2024-April 2025)" fileType="costAllocation" required />
-          <FileUploadZone label="Voyage List (2024-April 2025)" fileType="voyageList" required />
+          <FileUploadZone label="Voyage List (2024-April 2025)" fileType="voyageList" />
           <FileUploadZone label="Vessel Manifests (2024-April 2025)" fileType="vesselManifests" />
         </div>
         
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-center gap-4">
           <button
             onClick={() => processFiles(uploadMode)}
             disabled={processingState === 'processing' || !hasRequiredFiles}
@@ -647,12 +781,43 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
               `${uploadMode === 'initial' ? 'Load Initial Data' : 'Update Data'}`
             )}
           </button>
+          
+          <button
+            onClick={() => processFilesWithMockData()}
+            disabled={processingState === 'processing'}
+            className={`px-8 py-3 rounded-lg font-semibold text-lg transition-all border-2 ${
+              processingState === 'processing'
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+                : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50 hover:shadow-lg'
+            }`}
+          >
+            Use Mock Data (Testing)
+          </button>
         </div>
         
         {!hasRequiredFiles && (
           <p className="text-center text-sm text-gray-500 mt-2">
             Please upload all required files to continue
           </p>
+        )}
+        
+        {processingState === 'error' && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <h4 className="font-semibold text-red-800 mb-2">Safari File Reading Issue Detected</h4>
+            <div className="text-sm text-red-700 space-y-2">
+              <p className="font-medium">🚨 Known Safari/WebKit Bug with large files ({'>'}2MB)</p>
+              <div className="bg-red-100 p-3 rounded border-l-4 border-red-400">
+                <p className="font-medium mb-1">Recommended Solutions:</p>
+                <p>• <strong>Use Chrome or Firefox</strong> - they handle large Excel files better</p>
+                <p>• <strong>Split your data</strong> into smaller files (under 2MB each)</p>
+                <p>• <strong>Save as new .xlsx</strong> in Excel to reduce file size</p>
+                <p>• <strong>Use "Mock Data"</strong> button above to test dashboard functionality</p>
+              </div>
+              <div className="text-xs text-red-600 mt-2">
+                <p>This is a known WebKit bug (#272600) affecting Safari's File API with large files.</p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
       

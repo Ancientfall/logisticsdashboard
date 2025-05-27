@@ -3,7 +3,9 @@ import { useData } from '../../context/DataContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  currentView?: 'dashboard' | 'drilling' | 'production' | 'comparison';
   onNavigateHome?: () => void;
+  onNavigateToDashboard?: () => void;
   onNavigateToDrilling?: () => void;
   onNavigateToProduction?: () => void;
   onNavigateToComparison?: () => void;
@@ -11,7 +13,9 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
   children, 
+  currentView = 'dashboard',
   onNavigateHome, 
+  onNavigateToDashboard,
   onNavigateToDrilling, 
   onNavigateToProduction, 
   onNavigateToComparison 
@@ -61,17 +65,45 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
               {/* Center Section - Navigation */}
               <nav className="hidden md:flex items-center gap-8">
-                <button className="text-green-600 font-semibold border-b-2 border-green-600 pb-1">
+                <button 
+                  onClick={onNavigateToDrilling}
+                  className={`transition-colors font-medium pb-1 ${
+                    currentView === 'drilling' 
+                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
+                      : 'text-gray-700 hover:text-green-600'
+                  }`}
+                >
                   Drilling
                 </button>
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                <button 
+                  onClick={onNavigateToProduction}
+                  className={`transition-colors font-medium pb-1 ${
+                    currentView === 'production' 
+                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
+                      : 'text-gray-700 hover:text-green-600'
+                  }`}
+                >
                   Production
                 </button>
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                <button 
+                  onClick={onNavigateToComparison}
+                  className={`transition-colors font-medium pb-1 ${
+                    currentView === 'comparison' 
+                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
+                      : 'text-gray-700 hover:text-green-600'
+                  }`}
+                >
                   Comparison
                 </button>
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
-                  Data Upload
+                <button 
+                  onClick={onNavigateToDashboard}
+                  className={`transition-colors font-medium pb-1 ${
+                    currentView === 'dashboard' 
+                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
+                      : 'text-gray-700 hover:text-green-600'
+                  }`}
+                >
+                  Overview
                 </button>
               </nav>
 
@@ -114,7 +146,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700 font-medium">Drilling Dashboard</span>
+                <span className="text-gray-700 font-medium">
+                  {currentView === 'drilling' && 'Drilling Dashboard'}
+                  {currentView === 'production' && 'Production Dashboard'}
+                  {currentView === 'comparison' && 'Comparison Dashboard'}
+                  {currentView === 'dashboard' && 'Overview Dashboard'}
+                </span>
               </div>
               
               {/* Quick Actions */}
