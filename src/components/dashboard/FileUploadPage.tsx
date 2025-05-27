@@ -1,11 +1,38 @@
 // src/components/dashboard/FileUploadPage.tsx
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Upload, Database, Calendar, Plus, RefreshCw, Download, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
+import { VoyageEvent, VesselManifest, MasterFacility, CostAllocation, VoyageList, VesselClassification, BulkAction } from '../../types';
+import DataManagementLayout from '../layout/DataManagementLayout';
 
-const useMockData = false;
+interface ProcessingLogEntry {
+  id: number;
+  timestamp: string;
+  message: string;
+  type: 'info' | 'success' | 'error' | 'warning';
+}
 
-const FileUploadPage: React.FC = () => {
+interface DataStoreMetadata {
+  lastUpdated: Date | null;
+  dateRange: { start: Date | null; end: Date | null };
+  totalRecords: number;
+  dataVersion: string;
+  newRecords?: number;
+}
+
+interface DataStore {
+  voyageEvents: VoyageEvent[];
+  vesselManifests: VesselManifest[];
+  masterFacilities: MasterFacility[];
+  costAllocation: CostAllocation[];
+  voyageList: VoyageList[];
+  vesselClassifications: VesselClassification[];
+  bulkActions: BulkAction[];
+  metadata: DataStoreMetadata;
+}
+
+const DataManagementSystem: React.FC = () => {
   const { 
     setVoyageEvents,
     setVesselManifests,
@@ -18,416 +45,607 @@ const FileUploadPage: React.FC = () => {
     setIsLoading,
     setError
   } = useData();
-  
-  const [dragOver, setDragOver] = useState(false);
-  const [files, setFiles] = useState<{
-    voyageEvents: File | null;
-    voyageList: File | null;
-    vesselManifests: File | null;
-    masterFacilities: File | null;
-    costAllocation: File | null;
-  }>({
-    voyageEvents: null,
-    voyageList: null,
-    vesselManifests: null,
-    masterFacilities: null,
-    costAllocation: null
+
+  const [dataStore, setDataStore] = useState<DataStore>({
+    voyageEvents: [],
+    vesselManifests: [],
+    masterFacilities: [],
+    costAllocation: [],
+    voyageList: [],
+    vesselClassifications: [],
+    bulkActions: [],
+    metadata: {
+      lastUpdated: null,
+      dateRange: { start: null, end: null },
+      totalRecords: 0,
+      dataVersion: '1.0'
+    }
   });
   
-  const [processingStatus, setProcessingStatus] = useState<
-    'idle' | 'processing' | 'success' | 'error'
-  >('idle');
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadMode, setUploadMode] = useState<'initial' | 'incremental'>('initial');
+  const [processingState, setProcessingState] = useState<'idle' | 'processing' | 'complete' | 'error'>('idle');
+  const [processingLog, setProcessingLog] = useState<ProcessingLogEntry[]>([]);
+  const [files, setFiles] = useState<{
+    voyageEvents: File | null;
+    vesselManifests: File | null;
+    costAllocation: File | null;
+    voyageList: File | null;
+  }>({
+    voyageEvents: null,
+    vesselManifests: null,
+    costAllocation: null,
+    voyageList: null
+  });
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: keyof typeof files) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      
-      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.csv')) {
-        setErrorMessage(`${fileType} file must be an Excel or CSV file`);
-        return;
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    const savedData = localStorage.getItem('bp-logistics-data');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        setDataStore(parsed);
+        addLog(`Loaded existing data: ${parsed.metadata.totalRecords} records`, 'success');
+        
+        // Update context with loaded data
+        setVoyageEvents(parsed.voyageEvents || []);
+        setVesselManifests(parsed.vesselManifests || []);
+        setMasterFacilities(parsed.masterFacilities || []);
+        setCostAllocation(parsed.costAllocation || []);
+        setVoyageList(parsed.voyageList || []);
+        setVesselClassifications(parsed.vesselClassifications || []);
+        setBulkActions(parsed.bulkActions || []);
+        setIsDataReady(true);
+      } catch (error) {
+        addLog('Failed to load saved data', 'error');
       }
-      
-      setFiles(prev => ({
-        ...prev,
-        [fileType]: file
-      }));
     }
+  }, []);
+  
+  // Save data to localStorage whenever dataStore changes
+  useEffect(() => {
+    if (dataStore.metadata.totalRecords > 0) {
+      localStorage.setItem('bp-logistics-data', JSON.stringify(dataStore));
+    }
+  }, [dataStore]);
+  
+  const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+    setProcessingLog(prev => [...prev.slice(-49), {
+      id: Date.now(),
+      timestamp: new Date().toLocaleTimeString(),
+      message,
+      type
+    }]);
   };
   
-  const resetFileInput = (fileType: keyof typeof files) => {
-    setFiles(prev => ({
-      ...prev,
-      [fileType]: null
-    }));
-  };
-  
-  const processFiles = async () => {
-    if (!useMockData) {
-      if (!files.voyageEvents || !files.masterFacilities || !files.costAllocation) {
-        setErrorMessage('Voyage Events, Master Facilities, and Cost Allocation files are required');
-        return;
-      }
-    }
-    
-    setProcessingStatus('processing');
+  const processFiles = async (mode = 'initial') => {
+    setProcessingState('processing');
     setIsLoading(true);
-    setErrorMessage('');
+    addLog(`Starting ${mode} data processing...`);
     
     try {
-      const dataStore = await processExcelFiles({
+      // Process Excel files using existing utility
+      const dataStoreResult = await processExcelFiles({
         voyageEventsFile: files.voyageEvents,
         voyageListFile: files.voyageList,
         vesselManifestsFile: files.vesselManifests,
-        masterFacilitiesFile: files.masterFacilities,
         costAllocationFile: files.costAllocation,
         vesselClassificationsFile: null,
         bulkActionsFile: null,
-        useMockData
+        useMockData: false
       });
       
-      setVoyageEvents(dataStore.voyageEvents);
-      setVesselManifests(dataStore.vesselManifests);
-      setMasterFacilities(dataStore.masterFacilities);
-      setCostAllocation(dataStore.costAllocation);
-      setVoyageList(dataStore.voyageList || []);
-      setVesselClassifications(dataStore.vesselClassifications || []);
-      setBulkActions(dataStore.bulkActions || []);
+      const newData = {
+        voyageEvents: dataStoreResult.voyageEvents,
+        vesselManifests: dataStoreResult.vesselManifests,
+        masterFacilities: dataStoreResult.masterFacilities,
+        costAllocation: dataStoreResult.costAllocation,
+        voyageList: dataStoreResult.voyageList,
+        vesselClassifications: dataStoreResult.vesselClassifications || [],
+        bulkActions: dataStoreResult.bulkActions || []
+      };
       
-      setIsDataReady(true);
-      setProcessingStatus('success');
+      if (mode === 'initial') {
+        // Replace all data
+        const totalRecords = Object.values(newData).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+        const updatedDataStore = {
+          ...newData,
+          metadata: {
+            lastUpdated: new Date(),
+            dateRange: calculateDateRange(newData.voyageEvents),
+            totalRecords,
+            dataVersion: '1.0'
+          }
+        };
+        
+        setDataStore(updatedDataStore);
+        
+        // Update context
+        setVoyageEvents(newData.voyageEvents);
+        setVesselManifests(newData.vesselManifests);
+        setMasterFacilities(newData.masterFacilities);
+        setCostAllocation(newData.costAllocation);
+        setVoyageList(newData.voyageList);
+        setVesselClassifications(newData.vesselClassifications);
+        setBulkActions(newData.bulkActions);
+        setIsDataReady(true);
+        
+        addLog(`Initial data load complete: ${totalRecords} records`, 'success');
+      } else {
+        // Merge with existing data
+        const mergedData = mergeDataSets(dataStore, newData);
+        setDataStore(mergedData);
+        
+        // Update context with merged data
+        setVoyageEvents(mergedData.voyageEvents);
+        setVesselManifests(mergedData.vesselManifests);
+        setMasterFacilities(mergedData.masterFacilities);
+        setCostAllocation(mergedData.costAllocation);
+        setVoyageList(mergedData.voyageList);
+        setVesselClassifications(mergedData.vesselClassifications);
+        setBulkActions(mergedData.bulkActions);
+        
+        addLog(`Incremental update complete: +${mergedData.metadata.newRecords} records`, 'success');
+      }
+      
+      setProcessingState('complete');
+      
+      // Auto-redirect to dashboard after successful processing
+      setTimeout(() => {
+        addLog('Redirecting to dashboard...', 'success');
+      }, 2000);
+      
     } catch (error) {
-      console.error('Error processing files:', error);
-      const errorMsg = `Error processing files: ${error instanceof Error ? error.message : String(error)}`;
-      setErrorMessage(errorMsg);
-      setError(errorMsg);
-      setProcessingStatus('error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      addLog(`Processing failed: ${errorMessage}`, 'error');
+      setProcessingState('error');
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
   
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
-  }, []);
-  
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
-  }, []);
-  
-  const handleDrop = useCallback((e: React.DragEvent, fileType: keyof typeof files) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
+  const mergeDataSets = (existing: DataStore, newData: Omit<DataStore, 'metadata'>): DataStore => {
+    addLog('Merging datasets...');
     
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
+    let newRecordsCount = 0;
+    const merged: Partial<DataStore> = {};
+    
+    Object.keys(newData).forEach(key => {
+      if (key === 'metadata') return;
       
-      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.csv')) {
-        setErrorMessage(`${fileType} file must be an Excel or CSV file`);
-        return;
+      const existingRecords = existing[key as keyof DataStore] || [];
+      const newRecords = newData[key as keyof Omit<DataStore, 'metadata'>] || [];
+      
+      // Simple deduplication by ID for voyage events, or by unique combination for others
+      let existingIds: Set<string>;
+      let uniqueNewRecords: any[];
+      
+      if (key === 'voyageEvents') {
+        existingIds = new Set((existingRecords as VoyageEvent[]).map(r => r.id));
+        uniqueNewRecords = (newRecords as VoyageEvent[]).filter(r => !existingIds.has(r.id));
+      } else if (key === 'vesselManifests') {
+        existingIds = new Set((existingRecords as VesselManifest[]).map(r => `${r.voyageId}-${r.manifestNumber}`));
+        uniqueNewRecords = (newRecords as VesselManifest[]).filter(r => !existingIds.has(`${r.voyageId}-${r.manifestNumber}`));
+      } else {
+        // For other data types, use simple ID-based deduplication
+        existingIds = new Set((existingRecords as any[]).map(r => r.id || r.lcNumber || r.locationName));
+        uniqueNewRecords = (newRecords as any[]).filter(r => !existingIds.has(r.id || r.lcNumber || r.locationName));
       }
       
-      setFiles(prev => ({
-        ...prev,
-        [fileType]: file
-      }));
-    }
-  }, []);
+      (merged as any)[key] = [...(existingRecords as any[]), ...uniqueNewRecords];
+      newRecordsCount += uniqueNewRecords.length;
+      
+      addLog(`${key}: +${uniqueNewRecords.length} new records (${newRecords.length - uniqueNewRecords.length} duplicates skipped)`);
+    });
+    
+    const totalRecords = Object.values(merged).reduce((sum, arr) => sum + ((arr as any[])?.length || 0), 0);
+    
+    return {
+      voyageEvents: merged.voyageEvents || existing.voyageEvents,
+      vesselManifests: merged.vesselManifests || existing.vesselManifests,
+      masterFacilities: merged.masterFacilities || existing.masterFacilities,
+      costAllocation: merged.costAllocation || existing.costAllocation,
+      voyageList: merged.voyageList || existing.voyageList,
+      vesselClassifications: merged.vesselClassifications || existing.vesselClassifications,
+      bulkActions: merged.bulkActions || existing.bulkActions,
+      metadata: {
+        lastUpdated: new Date(),
+        dateRange: calculateDateRange(merged.voyageEvents || existing.voyageEvents),
+        totalRecords,
+        newRecords: newRecordsCount,
+        dataVersion: existing.metadata.dataVersion
+      }
+    };
+  };
   
-  const handleBrowseClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+  const calculateDateRange = (voyageEvents: VoyageEvent[]) => {
+    if (!voyageEvents || voyageEvents.length === 0) {
+      return { start: null, end: null };
+    }
+    
+    const dates = voyageEvents.map(event => new Date(event.eventDate || event.from));
+    return {
+      start: new Date(Math.min(...dates.map(d => d.getTime()))),
+      end: new Date(Math.max(...dates.map(d => d.getTime())))
+    };
+  };
+  
+  const exportData = () => {
+    const dataBlob = new Blob([JSON.stringify(dataStore, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(dataBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bp-logistics-data-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addLog('Data exported successfully', 'success');
+  };
+  
+  const clearAllData = () => {
+    if (window.confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+      localStorage.removeItem('bp-logistics-data');
+      const emptyDataStore = {
+        voyageEvents: [],
+        vesselManifests: [],
+        masterFacilities: [],
+        costAllocation: [],
+        voyageList: [],
+        vesselClassifications: [],
+        bulkActions: [],
+        metadata: {
+          lastUpdated: null,
+          dateRange: { start: null, end: null },
+          totalRecords: 0,
+          dataVersion: '1.0'
+        }
+      };
+      
+      setDataStore(emptyDataStore);
+      
+      // Clear context
+      setVoyageEvents([]);
+      setVesselManifests([]);
+      setMasterFacilities([]);
+      setCostAllocation([]);
+      setVoyageList([]);
+      setVesselClassifications([]);
+      setBulkActions([]);
+      setIsDataReady(false);
+      
+      addLog('All data cleared', 'warning');
     }
   };
   
-  const handleShowMockData = () => {
-    processFiles();
-  };
-  
-  const anyFilesUploaded = Object.values(files).some(file => file !== null);
-  const allRequiredFilesUploaded = files.voyageEvents && files.masterFacilities && files.costAllocation;
-  
-  const FileInput = ({ 
-    fileType, 
-    label,
-    required = false
-  }: { 
+  const FileUploadZone = ({ label, fileType, required = false }: { 
+    label: string; 
     fileType: keyof typeof files; 
-    label: string;
-    required?: boolean;
-  }) => (
-    <div className={`group relative overflow-hidden rounded-lg p-4 transition-all duration-300 ${
-      files[fileType] 
-        ? 'bg-green-50 border-2 border-green-300' 
-        : 'bg-white border-2 border-gray-200 hover:border-green-300'
-    }`}>
-      <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-md transition-all ${
-          files[fileType] ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'
-        }`}>
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-          </svg>
-        </div>
-        
-        <div className="flex-1">
-          <p className={`font-semibold ${files[fileType] ? 'text-green-700' : 'text-gray-800'}`}>
-            {label}{required && <span className="text-red-500 ml-1">*</span>}
-          </p>
-          {files[fileType] && (
-            <p className="text-sm text-gray-600 mt-1">{files[fileType]!.name}</p>
-          )}
-        </div>
-        
-        {files[fileType] ? (
-          <button 
-            onClick={() => resetFileInput(fileType)}
-            className="p-2 bg-white rounded-md hover:bg-red-500 hover:text-white transition-all"
-            title="Remove file"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        ) : (
-          <div className={`p-2 rounded-md ${files[fileType] ? 'text-green-500' : 'text-gray-300'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
+    required?: boolean; 
+  }) => {
+    const [dragActive, setDragActive] = useState(false);
+    const file = files[fileType];
+    
+    const handleDrag = useCallback((e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === "dragenter" || e.type === "dragover") {
+        setDragActive(true);
+      } else if (e.type === "dragleave") {
+        setDragActive(false);
+      }
+    }, []);
+    
+    const handleDrop = useCallback((e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
+      
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        const droppedFile = e.dataTransfer.files[0];
+        if (droppedFile.name.endsWith('.xlsx') || droppedFile.name.endsWith('.csv')) {
+          setFiles(prev => ({ ...prev, [fileType]: droppedFile }));
+        } else {
+          addLog(`Invalid file type for ${label}. Please upload Excel or CSV files only.`, 'error');
+        }
+      }
+    }, [fileType, label]);
+    
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = e.target.files?.[0];
+      if (selectedFile) {
+        setFiles(prev => ({ ...prev, [fileType]: selectedFile }));
+      }
+    };
+    
+    return (
+      <div
+        className={`relative p-6 border-2 border-dashed rounded-lg transition-all ${
+          dragActive ? 'border-green-400 bg-green-50' :
+          file ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-green-400'
+        }`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        <div className="flex items-center gap-4">
+          <div className={`p-3 rounded-lg ${
+            file ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'
+          }`}>
+            {file ? <CheckCircle size={20} /> : <Upload size={20} />}
           </div>
-        )}
+          
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-900">
+              {label}
+              {required && <span className="text-red-500 ml-1">*</span>}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {file ? file.name : 'Drag & drop Excel file or click to browse'}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {file && (
+              <button
+                onClick={() => setFiles(prev => ({ ...prev, [fileType]: null }))}
+                className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+              >
+                Remove
+              </button>
+            )}
+            <label className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer text-sm">
+              Browse
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  const DataSummary = () => (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">Current Data Store</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportData}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <button
+            onClick={clearAllData}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            <AlertTriangle size={16} />
+            Clear All
+          </button>
+        </div>
       </div>
       
-      {/* Progress indicator */}
-      {files[fileType] && (
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-green-500 animate-pulse" />
-      )}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+         <div className="text-center p-4 bg-green-50 rounded-lg">
+           <div className="text-2xl font-bold text-green-900">
+             {dataStore.voyageEvents.length.toLocaleString()}
+           </div>
+           <div className="text-sm text-green-700">Voyage Events</div>
+           <div className="text-xs text-green-600 mt-1">
+             {dataStore.voyageEvents.length > 0 ? '✓ Loaded' : 'Pending Upload'}
+           </div>
+         </div>
+         <div className="text-center p-4 bg-blue-50 rounded-lg">
+           <div className="text-2xl font-bold text-blue-900">
+             {dataStore.costAllocation.length.toLocaleString()}
+           </div>
+           <div className="text-sm text-blue-700">Cost Allocations</div>
+           <div className="text-xs text-blue-600 mt-1">
+             {dataStore.costAllocation.length > 0 ? '✓ Loaded' : 'Pending Upload'}
+           </div>
+         </div>
+         <div className="text-center p-4 bg-purple-50 rounded-lg">
+           <div className="text-2xl font-bold text-purple-900">
+             {dataStore.voyageList.length.toLocaleString()}
+           </div>
+           <div className="text-sm text-purple-700">Voyage Lists</div>
+           <div className="text-xs text-purple-600 mt-1">
+             {dataStore.voyageList.length > 0 ? '✓ Loaded' : 'Pending Upload'}
+           </div>
+         </div>
+         <div className="text-center p-4 bg-orange-50 rounded-lg">
+           <div className="text-2xl font-bold text-orange-900">
+             {dataStore.vesselManifests.length.toLocaleString()}
+           </div>
+           <div className="text-sm text-orange-700">Vessel Manifests</div>
+           <div className="text-xs text-orange-600 mt-1">
+             {dataStore.vesselManifests.length > 0 ? '✓ Loaded' : 'Optional'}
+           </div>
+         </div>
+       </div>
+      
+             {dataStore.metadata.lastUpdated && (
+         <div className="p-4 bg-gray-50 rounded-lg">
+           <div className="flex items-center justify-between text-sm">
+             <div className="flex items-center gap-2">
+               <Calendar size={16} className="text-gray-600" />
+               <span className="text-gray-700">
+                 Last Updated: {new Date(dataStore.metadata.lastUpdated).toLocaleString()}
+               </span>
+             </div>
+             <div className="text-gray-700">
+               Total Records: {dataStore.metadata.totalRecords.toLocaleString()}
+             </div>
+           </div>
+           {dataStore.metadata.dateRange.start && dataStore.metadata.dateRange.end && (
+             <div className="mt-2 text-sm text-gray-600">
+               Data Range: {new Date(dataStore.metadata.dateRange.start).toLocaleDateString()} - {new Date(dataStore.metadata.dateRange.end).toLocaleDateString()}
+             </div>
+           )}
+           <div className="mt-3 flex items-center gap-4 text-xs">
+             <div className="flex items-center gap-1">
+               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+               <span className="text-green-700">Data Validated</span>
+             </div>
+             <div className="flex items-center gap-1">
+               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+               <span className="text-blue-700">Ready for Analysis</span>
+             </div>
+             <div className="flex items-center gap-1">
+               <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+               <span className="text-purple-700">Backup Created</span>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
   
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header Section */}
-        <div className="text-center mb-12">
-          {/* BP Logo */}
-          <div className="mb-6">
-            <div className="w-20 h-20 mx-auto relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-full animate-pulse" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">bp</span>
-              </div>
+  const ProcessingLog = () => (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">Processing Log</h3>
+        <button
+          onClick={() => setProcessingLog([])}
+          className="text-sm text-gray-600 hover:text-gray-800"
+        >
+          Clear Log
+        </button>
+      </div>
+      
+      <div className="max-h-64 overflow-y-auto space-y-2">
+        {processingLog.length === 0 ? (
+          <p className="text-gray-500 text-sm">No processing activity yet</p>
+        ) : (
+          processingLog.map(log => (
+            <div key={log.id} className="flex items-start gap-3 text-sm">
+              <span className="text-gray-500 font-mono text-xs mt-0.5">
+                {log.timestamp}
+              </span>
+              <span className={`flex-1 ${
+                log.type === 'success' ? 'text-green-700' :
+                log.type === 'error' ? 'text-red-700' :
+                log.type === 'warning' ? 'text-yellow-700' :
+                'text-gray-700'
+              }`}>
+                {log.message}
+              </span>
             </div>
-          </div>
-          
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Logistics Analytics Platform
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Transform your offshore vessel operations data into actionable insights
-          </p>
-        </div>
-        
-        {/* Error Banner */}
-        {errorMessage && (
-          <div className="mb-8">
-            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex items-center gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <span className="text-red-700 font-medium">{errorMessage}</span>
-            </div>
-          </div>
-        )}
-        
-        {/* Main Upload Area */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-12">
-          {/* Progress Bar */}
-          {processingStatus === 'processing' && (
-            <div className="h-2 bg-gray-100 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-green-600 animate-pulse" />
-            </div>
-          )}
-          
-          <div 
-            className={`p-8 transition-all duration-300 ${
-              dragOver ? 'bg-green-50' : 'bg-white'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, 'voyageEvents')}
-          >
-            {/* Status Icons */}
-            <div className="text-center mb-8">
-              {processingStatus === 'processing' ? (
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full animate-spin">
-                  <svg className="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.364-6.364l-2.828 2.828M8.464 15.536l-2.828 2.828m12.728 0l-2.828-2.828M8.464 8.464L5.636 5.636" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-              ) : processingStatus === 'success' ? (
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full">
-                  <svg className="w-8 h-8 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              ) : (
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full">
-                  <svg className="w-8 h-8 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              )}
-            </div>
-            
-            <h2 className="text-2xl font-semibold text-center text-gray-900 mb-2">
-              {processingStatus === 'processing' ? 'Processing Your Data...' : 
-               processingStatus === 'success' ? 'Ready to Launch!' : 
-               'Upload Your Excel Files'}
-            </h2>
-            
-            <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
-              {processingStatus === 'processing' ? 'Analyzing vessel operations and generating insights' : 
-               processingStatus === 'success' ? 'All files processed successfully. Redirecting to dashboard...' : 
-               'Drag and drop files or click browse to select from your computer'}
-            </p>
-            
-            {processingStatus === 'idle' && (
-              <>
-                {/* File Upload Grid */}
-                <div className="grid gap-4 mb-8 max-w-3xl mx-auto">
-                  <FileInput fileType="voyageEvents" label="Voyage Events" required={true} />
-                  <FileInput fileType="masterFacilities" label="Master Facilities" required={true} />
-                  <FileInput fileType="costAllocation" label="Cost Allocation" required={true} />
-                  <FileInput fileType="voyageList" label="Voyage List" required={false} />
-                  <FileInput fileType="vesselManifests" label="Vessel Manifests" required={false} />
-                </div>
-                
-                {/* Browse Button */}
-                <div className="text-center">
-                  <button 
-                    className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-                    onClick={handleBrowseClick}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Browse Files
-                  </button>
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept=".xlsx,.csv" 
-                    ref={fileInputRef}
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        const file = e.target.files[0];
-                        const fileName = file.name.toLowerCase();
-                        
-                        if (fileName.includes('voyage') && fileName.includes('event')) {
-                          handleFileChange(e, 'voyageEvents');
-                        } else if (fileName.includes('master') && fileName.includes('facilit')) {
-                          handleFileChange(e, 'masterFacilities');
-                        } else if (fileName.includes('cost') && fileName.includes('alloc')) {
-                          handleFileChange(e, 'costAllocation');
-                        } else if (fileName.includes('vessel') && fileName.includes('manifest')) {
-                          handleFileChange(e, 'vesselManifests');
-                        } else if (fileName.includes('voyage') && fileName.includes('list')) {
-                          handleFileChange(e, 'voyageList');
-                        } else {
-                          handleFileChange(e, 'voyageEvents');
-                        }
-                      }
-                    }}
-                    className="hidden"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        
-        {/* Process Button */}
-        {anyFilesUploaded && processingStatus === 'idle' && (
-          <div className="text-center mb-12">
-            <button 
-              className={`inline-flex items-center gap-3 px-8 py-4 text-white font-bold text-lg rounded-lg shadow-lg transform transition-all duration-200 ${
-                allRequiredFilesUploaded 
-                  ? 'bg-gradient-to-r from-green-600 to-green-700 hover:shadow-xl hover:-translate-y-1' 
-                  : 'bg-gray-400 cursor-not-allowed'
-              }`}
-              onClick={processFiles}
-              disabled={!allRequiredFilesUploaded && !useMockData}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 0016 0zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-              </svg>
-              Process Files & Launch Dashboard
-            </button>
-          </div>
-        )}
-        
-        {/* Mock Data Option */}
-        {useMockData && processingStatus === 'idle' && (
-          <div className="text-center mt-4">
-            <button
-              onClick={handleShowMockData}
-              className="text-blue-600 hover:text-blue-700 underline"
-            >
-              Use sample data for demo
-            </button>
-          </div>
-        )}
-        
-        {/* Features Grid */}
-        {processingStatus === 'idle' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 17H7a2 2 0 01-2-2V7a2 2 0 012-2h2m4 14h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-4 14h4m0-14h-4m0 0v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Real-Time Analytics</h4>
-              <p className="text-gray-600">
-                Track vessel movements, cargo operations, and performance metrics with live data visualization
-              </p>
-            </div>
-            
-            <div className="bg-white rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Efficiency Tracking</h4>
-              <p className="text-gray-600">
-                Monitor productive time, identify bottlenecks, and optimize vessel utilization rates
-              </p>
-            </div>
-            
-            <div className="bg-white rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow">
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-yellow-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Cost Analysis</h4>
-              <p className="text-gray-600">
-                Deep dive into operational costs with detailed allocation and trending insights
-              </p>
-            </div>
-          </div>
+          ))
         )}
       </div>
     </div>
+  );
+
+  const hasRequiredFiles = files.voyageEvents && files.costAllocation && files.voyageList;
+  
+  return (
+    <DataManagementLayout>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Database className="text-white" size={24} />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Data Upload & Management</h1>
+          <p className="text-gray-600">Upload and manage your offshore logistics data with incremental updates</p>
+        </div>
+      
+      {/* Mode Selection */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Mode</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            onClick={() => setUploadMode('initial')}
+            className={`p-4 border-2 rounded-lg text-left transition-all ${
+              uploadMode === 'initial' 
+                ? 'border-green-500 bg-green-50' 
+                : 'border-gray-200 hover:border-green-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <FileText className="text-green-600" size={20} />
+              <h4 className="font-semibold">Initial Data Load</h4>
+            </div>
+            <p className="text-sm text-gray-600">
+              Upload all historical data (Jan 2024 - April 2025). This will replace any existing data.
+            </p>
+          </button>
+          
+          <button
+            onClick={() => setUploadMode('incremental')}
+            className={`p-4 border-2 rounded-lg text-left transition-all ${
+              uploadMode === 'incremental' 
+                ? 'border-green-500 bg-green-50' 
+                : 'border-gray-200 hover:border-green-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <Plus className="text-green-600" size={20} />
+              <h4 className="font-semibold">Monthly Update</h4>
+            </div>
+            <p className="text-sm text-gray-600">
+              Add new monthly data to existing records. Duplicates will be automatically detected and skipped.
+            </p>
+          </button>
+        </div>
+      </div>
+      
+      {/* File Upload */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {uploadMode === 'initial' ? 'Upload Initial Data Files' : 'Upload Monthly Update Files'}
+        </h3>
+        <div className="space-y-4">
+          <FileUploadZone label="Voyage Events (2024-April 2025)" fileType="voyageEvents" required />
+          <FileUploadZone label="Cost Allocation (2024-April 2025)" fileType="costAllocation" required />
+          <FileUploadZone label="Voyage List (2024-April 2025)" fileType="voyageList" required />
+          <FileUploadZone label="Vessel Manifests (2024-April 2025)" fileType="vesselManifests" />
+        </div>
+        
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={() => processFiles(uploadMode)}
+            disabled={processingState === 'processing' || !hasRequiredFiles}
+            className={`px-8 py-3 rounded-lg font-semibold text-lg transition-all ${
+              processingState === 'processing' || !hasRequiredFiles
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg'
+            }`}
+          >
+            {processingState === 'processing' ? (
+              <div className="flex items-center gap-2">
+                <RefreshCw className="animate-spin" size={20} />
+                Processing...
+              </div>
+            ) : (
+              `${uploadMode === 'initial' ? 'Load Initial Data' : 'Update Data'}`
+            )}
+          </button>
+        </div>
+        
+        {!hasRequiredFiles && (
+          <p className="text-center text-sm text-gray-500 mt-2">
+            Please upload all required files to continue
+          </p>
+        )}
+      </div>
+      
+      {/* Data Summary and Processing Log */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DataSummary />
+        <ProcessingLog />
+      </div>
+      </div>
+    </DataManagementLayout>
   );
 };
 
-export default FileUploadPage;
+export default DataManagementSystem;

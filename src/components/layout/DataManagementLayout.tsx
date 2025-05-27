@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 
-interface DashboardLayoutProps {
+interface DataManagementLayoutProps {
   children: React.ReactNode;
 }
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({ children }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { clearAllData, lastUpdated } = useData();
 
@@ -17,7 +17,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   }, []);
 
   const handleResetData = () => {
-    if (window.confirm('Are you sure you want to reset all data? This will clear the dashboard and return to upload mode.')) {
+    if (window.confirm('Are you sure you want to reset all data? This will clear all uploaded data.')) {
       clearAllData();
     }
   };
@@ -41,17 +41,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">
-                    Logistics Analytics
+                    Logistics Data Management
                   </h1>
                   <p className="text-sm text-gray-600">
-                    Offshore Vessel Operations
+                    Upload & Manage Offshore Data
                   </p>
                 </div>
               </div>
 
               {/* Center Section - Navigation */}
               <nav className="hidden md:flex items-center gap-8">
-                <button className="text-green-600 font-semibold border-b-2 border-green-600 pb-1">
+                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
                   Drilling
                 </button>
                 <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
@@ -60,7 +60,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
                   Comparison
                 </button>
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                <button className="text-green-600 font-semibold border-b-2 border-green-600 pb-1">
                   Data Upload
                 </button>
               </nav>
@@ -99,7 +99,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700 font-medium">Drilling Dashboard</span>
+                <span className="text-gray-700 font-medium">Data Management</span>
               </div>
               
               {/* Quick Actions */}
@@ -113,23 +113,23 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
-                  Export
+                  Export Data
                 </button>
                 <button 
                   onClick={handleResetData}
                   className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
-                  title="Reset data and return to upload mode"
+                  title="Reset all data"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                   </svg>
                   Reset Data
                 </button>
-                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors">
+                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors">
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                   </svg>
-                  New Report
+                  View Dashboard
                 </button>
               </div>
             </div>
@@ -140,75 +140,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       {/* Main Content */}
       <main className="relative z-10">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Performance Metrics Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-green-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Active Vessels</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">24</p>
-                  <p className="text-xs text-green-600 mt-1">+12% from last month</p>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M12 17v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-blue-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Total Cargo</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">157K MT</p>
-                  <p className="text-xs text-blue-600 mt-1">98.5% capacity</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-yellow-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Efficiency Rate</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">87.3%</p>
-                  <p className="text-xs text-yellow-600 mt-1">Above target</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-yellow-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-gray-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Cost Savings</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">$2.4M</p>
-                  <p className="text-xs text-green-600 mt-1">This quarter</p>
-                </div>
-                <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Main Content Area */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            {children}
-          </div>
+          {children}
         </div>
       </main>
       
@@ -224,7 +156,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-              <span>All systems operational</span>
+              <span>Data management system operational</span>
             </div>
           </div>
         </div>
@@ -233,4 +165,4 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   );
 };
 
-export default DashboardLayout;
+export default DataManagementLayout; 

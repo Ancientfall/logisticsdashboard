@@ -12,6 +12,7 @@ import {
   DateRange,
   DashboardFilters 
 } from '../types';
+import { getMasterFacilitiesData } from '../data/masterFacilities';
 
 // ===================== RAW DATA INTERFACES =====================
 // These represent the data as it comes from Excel files
@@ -56,16 +57,7 @@ interface RawVesselManifest {
   Year: number;
 }
 
-interface RawMasterFacility {
-  LocationName: string;
-  FacilityType: string;
-  ParentFacility?: string;
-  IsProductionCapable: boolean;
-  IsDrillingCapable: boolean;
-  ProductionLCs?: string;
-  Region?: string;
-  IsActive: boolean;
-}
+
 
 interface RawCostAllocation {
   "LC Number": string;
@@ -97,7 +89,6 @@ interface ProcessingOptions {
   voyageEventsFile: File | null;
   voyageListFile: File | null;
   vesselManifestsFile: File | null;
-  masterFacilitiesFile: File | null;
   costAllocationFile: File | null;
   vesselClassificationsFile?: File | null;
   bulkActionsFile?: File | null;
@@ -128,7 +119,6 @@ export const processExcelFiles = async (options: ProcessingOptions): Promise<Pro
     voyageEventsFile,
     voyageListFile,
     vesselManifestsFile,
-    masterFacilitiesFile,
     costAllocationFile,
     vesselClassificationsFile,
     bulkActionsFile,
@@ -140,9 +130,9 @@ export const processExcelFiles = async (options: ProcessingOptions): Promise<Pro
     return createMockDataStore();
   }
 
-  // Validate files
-  if (!voyageEventsFile || !masterFacilitiesFile || !costAllocationFile) {
-    throw new Error('All required files must be provided');
+  // Validate files - masterFacilitiesFile no longer required as it's hardcoded
+  if (!voyageEventsFile || !costAllocationFile) {
+    throw new Error('Voyage Events and Cost Allocation files must be provided');
   }
 
   try {
@@ -151,7 +141,6 @@ export const processExcelFiles = async (options: ProcessingOptions): Promise<Pro
       voyageEventsFile,
       voyageListFile,
       vesselManifestsFile,
-      masterFacilitiesFile,
       costAllocationFile,
       vesselClassificationsFile,
       bulkActionsFile
@@ -191,7 +180,6 @@ const processFiles = async (files: {
   voyageEventsFile: File | null;
   voyageListFile: File | null;
   vesselManifestsFile: File | null;
-  masterFacilitiesFile: File | null;
   costAllocationFile: File | null;
   vesselClassificationsFile?: File | null;
   bulkActionsFile?: File | null;
@@ -201,13 +189,14 @@ const processFiles = async (files: {
 
     // Read all required Excel files
     const voyageEventsFile = files.voyageEventsFile!;
-    const masterFacilitiesFile = files.masterFacilitiesFile!;
     const costAllocationFile = files.costAllocationFile!;
     
     // Read required Excel files
     const rawVoyageEvents = await readExcelFile<RawVoyageEvent>(voyageEventsFile);
-    const rawMasterFacilities = await readExcelFile<RawMasterFacility>(masterFacilitiesFile);
     const rawCostAllocation = await readExcelFile<RawCostAllocation>(costAllocationFile);
+    
+    // Use static master facilities data instead of file upload
+    const staticMasterFacilities = getMasterFacilitiesData();
     
     // Read optional files with null checks
     const rawVesselManifests = files.vesselManifestsFile ? 
@@ -222,7 +211,7 @@ const processFiles = async (files: {
     console.log('Excel files read successfully:', {
       voyageEvents: rawVoyageEvents.length,
       vesselManifests: rawVesselManifests.length,
-      masterFacilities: rawMasterFacilities.length,
+      masterFacilities: staticMasterFacilities.length,
       costAllocation: rawCostAllocation.length,
       voyageList: rawVoyageList.length,
       vesselClassifications: rawVesselClassifications.length,
@@ -230,7 +219,18 @@ const processFiles = async (files: {
     });
 
     // Process reference data first (needed for lookups)
-    const masterFacilities = processMasterFacilities(rawMasterFacilities);
+    // Use static master facilities data directly (already in correct format)
+    const masterFacilities = staticMasterFacilities.map(facility => ({
+      locationName: facility.LocationName,
+      facilityType: facility.FacilityType as 'Production' | 'Drilling' | 'Integrated' | 'Logistics',
+      parentFacility: facility.ParentFacility || undefined,
+      isProductionCapable: facility.IsProductionCapable,
+      isDrillingCapable: facility.IsDrillingCapable,
+      productionLCs: facility.ProductionLCs ? facility.ProductionLCs.split(',').map(lc => lc.trim()) : undefined,
+      region: facility.Region,
+      notes: undefined,
+      isActive: facility.IsActive
+    }));
     const costAllocation = processCostAllocation(rawCostAllocation);
 
     console.log('Reference data processed');
@@ -327,22 +327,7 @@ const readExcelFile = async <T>(file: File): Promise<T[]> => {
 
 // ===================== REFERENCE DATA PROCESSING =====================
 
-/**
- * Process MasterFacilities raw data
- */
-const processMasterFacilities = (rawFacilities: RawMasterFacility[]): MasterFacility[] => {
-  return rawFacilities.map((facility, index) => ({
-    locationName: facility.LocationName,
-    facilityType: facility.FacilityType as 'Production' | 'Drilling' | 'Integrated' | 'Logistics',
-    parentFacility: facility.ParentFacility,
-    isProductionCapable: facility.IsProductionCapable,
-    isDrillingCapable: facility.IsDrillingCapable,
-    productionLCs: facility.ProductionLCs ? facility.ProductionLCs.split(',').map(lc => lc.trim()) : undefined,
-    region: facility.Region,
-    notes: undefined,
-    isActive: facility.IsActive
-  }));
-};
+
 
 /**
  * Process CostAllocation raw data

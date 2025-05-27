@@ -114,34 +114,73 @@ interface DataProviderProps {
 }
 
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
-  // Main data state
-  const [voyageEvents, setVoyageEventsState] = useState<VoyageEvent[]>([]);
-  const [vesselManifests, setVesselManifestsState] = useState<VesselManifest[]>([]);
-  const [masterFacilities, setMasterFacilitiesState] = useState<MasterFacility[]>([]);
-  const [costAllocation, setCostAllocationState] = useState<CostAllocation[]>([]);
-  const [vesselClassifications, setVesselClassificationsState] = useState<VesselClassification[]>([]);
-  const [voyageList, setVoyageListState] = useState<VoyageList[]>([]);
-  const [bulkActions, setBulkActionsState] = useState<BulkAction[]>([]);
+  // Check for existing data in localStorage on initialization
+  const loadStoredData = () => {
+    try {
+      const storedData = localStorage.getItem('logisticsDashboardData');
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        return {
+          hasData: parsed.hasData || false,
+          lastUpdated: parsed.lastUpdated ? new Date(parsed.lastUpdated) : null,
+          voyageEvents: parsed.voyageEvents || [],
+          vesselManifests: parsed.vesselManifests || [],
+          masterFacilities: parsed.masterFacilities || [],
+          costAllocation: parsed.costAllocation || [],
+          vesselClassifications: parsed.vesselClassifications || [],
+          voyageList: parsed.voyageList || [],
+          bulkActions: parsed.bulkActions || []
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to load stored data:', error);
+    }
+    return null;
+  };
+
+  const storedData = loadStoredData();
+  
+  // Main data state - initialize with stored data if available
+  const [voyageEvents, setVoyageEventsState] = useState<VoyageEvent[]>(storedData?.voyageEvents || []);
+  const [vesselManifests, setVesselManifestsState] = useState<VesselManifest[]>(storedData?.vesselManifests || []);
+  const [masterFacilities, setMasterFacilitiesState] = useState<MasterFacility[]>(storedData?.masterFacilities || []);
+  const [costAllocation, setCostAllocationState] = useState<CostAllocation[]>(storedData?.costAllocation || []);
+  const [vesselClassifications, setVesselClassificationsState] = useState<VesselClassification[]>(storedData?.vesselClassifications || []);
+  const [voyageList, setVoyageListState] = useState<VoyageList[]>(storedData?.voyageList || []);
+  const [bulkActions, setBulkActionsState] = useState<BulkAction[]>(storedData?.bulkActions || []);
   
   // Data store for compatibility with existing code
   const [dataStore, setDataStoreState] = useState<DataStore | null>(null);
   
   // Loading and error state
   const [isLoading, setIsLoadingState] = useState(false);
-  const [isDataReady, setIsDataReadyState] = useState(false);
+  const [isDataReady, setIsDataReadyState] = useState(storedData?.hasData || false);
   const [error, setErrorState] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(storedData?.lastUpdated || null);
   
   // Track which files have been uploaded
   const [uploadedFiles, setUploadedFiles] = useState({
-    voyageEvents: false,
-    vesselManifests: false,
-    masterFacilities: false,
-    costAllocation: false,
-    vesselClassifications: false,
-    voyageList: false,
-    bulkActions: false
+    voyageEvents: storedData?.voyageEvents.length > 0 || false,
+    vesselManifests: storedData?.vesselManifests.length > 0 || false,
+    masterFacilities: storedData?.masterFacilities.length > 0 || false,
+    costAllocation: storedData?.costAllocation.length > 0 || false,
+    vesselClassifications: storedData?.vesselClassifications.length > 0 || false,
+    voyageList: storedData?.voyageList.length > 0 || false,
+    bulkActions: storedData?.bulkActions.length > 0 || false
   });
+
+  // Save data to localStorage
+  const saveDataToStorage = (data: any) => {
+    try {
+      localStorage.setItem('logisticsDashboardData', JSON.stringify({
+        hasData: true,
+        lastUpdated: new Date().toISOString(),
+        ...data
+      }));
+    } catch (error) {
+      console.warn('Failed to save data to localStorage:', error);
+    }
+  };
   
   // Update uploaded files tracking when data is set
   const setVoyageEvents = (data: VoyageEvent[]) => {
@@ -193,6 +232,18 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   
   const setIsDataReady = (ready: boolean) => {
     setIsDataReadyState(ready);
+    if (ready) {
+      // Save current data state to localStorage when data becomes ready
+      saveDataToStorage({
+        voyageEvents,
+        vesselManifests,
+        masterFacilities,
+        costAllocation,
+        vesselClassifications,
+        voyageList,
+        bulkActions
+      });
+    }
   };
   
   const setIsLoading = (loading: boolean) => {
@@ -230,6 +281,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setErrorState(null);
     setLastUpdated(null);
     setIsDataReadyState(false);
+    
+    // Clear localStorage
+    try {
+      localStorage.removeItem('logisticsDashboardData');
+    } catch (error) {
+      console.warn('Failed to clear localStorage:', error);
+    }
   };
   
   // Reset to upload page (clears data and goes back to upload)

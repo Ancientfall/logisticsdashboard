@@ -26,13 +26,11 @@ const FileUpload: React.FC = () => {
     voyageEvents: File | null;
     voyageList: File | null;
     vesselManifests: File | null;
-    masterFacilities: File | null;
     costAllocation: File | null;
   }>({
     voyageEvents: null,
     voyageList: null,
     vesselManifests: null,
-    masterFacilities: null,
     costAllocation: null
   });
   
@@ -41,13 +39,11 @@ const FileUpload: React.FC = () => {
     voyageEvents: number;
     voyageList: number;
     vesselManifests: number;
-    masterFacilities: number;
     costAllocation: number;
   }>({
     voyageEvents: 0,
     voyageList: 0,
     vesselManifests: 0,
-    masterFacilities: 0,
     costAllocation: 0
   });
   
@@ -100,8 +96,8 @@ const FileUpload: React.FC = () => {
     // Check if using mock data or if required files are uploaded
     if (!useMockData) {
       // Required files
-      if (!files.voyageEvents || !files.masterFacilities || !files.costAllocation) {
-        setErrorMessage('Voyage Events, Master Facilities, and Cost Allocation files are required');
+      if (!files.voyageEvents || !files.costAllocation) {
+        setErrorMessage('Voyage Events and Cost Allocation files are required');
         return;
       }
     }
@@ -117,7 +113,6 @@ const FileUpload: React.FC = () => {
         voyageEventsFile: files.voyageEvents,
         voyageListFile: files.voyageList,
         vesselManifestsFile: files.vesselManifests,
-        masterFacilitiesFile: files.masterFacilities,
         costAllocationFile: files.costAllocation,
         vesselClassificationsFile: null, // Optional
         bulkActionsFile: null, // Optional
@@ -282,11 +277,6 @@ const FileUpload: React.FC = () => {
         />
         
         <FileInput 
-          fileType="masterFacilities" 
-          label="Master Facilities *"
-        />
-        
-        <FileInput 
           fileType="costAllocation" 
           label="Cost Allocation *"
         />
@@ -306,9 +296,9 @@ const FileUpload: React.FC = () => {
         <button
           type="button"
           onClick={processFiles}
-          disabled={processingStatus === 'processing' || (!useMockData && (!files.voyageEvents || !files.masterFacilities || !files.costAllocation))}
+          disabled={processingStatus === 'processing' || (!useMockData && (!files.voyageEvents || !files.costAllocation))}
           className={`px-4 py-2 rounded font-medium ${
-            processingStatus === 'processing' || (!useMockData && (!files.voyageEvents || !files.masterFacilities || !files.costAllocation))
+            processingStatus === 'processing' || (!useMockData && (!files.voyageEvents || !files.costAllocation))
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-green-500 text-white hover:bg-green-600'
           }`}
