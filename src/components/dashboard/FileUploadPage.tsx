@@ -90,6 +90,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   });
   
   // Load data from localStorage on component mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedData = localStorage.getItem('bp-logistics-data');
     if (savedData) {

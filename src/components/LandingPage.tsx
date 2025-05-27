@@ -6,13 +6,9 @@ import {
   TrendingUp, 
   Shield, 
   Zap, 
-  Globe, 
-  Users, 
   ArrowRight, 
   Play,
   CheckCircle,
-  MapPin,
-  Clock,
   DollarSign
 } from 'lucide-react';
 
@@ -99,7 +95,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       setCurrentStat((prev) => (prev + 1) % stats.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [stats.length]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-green-900">
