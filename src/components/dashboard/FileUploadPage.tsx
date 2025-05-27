@@ -1,5 +1,5 @@
 // src/components/dashboard/FileUploadPage.tsx
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Upload, Database, Calendar, Plus, RefreshCw, Download, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
@@ -46,6 +46,15 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   onNavigateToComparison 
 }) => {
   const { 
+    voyageEvents,
+    vesselManifests,
+    masterFacilities,
+    costAllocation,
+    voyageList,
+    vesselClassifications,
+    bulkActions,
+    lastUpdated,
+    isDataReady,
     setVoyageEvents,
     setVesselManifests,
     setMasterFacilities,
@@ -55,45 +64,41 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     setBulkActions,
     setIsDataReady,
     setIsLoading,
-    setError
+    setError,
+    clearAllData
   } = useData();
 
-  // Initialize dataStore with existing data from localStorage or empty state
-  const initializeDataStore = (): DataStore => {
-    const savedData = localStorage.getItem('bp-logistics-data');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        // If we have existing data with metadata, use it
-        if (parsed.metadata && parsed.metadata.totalRecords > 0) {
-          console.log('🔄 FileUploadPage: Initializing with existing data from localStorage');
-          return parsed;
-        }
-      } catch (error) {
-        console.warn('Failed to parse existing data:', error);
-      }
-    }
+  // Create a computed dataStore from the DataContext data
+  const dataStore: DataStore = useMemo(() => {
+    const totalRecords = voyageEvents.length + vesselManifests.length + masterFacilities.length + 
+                        costAllocation.length + voyageList.length + vesselClassifications.length + bulkActions.length;
     
-    // Return empty state if no valid data found
+    const dateRange = voyageEvents.length > 0 ? (() => {
+      const dates = voyageEvents.map(e => new Date(e.eventDate)).filter(d => !isNaN(d.getTime()));
+      if (dates.length === 0) return { start: null, end: null };
+      return {
+        start: new Date(Math.min(...dates.map(d => d.getTime()))),
+        end: new Date(Math.max(...dates.map(d => d.getTime())))
+      };
+    })() : { start: null, end: null };
+
     return {
-      voyageEvents: [],
-      vesselManifests: [],
-      masterFacilities: [],
-      costAllocation: [],
-      voyageList: [],
-      vesselClassifications: [],
-      bulkActions: [],
+      voyageEvents,
+      vesselManifests,
+      masterFacilities,
+      costAllocation,
+      voyageList,
+      vesselClassifications,
+      bulkActions,
       metadata: {
-        lastUpdated: null,
-        dateRange: { start: null, end: null },
-        totalRecords: 0,
+        lastUpdated,
+        dateRange,
+        totalRecords,
         dataVersion: '1.0'
       }
     };
-  };
+  }, [voyageEvents, vesselManifests, masterFacilities, costAllocation, voyageList, vesselClassifications, bulkActions, lastUpdated]);
 
-  const [dataStore, setDataStore] = useState<DataStore>(initializeDataStore);
-  
   const [uploadMode, setUploadMode] = useState<'initial' | 'incremental'>('initial');
   const [processingState, setProcessingState] = useState<'idle' | 'processing' | 'complete' | 'error'>('idle');
   
@@ -167,8 +172,14 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         try {
           const parsed = JSON.parse(savedData);
           if (parsed.metadata && parsed.metadata.totalRecords > 0) {
-            setDataStore(parsed);
-            addLog(`Loaded existing data: ${parsed.metadata.totalRecords} records`, 'success');
+            setVoyageEvents(parsed.voyageEvents || []);
+            setVesselManifests(parsed.vesselManifests || []);
+            setMasterFacilities(parsed.masterFacilities || []);
+            setCostAllocation(parsed.costAllocation || []);
+            setVoyageList(parsed.voyageList || []);
+            setVesselClassifications(parsed.vesselClassifications || []);
+            setBulkActions(parsed.bulkActions || []);
+            setIsDataReady(true);
             
             // Add debugging for loaded data
             const loadedUniqueVessels = new Set([
@@ -284,7 +295,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
           dataVersion: '1.0-mock'
         }
       };
-      setDataStore(updatedDataStore);
+      // setDataStore(updatedDataStore);
       
       addLog(`Mock data loaded successfully: ${totalRecords} records`, 'success');
       setProcessingState('complete');
@@ -371,7 +382,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
             dataVersion: '1.0'
           }
         };
-        setDataStore(updatedDataStore);
+        // setDataStore(updatedDataStore);
         console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
         
         // Add detailed debugging information
@@ -446,7 +457,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       } else {
         // Merge with existing data
         const mergedData = mergeDataSets(dataStore, newData);
-        setDataStore(mergedData);
+        // setDataStore(mergedData);
         
         // Update context with merged data
         setVoyageEvents(mergedData.voyageEvents);
@@ -545,56 +556,18 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   };
   
   const exportData = () => {
-    const dataBlob = new Blob([JSON.stringify(dataStore, null, 2)], {
-      type: 'application/json'
-    });
+    const dataBlob = new Blob([JSON.stringify(dataStore, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `bp-logistics-data-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     addLog('Data exported successfully', 'success');
   };
   
-  const clearAllData = () => {
-    if (window.confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-      emergencyStorageClear();
-      
-      const emptyDataStore = {
-        voyageEvents: [],
-        vesselManifests: [],
-        masterFacilities: [],
-        costAllocation: [],
-        voyageList: [],
-        vesselClassifications: [],
-        bulkActions: [],
-        metadata: {
-          lastUpdated: null,
-          dateRange: { start: null, end: null },
-          totalRecords: 0,
-          dataVersion: '1.0'
-        }
-      };
-      
-      setDataStore(emptyDataStore);
-      setProcessingLog([]);
-      
-      // Clear context
-      setVoyageEvents([]);
-      setVesselManifests([]);
-      setMasterFacilities([]);
-      setCostAllocation([]);
-      setVoyageList([]);
-      setVesselClassifications([]);
-      setBulkActions([]);
-      setIsDataReady(false);
-      
-      addLog('All data and logs cleared', 'warning');
-    }
-  };
-
-  // Emergency storage clearing function
   const emergencyStorageClear = () => {
     console.log('🚨 EMERGENCY: Clearing all localStorage to free up space...');
     try {
@@ -950,127 +923,120 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
               <AlertTriangle size={16} />
               🚨 Emergency Clear
             </button>
-            <button
-              onClick={clearAllData}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-red-500 text-white rounded-md hover:bg-red-600"
-            >
-              <AlertTriangle size={16} />
-              Clear All Data
-            </button>
-                      </div>
           </div>
-        
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-         <div className="text-center p-4 bg-green-50 rounded-lg">
-           <div className="text-2xl font-bold text-green-900">
-             {dataStore.voyageEvents.length.toLocaleString()}
-           </div>
-           <div className="text-sm text-green-700">Voyage Events</div>
-           <div className="text-xs text-green-600 mt-1">
-             {dataStore.voyageEvents.length > 0 ? '✓ Loaded' : 'Pending Upload'}
-           </div>
-           <div className="text-xs text-gray-500 mt-1">
-             Expected: 37,009
-           </div>
-         </div>
-         <div className="text-center p-4 bg-blue-50 rounded-lg">
-           <div className="text-2xl font-bold text-blue-900">
-             {dataStore.costAllocation.length.toLocaleString()}
-           </div>
-           <div className="text-sm text-blue-700">Cost Allocations</div>
-           <div className="text-xs text-blue-600 mt-1">
-             {dataStore.costAllocation.length > 0 ? '✓ Loaded' : 'Pending Upload'}
-           </div>
-         </div>
-         <div className="text-center p-4 bg-purple-50 rounded-lg">
-           <div className="text-2xl font-bold text-purple-900">
-             {dataStore.voyageList.length.toLocaleString()}
-           </div>
-           <div className="text-sm text-purple-700">Voyage Lists</div>
-           <div className="text-xs text-purple-600 mt-1">
-             {dataStore.voyageList.length > 0 ? '✓ Loaded' : 'Pending Upload'}
-           </div>
-           <div className="text-xs text-gray-500 mt-1">
-             Expected: 1,143
-           </div>
-         </div>
-         <div className="text-center p-4 bg-orange-50 rounded-lg">
-           <div className="text-2xl font-bold text-orange-900">
-             {dataStore.vesselManifests.length.toLocaleString()}
-           </div>
-           <div className="text-sm text-orange-700">Vessel Manifests</div>
-           <div className="text-xs text-orange-600 mt-1">
-             {dataStore.vesselManifests.length > 0 ? '✓ Loaded' : 'Optional'}
-           </div>
-           <div className="text-xs text-gray-500 mt-1">
-             Expected: 1,941
-           </div>
-         </div>
-       </div>
+        </div>
       
-             {dataStore.metadata.lastUpdated && (
-         <div className="p-4 bg-gray-50 rounded-lg">
-           <div className="flex items-center justify-between text-sm">
-             <div className="flex items-center gap-2">
-               <Calendar size={16} className="text-gray-600" />
-               <span className="text-gray-700">
-                 Last Updated: {new Date(dataStore.metadata.lastUpdated).toLocaleString()}
-               </span>
-             </div>
-             <div className="text-gray-700">
-               Total Records: {dataStore.metadata.totalRecords.toLocaleString()}
-             </div>
-           </div>
-           {dataStore.metadata.dateRange.start && dataStore.metadata.dateRange.end && (
-             <div className="mt-2 text-sm text-gray-600">
-               Data Range: {new Date(dataStore.metadata.dateRange.start).toLocaleDateString()} - {new Date(dataStore.metadata.dateRange.end).toLocaleDateString()}
-             </div>
-           )}
-           <div className="mt-2 p-3 bg-gray-100 rounded">
-             <div className="text-sm font-medium text-gray-700 mb-2">Unique Vessels Summary</div>
-             <div className="grid grid-cols-3 gap-3 text-xs">
-               <div>
-                 <span className="text-gray-500">From Events:</span>
-                 <span className="ml-2 font-medium">
-                   {new Set(dataStore.voyageEvents.map(e => e.vessel)).size}
-                 </span>
-               </div>
-               <div>
-                 <span className="text-gray-500">From Manifests:</span>
-                 <span className="ml-2 font-medium">
-                   {new Set(dataStore.vesselManifests.map(m => m.transporter)).size}
-                 </span>
-               </div>
-               <div>
-                 <span className="text-gray-500">From Voyages:</span>
-                 <span className="ml-2 font-medium">
-                   {new Set(dataStore.voyageList.map(v => v.vessel)).size}
-                 </span>
-               </div>
-             </div>
-             <div className="mt-2 text-xs text-gray-600">
-               Expected Total: 34 unique vessels
-             </div>
-           </div>
-           <div className="mt-3 flex items-center gap-4 text-xs">
-             <div className="flex items-center gap-1">
-               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-               <span className="text-green-700">Data Validated</span>
-             </div>
-             <div className="flex items-center gap-1">
-               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-               <span className="text-blue-700">Ready for Analysis</span>
-             </div>
-             <div className="flex items-center gap-1">
-               <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-               <span className="text-purple-700">Backup Created</span>
-             </div>
-           </div>
-           
-           {/* Storage Status Indicator */}
-           <StorageStatusIndicator getStorageInfo={getStorageInfo} />
-         </div>
-       )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="text-center p-4 bg-green-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-900">
+              {dataStore.voyageEvents.length.toLocaleString()}
+            </div>
+            <div className="text-sm text-green-700">Voyage Events</div>
+            <div className="text-xs text-green-600 mt-1">
+              {dataStore.voyageEvents.length > 0 ? '✓ Loaded' : 'Pending Upload'}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Expected: 37,009
+            </div>
+          </div>
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-900">
+              {dataStore.costAllocation.length.toLocaleString()}
+            </div>
+            <div className="text-sm text-blue-700">Cost Allocations</div>
+            <div className="text-xs text-blue-600 mt-1">
+              {dataStore.costAllocation.length > 0 ? '✓ Loaded' : 'Pending Upload'}
+            </div>
+          </div>
+          <div className="text-center p-4 bg-purple-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-900">
+              {dataStore.voyageList.length.toLocaleString()}
+            </div>
+            <div className="text-sm text-purple-700">Voyage Lists</div>
+            <div className="text-xs text-purple-600 mt-1">
+              {dataStore.voyageList.length > 0 ? '✓ Loaded' : 'Pending Upload'}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Expected: 1,143
+            </div>
+          </div>
+          <div className="text-center p-4 bg-orange-50 rounded-lg">
+            <div className="text-2xl font-bold text-orange-900">
+              {dataStore.vesselManifests.length.toLocaleString()}
+            </div>
+            <div className="text-sm text-orange-700">Vessel Manifests</div>
+            <div className="text-xs text-orange-600 mt-1">
+              {dataStore.vesselManifests.length > 0 ? '✓ Loaded' : 'Optional'}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Expected: 1,941
+            </div>
+          </div>
+        </div>
+      
+        {dataStore.metadata.lastUpdated && (
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} className="text-gray-600" />
+                <span className="text-gray-700">
+                  Last Updated: {new Date(dataStore.metadata.lastUpdated).toLocaleString()}
+                </span>
+              </div>
+              <div className="text-gray-700">
+                Total Records: {dataStore.metadata.totalRecords.toLocaleString()}
+              </div>
+            </div>
+            {dataStore.metadata.dateRange.start && dataStore.metadata.dateRange.end && (
+              <div className="mt-2 text-sm text-gray-600">
+                Data Range: {new Date(dataStore.metadata.dateRange.start).toLocaleDateString()} - {new Date(dataStore.metadata.dateRange.end).toLocaleDateString()}
+              </div>
+            )}
+            <div className="mt-2 p-3 bg-gray-100 rounded">
+              <div className="text-sm font-medium text-gray-700 mb-2">Unique Vessels Summary</div>
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div>
+                  <span className="text-gray-500">From Events:</span>
+                  <span className="ml-2 font-medium">
+                    {new Set(dataStore.voyageEvents.map(e => e.vessel)).size}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">From Manifests:</span>
+                  <span className="ml-2 font-medium">
+                    {new Set(dataStore.vesselManifests.map(m => m.transporter)).size}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">From Voyages:</span>
+                  <span className="ml-2 font-medium">
+                    {new Set(dataStore.voyageList.map(v => v.vessel)).size}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-gray-600">
+                Expected Total: 34 unique vessels
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-green-700">Data Validated</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-blue-700">Ready for Analysis</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span className="text-purple-700">Backup Created</span>
+              </div>
+            </div>
+            
+            {/* Storage Status Indicator */}
+            <StorageStatusIndicator getStorageInfo={getStorageInfo} />
+          </div>
+        )}
       </div>
     );
   };
@@ -1136,15 +1102,15 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       input.multiple = true;
       input.accept = '.xlsx,.xls';
       
-             input.onchange = async (e) => {
-         const selectedFiles = Array.from((e.target as HTMLInputElement).files || []);
-         
-         if (selectedFiles.length === 0) {
-           addLog('❌ No files selected for preload', 'warning');
-           setProcessingState('idle');
-           setIsLoading(false);
-           return;
-         }
+      input.onchange = async (e) => {
+        const selectedFiles = Array.from((e.target as HTMLInputElement).files || []);
+        
+        if (selectedFiles.length === 0) {
+          addLog('❌ No files selected for preload', 'warning');
+          setProcessingState('idle');
+          setIsLoading(false);
+          return;
+        }
         
         addLog(`📁 Found ${selectedFiles.length} files for preload`, 'info');
         
@@ -1197,86 +1163,86 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
           return;
         }
         
-                 // Set the detected files
-         setFiles(detectedFiles);
-         
-         // Clear existing data first to prevent accumulation
-         addLog('🧹 Clearing existing data to prevent storage issues...', 'info');
-         clearAllData();
-         
-         // Auto-process the files directly with detected files
-         addLog('🚀 Auto-processing detected files...', 'info');
-         
-         try {
-           // Process Excel files using the detected files directly
-           const dataStoreResult = await processExcelFiles({
-             voyageEventsFile: detectedFiles.voyageEvents,
-             voyageListFile: detectedFiles.voyageList,
-             vesselManifestsFile: detectedFiles.vesselManifests,
-             costAllocationFile: detectedFiles.costAllocation,
-             vesselClassificationsFile: null,
-             bulkActionsFile: null,
-             useMockData: false
-           });
-           
-           const newData = {
-             voyageEvents: dataStoreResult.voyageEvents,
-             vesselManifests: dataStoreResult.vesselManifests,
-             masterFacilities: dataStoreResult.masterFacilities,
-             costAllocation: dataStoreResult.costAllocation,
-             voyageList: dataStoreResult.voyageList,
-             vesselClassifications: dataStoreResult.vesselClassifications || [],
-             bulkActions: dataStoreResult.bulkActions || []
-           };
-           
-           // Calculate storage size before saving
-           const totalRecords = Object.values(newData).reduce((sum, arr) => sum + (arr?.length || 0), 0);
-           const estimatedSizeMB = (JSON.stringify(newData).length / 1024 / 1024).toFixed(2);
-           addLog(`📊 Data processed: ${totalRecords} records, estimated size: ${estimatedSizeMB}MB`, 'info');
-           
-           // Only update context (avoid double storage by not calling setDataStore)
-           addLog('💾 Saving data to context...', 'info');
-           setVoyageEvents(newData.voyageEvents);
-           setVesselManifests(newData.vesselManifests);
-           setMasterFacilities(newData.masterFacilities);
-           setCostAllocation(newData.costAllocation);
-           setVoyageList(newData.voyageList);
-           setVesselClassifications(newData.vesselClassifications);
-           setBulkActions(newData.bulkActions);
-           setIsDataReady(true);
-           
-           // Update local dataStore for UI display
-           const updatedDataStore = {
-             ...newData,
-             metadata: {
-               lastUpdated: new Date(),
-               dateRange: calculateDateRange(newData.voyageEvents),
-               totalRecords,
-               dataVersion: '1.0-preload'
-             }
-           };
-           setDataStore(updatedDataStore);
-           
-           addLog(`✅ Preload completed successfully: ${totalRecords} records`, 'success');
-           setProcessingState('complete');
-           
-         } catch (error) {
-           console.error('❌ Preload processing failed:', error);
-           const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-           addLog(`Preload processing failed: ${errorMessage}`, 'error');
-           setProcessingState('error');
-         }
+        // Set the detected files
+        setFiles(detectedFiles);
+        
+        // Clear existing data first to prevent accumulation
+        addLog('🧹 Clearing existing data to prevent storage issues...', 'info');
+        clearAllData();
+        
+        // Auto-process the files directly with detected files
+        addLog('🚀 Auto-processing detected files...', 'info');
+        
+        try {
+          // Process Excel files using the detected files directly
+          const dataStoreResult = await processExcelFiles({
+            voyageEventsFile: detectedFiles.voyageEvents,
+            voyageListFile: detectedFiles.voyageList,
+            vesselManifestsFile: detectedFiles.vesselManifests,
+            costAllocationFile: detectedFiles.costAllocation,
+            vesselClassificationsFile: null,
+            bulkActionsFile: null,
+            useMockData: false
+          });
+          
+          const newData = {
+            voyageEvents: dataStoreResult.voyageEvents,
+            vesselManifests: dataStoreResult.vesselManifests,
+            masterFacilities: dataStoreResult.masterFacilities,
+            costAllocation: dataStoreResult.costAllocation,
+            voyageList: dataStoreResult.voyageList,
+            vesselClassifications: dataStoreResult.vesselClassifications || [],
+            bulkActions: dataStoreResult.bulkActions || []
+          };
+          
+          // Calculate storage size before saving
+          const totalRecords = Object.values(newData).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+          const estimatedSizeMB = (JSON.stringify(newData).length / 1024 / 1024).toFixed(2);
+          addLog(`📊 Data processed: ${totalRecords} records, estimated size: ${estimatedSizeMB}MB`, 'info');
+          
+          // Only update context (avoid double storage by not calling setDataStore)
+          addLog('💾 Saving data to context...', 'info');
+          setVoyageEvents(newData.voyageEvents);
+          setVesselManifests(newData.vesselManifests);
+          setMasterFacilities(newData.masterFacilities);
+          setCostAllocation(newData.costAllocation);
+          setVoyageList(newData.voyageList);
+          setVesselClassifications(newData.vesselClassifications);
+          setBulkActions(newData.bulkActions);
+          setIsDataReady(true);
+          
+          // Update local dataStore for UI display
+          const updatedDataStore = {
+            ...newData,
+            metadata: {
+              lastUpdated: new Date(),
+              dateRange: calculateDateRange(newData.voyageEvents),
+              totalRecords,
+              dataVersion: '1.0-preload'
+            }
+          };
+          // No longer need to set local dataStore since we use computed dataStore from context
+          
+          addLog(`✅ Preload completed successfully: ${totalRecords} records`, 'success');
+          setProcessingState('complete');
+          
+        } catch (error) {
+          console.error('❌ Preload processing failed:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          addLog(`Preload processing failed: ${errorMessage}`, 'error');
+          setProcessingState('error');
+        }
       };
       
-             // Handle dialog cancellation
-       input.oncancel = () => {
-         addLog('📝 File selection cancelled', 'info');
-         setProcessingState('idle');
-         setIsLoading(false);
-       };
-       
-       // Trigger file selection dialog
-       input.click();
+      // Handle dialog cancellation
+      input.oncancel = () => {
+        addLog('📝 File selection cancelled', 'info');
+        setProcessingState('idle');
+        setIsLoading(false);
+      };
+      
+      // Trigger file selection dialog
+      input.click();
       
     } catch (error) {
       console.error('❌ Preload failed:', error);
