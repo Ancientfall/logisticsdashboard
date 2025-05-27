@@ -65,7 +65,8 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     setIsDataReady,
     setIsLoading,
     setError,
-    clearAllData
+    clearAllData,
+    forceRefreshFromStorage
   } = useData();
 
   // Create a computed dataStore from the DataContext data
@@ -165,64 +166,18 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   
   // Load data from localStorage on component mount (only if not already loaded)
   useEffect(() => {
-    // Only load if we don't already have data in dataStore
-    if (dataStore.metadata.totalRecords === 0) {
-      const savedData = localStorage.getItem('bp-logistics-data');
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          if (parsed.metadata && parsed.metadata.totalRecords > 0) {
-            setVoyageEvents(parsed.voyageEvents || []);
-            setVesselManifests(parsed.vesselManifests || []);
-            setMasterFacilities(parsed.masterFacilities || []);
-            setCostAllocation(parsed.costAllocation || []);
-            setVoyageList(parsed.voyageList || []);
-            setVesselClassifications(parsed.vesselClassifications || []);
-            setBulkActions(parsed.bulkActions || []);
-            setIsDataReady(true);
-            
-            // Add debugging for loaded data
-            const loadedUniqueVessels = new Set([
-              ...(parsed.voyageEvents || []).map((e: any) => e.vessel),
-              ...(parsed.vesselManifests || []).map((m: any) => m.transporter),
-              ...(parsed.voyageList || []).map((v: any) => v.vessel)
-            ].filter(Boolean));
-            
-            console.log('📁 Data Loaded from Storage - Analysis:', {
-              voyageEvents: (parsed.voyageEvents || []).length,
-              vesselManifests: (parsed.vesselManifests || []).length,
-              voyageList: (parsed.voyageList || []).length,
-              uniqueVesselsTotal: loadedUniqueVessels.size,
-              vesselList: Array.from(loadedUniqueVessels).sort(),
-              dataVersion: parsed.metadata.dataVersion,
-              lastUpdated: parsed.metadata.lastUpdated
-            });
-            
-            // Update context with loaded data
-            setVoyageEvents(parsed.voyageEvents || []);
-            setVesselManifests(parsed.vesselManifests || []);
-            setMasterFacilities(parsed.masterFacilities || []);
-            setCostAllocation(parsed.costAllocation || []);
-            setVoyageList(parsed.voyageList || []);
-            setVesselClassifications(parsed.vesselClassifications || []);
-            setBulkActions(parsed.bulkActions || []);
-            setIsDataReady(true);
-          }
-        } catch (error) {
-          addLog('Failed to load saved data', 'error');
-        }
-      }
-    } else {
-      console.log('📊 FileUploadPage: Data already loaded, skipping localStorage read');
-    }
-  }, []); // Only run once on mount
-  
-  // Save data to localStorage whenever dataStore changes
-  useEffect(() => {
-    if (dataStore.metadata.totalRecords > 0) {
-      localStorage.setItem('bp-logistics-data', JSON.stringify(dataStore));
-    }
-  }, [dataStore]);
+    // Remove duplicate loading logic - DataContext already handles this
+    // Just add debugging to see what data we have
+    console.log('📊 FileUploadPage: Current data state:', {
+      voyageEventsCount: voyageEvents.length,
+      vesselManifestsCount: vesselManifests.length,
+      costAllocationCount: costAllocation.length,
+      voyageListCount: voyageList.length,
+      totalRecords: dataStore.metadata.totalRecords,
+      isDataReady,
+      lastUpdated
+    });
+  }, [voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, dataStore.metadata.totalRecords, isDataReady, lastUpdated]);
   
   const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const newLogEntry = {
@@ -818,6 +773,15 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     // Debug localStorage content
     const debugLocalStorage = () => {
       try {
+        console.log('🔍 DEBUG: Current DataContext state:', {
+          voyageEvents: voyageEvents.length,
+          vesselManifests: vesselManifests.length,
+          costAllocation: costAllocation.length,
+          voyageList: voyageList.length,
+          isDataReady,
+          lastUpdated
+        });
+        
         const savedData = localStorage.getItem('bp-logistics-data');
         if (savedData) {
           const parsed = JSON.parse(savedData);
@@ -832,6 +796,10 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         // Add storage diagnostics
         const storageInfo = getStorageInfo();
         addLog(`💾 Storage Info: ${storageInfo.usedMB}MB used, ${storageInfo.status}`, 'info');
+        
+        // Add computed dataStore info
+        addLog(`🧮 Computed dataStore: ${dataStore.metadata.totalRecords} total records`, 'info');
+        addLog(`📊 DataStore breakdown: VE(${dataStore.voyageEvents.length}), VM(${dataStore.vesselManifests.length}), CA(${dataStore.costAllocation.length}), VL(${dataStore.voyageList.length})`, 'info');
         
       } catch (error) {
         console.error('🔍 DEBUG: Error reading localStorage:', error);
@@ -907,6 +875,16 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               Debug
+            </button>
+            <button
+              onClick={() => {
+                addLog('🔄 Force refreshing data from storage...', 'info');
+                forceRefreshFromStorage();
+              }}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
+            >
+              <RefreshCw size={16} />
+              Force Refresh
             </button>
             <button
               onClick={exportData}

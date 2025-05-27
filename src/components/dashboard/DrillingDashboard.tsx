@@ -292,7 +292,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         return activities.sort((a, b) => b.hours - a.hours);
       })()
     };
-  }, [voyageEvents, vesselManifests, filters]);
+  }, [voyageEvents, vesselManifests, costAllocation, filters]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
