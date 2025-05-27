@@ -123,8 +123,8 @@ const getMonthOptions = (voyageEvents: any[]): {value: string, label: string}[] 
   
   const options = Array.from(monthMap.entries()).map(([value, label]) => ({ value, label }));
   
-  // Sort by date (descending)
-  return options.sort((a, b) => b.value.localeCompare(a.value));
+  // Sort by date (ascending for proper chronological order)
+  return options.sort((a, b) => a.value.localeCompare(b.value));
 };
 
 const getUniqueCompanies = (voyageEvents: any[]): string[] => {

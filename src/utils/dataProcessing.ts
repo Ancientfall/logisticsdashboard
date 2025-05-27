@@ -589,7 +589,15 @@ const processVoyageEvents = (
       if ((hours === 0 || !hours) && from && to) {
         hours = (to.getTime() - from.getTime()) / (1000 * 60 * 60);
       }
-      hours = Number(hours.toFixed(2));
+      
+      // Ensure hours is a valid number before calling toFixed
+      const numericHours = Number(hours);
+      if (isNaN(numericHours)) {
+        console.warn('Invalid hours value for event:', event, 'Original hours:', hours, 'Setting to 0');
+        hours = 0;
+      } else {
+        hours = Number(numericHours.toFixed(2));
+      }
 
       // Process LC allocations
       const lcAllocations = processLCAllocations(
@@ -623,7 +631,7 @@ const processVoyageEvents = (
           from,
           to,
           hours,
-          finalHours: Number(finalHours.toFixed(2)),
+          finalHours: Number(isNaN(finalHours) ? 0 : finalHours.toFixed(2)),
           eventDate,
           eventYear: eventDate.getFullYear(),
           quarter: `Q${Math.ceil((eventDate.getMonth() + 1) / 3)}`,

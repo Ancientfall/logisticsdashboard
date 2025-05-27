@@ -10,18 +10,26 @@ import DrillingDashboard from './components/dashboard/DrillingDashboard';
 
 // Main application content component
 const AppContent: React.FC = () => {
-  const { isDataReady, isLoading } = useData();
+  const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
   const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
     console.log('🔄 App: isDataReady changed to:', isDataReady);
+    console.log('📊 App: Data counts:', {
+      voyageEvents: voyageEvents.length,
+      vesselManifests: vesselManifests.length,
+      costAllocation: costAllocation.length
+    });
+    
     if (isDataReady) {
-      console.log('🎯 App: Navigating to dashboard...');
+      console.log('🎯 App: Data is ready, navigating to dashboard...');
       setCurrentView('dashboard');
+    } else {
+      console.log('❌ App: Data not ready, staying on current view:', currentView);
     }
     // Note: We don't automatically redirect to upload anymore - user chooses from landing page
-  }, [isDataReady]);
+  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length, currentView]);
 
   // Show loading state during processing
   if (isLoading) {

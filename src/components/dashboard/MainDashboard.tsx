@@ -52,7 +52,24 @@ const MainDashboard: React.FC = () => {
 
   // Get filter options
   const filterOptions = useMemo(() => {
-    const months = Array.from(new Set(voyageEvents.map(ve => ve.monthName))).sort();
+    // Create month options with proper chronological sorting
+    const monthMap = new Map<string, string>();
+    
+    voyageEvents.forEach(event => {
+      if (event.eventDate) {
+        const date = new Date(event.eventDate);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthName = date.toLocaleString('default', { month: 'long' });
+        const label = `${monthName} ${date.getFullYear()}`;
+        monthMap.set(monthKey, label);
+      }
+    });
+    
+    const months = Array.from(monthMap.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.value.localeCompare(b.value)) // Sort chronologically
+      .map(item => item.label); // Extract just the labels for the current format
+    
     const departments = Array.from(new Set(voyageEvents.map(ve => ve.department))).filter(dept => dept !== undefined) as ("Drilling" | "Production" | "Logistics")[];
     const vessels = Array.from(new Set(voyageEvents.map(ve => ve.vessel))).sort();
     const companies = Array.from(new Set(vesselClassifications.map(vc => vc.company))).sort();
@@ -135,7 +152,7 @@ const MainDashboard: React.FC = () => {
                 onChange={(e) => setFilters(prev => ({ ...prev, selectedVessel: e.target.value }))}
               >
                 <option value="all">All Vessels</option>
-                {filterOptions.vessels.slice(0, 20).map(vessel => (
+                {filterOptions.vessels.map(vessel => (
                   <option key={vessel} value={vessel}>{vessel}</option>
                 ))}
               </select>

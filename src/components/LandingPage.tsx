@@ -11,6 +11,7 @@ import {
   CheckCircle,
   DollarSign
 } from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -19,8 +20,10 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard, hasData }) => {
+  const { forceRefreshFromStorage } = useData();
   const [currentStat, setCurrentStat] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [animatedCards, setAnimatedCards] = useState<Set<number>>(new Set());
 
   const stats = [
     { value: '24', label: 'Active Vessels', icon: Ship },
@@ -88,6 +91,75 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       metrics: ['Side-by-Side Analysis', 'Trend Comparison', 'Benchmark Analysis', 'Performance Gaps']
     }
   ];
+
+  // Debug localStorage on component mount and check for storage issues
+  useEffect(() => {
+    console.log('🔍 LandingPage mounted - Debugging localStorage:');
+    try {
+      // Check for storage quota issues first
+      try {
+        localStorage.setItem('quota-test', 'test');
+        localStorage.removeItem('quota-test');
+        console.log('✅ localStorage is accessible');
+      } catch (quotaError) {
+        console.error('🚨 STORAGE QUOTA EXCEEDED - localStorage is full!');
+        console.error('💡 Go to Upload page and click "🚨 Emergency Clear" to fix this');
+        return;
+      }
+
+      const savedData = localStorage.getItem('bp-logistics-data');
+      const isChunked = localStorage.getItem('bp-logistics-data-chunked') === 'true';
+      const isCompressed = localStorage.getItem('bp-logistics-data-compressed') === 'true';
+      const hasMinimal = !!localStorage.getItem('bp-logistics-data-minimal');
+      const hasEmergency = !!localStorage.getItem('bp-logistics-data-emergency');
+      
+      console.log('💾 localStorage Analysis:', {
+        hasData: !!savedData,
+        dataSize: savedData ? (savedData.length / 1024).toFixed(1) + 'KB' : 'No data',
+        isChunked,
+        isCompressed,
+        hasMinimal,
+        hasEmergency,
+        hasDataProp: hasData
+      });
+
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        console.log('📊 Parsed data structure:', {
+          hasMetadata: !!parsed.metadata,
+          totalRecords: parsed.metadata?.totalRecords || 0,
+          voyageEventsCount: (parsed.voyageEvents || []).length,
+          vesselManifestsCount: (parsed.vesselManifests || []).length,
+          voyageListCount: (parsed.voyageList || []).length,
+          costAllocationCount: (parsed.costAllocation || []).length
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to debug localStorage:', error);
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        console.error('🚨 Storage is completely full! Go to Upload page and use Emergency Clear.');
+      }
+    }
+  }, [hasData]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const cardIndex = parseInt(entry.target.getAttribute('data-card-index') || '0');
+            setAnimatedCards(prev => new Set(prev).add(cardIndex));
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    const cards = document.querySelectorAll('[data-card-index]');
+    cards.forEach((card) => observer.observe(card));
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setIsVisible(true);
@@ -318,6 +390,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border border-white/30"
             >
               {hasData ? 'View Results' : 'Schedule Demo'}
+            </button>
+            
+            {/* Debug refresh button */}
+            <button
+              onClick={() => {
+                console.log('🔄 Manual debug refresh triggered');
+                forceRefreshFromStorage();
+              }}
+              className="bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm hover:bg-white/20 transition-all duration-300 border border-white/20"
+              title="Force refresh data from localStorage"
+            >
+              🔄 Debug Refresh
             </button>
           </div>
         </div>

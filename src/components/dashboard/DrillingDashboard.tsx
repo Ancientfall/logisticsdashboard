@@ -11,78 +11,254 @@ const DrillingDashboard: React.FC = () => {
 
   // Filters state - matching PowerBI layout
   const [filters, setFilters] = useState({
-    selectedMonth: 'Apr-25',
-    selectedLocation: 'Ocean BlackLion'
+    selectedMonth: 'All Months',
+    selectedLocation: 'All Locations'
   });
 
   // Calculate drilling-specific KPIs
   const drillingMetrics = useMemo(() => {
-    // Filter for drilling department only
-    const drillingEvents = voyageEvents.filter(event => event.department === 'Drilling');
-    const drillingManifests = vesselManifests.filter(manifest => manifest.finalDepartment === 'Drilling');
+    // Filter data based on selected filters
+    const filterByDate = (date: Date) => {
+      if (filters.selectedMonth === 'all' || filters.selectedMonth === 'All Months') return true;
+      const itemDate = new Date(date);
+      const monthLabel = `${itemDate.toLocaleString('default', { month: 'long' })} ${itemDate.getFullYear()}`;
+      return monthLabel === filters.selectedMonth;
+    };
+
+    const filterByLocation = (location: string) => {
+      if (filters.selectedLocation === 'all' || filters.selectedLocation === 'All Locations') return true;
+      return location === filters.selectedLocation;
+    };
+
+    // Apply filters to data
+    const filteredVoyageEvents = voyageEvents.filter(event => 
+      event.department === 'Drilling' &&
+      filterByDate(event.eventDate) &&
+      filterByLocation(event.location)
+    );
+
+    const filteredVesselManifests = vesselManifests.filter(manifest => 
+      manifest.finalDepartment === 'Drilling' &&
+      filterByDate(manifest.manifestDate) &&
+      filterByLocation(manifest.mappedLocation)
+    );
+
+    console.log('🔧 Drilling Dashboard Filtered Data:', {
+      totalVoyageEvents: voyageEvents.length,
+      filteredVoyageEvents: filteredVoyageEvents.length,
+      totalManifests: vesselManifests.length,
+      filteredManifests: filteredVesselManifests.length,
+      selectedMonth: filters.selectedMonth,
+      selectedLocation: filters.selectedLocation
+    });
+
+    // Calculate KPIs based on filtered data
     
-    // Calculate Lifts/Hr
-    const totalLifts = drillingManifests.reduce((sum, manifest) => sum + manifest.lifts, 0);
-    const cargoOpsHours = drillingEvents
-      .filter(event => event.parentEvent === 'Cargo Ops')
-      .reduce((sum, event) => sum + event.finalHours, 0);
+    // 1. Cargo Tons - Total cargo moved
+    const cargoTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0), 0);
+    
+    // 2. Lifts/Hr - Efficiency metric
+    const totalLifts = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.lifts || 0), 0);
+    const cargoOpsEvents = filteredVoyageEvents.filter(event => 
+      event.parentEvent === 'Cargo Ops' || 
+      event.event?.toLowerCase().includes('cargo') ||
+      event.event?.toLowerCase().includes('loading') ||
+      event.event?.toLowerCase().includes('offloading')
+    );
+    const cargoOpsHours = cargoOpsEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     const liftsPerHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
     
-    // Calculate Waiting Time Offshore
-    const waitingEvents = drillingEvents.filter(event => 
-      event.parentEvent === 'Waiting on Installation' && event.portType === 'rig'
+    // 3. OSV Productive Hours
+    const productiveEvents = filteredVoyageEvents.filter(event => 
+      event.activityCategory === 'Productive' ||
+      (event.event && !event.event.toLowerCase().includes('waiting') && 
+       !event.event.toLowerCase().includes('standby'))
     );
-    const waitingTimeOffshore = waitingEvents.reduce((sum, event) => sum + event.finalHours, 0);
+    const osvProductiveHours = productiveEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     
-    // Calculate FSV Runs (unique voyages)
-    const uniqueVoyages = new Set(drillingEvents.map(event => event.voyageNumber));
+    // 4. Waiting Time Offshore
+    const waitingEvents = filteredVoyageEvents.filter(event => 
+      event.parentEvent === 'Waiting on Installation' ||
+      event.event?.toLowerCase().includes('waiting') ||
+      event.event?.toLowerCase().includes('standby') ||
+      (event.portType === 'rig' && event.activityCategory === 'Non-Productive')
+    );
+    const waitingTimeOffshore = waitingEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    
+    // 5. RT Cargo (Return Transport Cargo)
+    const rtCargoTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.rtTons || 0), 0);
+    
+    // 6. Fluid Movement (calculated from specific cargo types)
+    const fluidManifests = filteredVesselManifests.filter(manifest => 
+      manifest.cargoType === 'Liquid Bulk' ||
+      manifest.remarks?.toLowerCase().includes('fluid') ||
+      manifest.remarks?.toLowerCase().includes('water') ||
+      manifest.remarks?.toLowerCase().includes('mud') ||
+      manifest.remarks?.toLowerCase().includes('brine')
+    );
+    const fluidMovement = fluidManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0), 0);
+    
+    // 7. Vessel Utilization
+    const totalHours = filteredVoyageEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const vesselUtilization = totalHours > 0 ? (osvProductiveHours / totalHours) * 100 : 0;
+    
+    // 8. FSV Runs (unique voyages)
+    const uniqueVoyages = new Set(filteredVoyageEvents.map(event => event.voyageNumber));
     const fsvRuns = uniqueVoyages.size;
     
-    // Calculate Maneuvering Hours
-    const maneuveringHours = drillingEvents
-      .filter(event => event.parentEvent === 'Maneuvering')
-      .reduce((sum, event) => sum + event.finalHours, 0);
+    // 9. Vessel Visits (unique vessel visits to locations)
+    const vesselVisits = filteredVesselManifests.length;
     
-    // Calculate Vessel Visits
-    const vesselVisits = drillingManifests.length;
-    
-    // Calculate Cargo Tons
-    const cargoTons = drillingManifests.reduce((sum, manifest) => sum + manifest.deckTons, 0);
-    
-    // Calculate OSV Productive Hours
-    const productiveHours = drillingEvents
-      .filter(event => event.activityCategory === 'Productive')
-      .reduce((sum, event) => sum + event.finalHours, 0);
-    
-    // Calculate RT Cargo (Tons)
-    const rtCargoTons = drillingManifests.reduce((sum, manifest) => sum + manifest.rtTons, 0);
-    
-    // Calculate Vessel Utilization
-    const totalHours = drillingEvents.reduce((sum, event) => sum + event.finalHours, 0);
-    const vesselUtilization = totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
-    
-    // Mock trend calculations (in real implementation, compare with previous month)
-    return {
-      cargoTons: { value: Math.round(cargoTons), trend: 44.5, isPositive: true },
-      liftsPerHour: { value: Number(liftsPerHour.toFixed(2)), trend: 15.9, isPositive: false },
-      osvProductiveHours: { value: Math.round(productiveHours), trend: 26.7, isPositive: true },
-      waitingTime: { value: Math.round(waitingTimeOffshore), trend: 95.6, isPositive: true },
-      rtCargoTons: { value: Number(rtCargoTons.toFixed(2)), trend: 62.9, isPositive: false },
-      fluidMovement: { value: 'N/A', trend: null, isPositive: null },
-      vesselUtilization: { value: Math.round(vesselUtilization), trend: 1.0, isPositive: false },
-      fsvRuns: { value: fsvRuns, trend: 33.3, isPositive: false },
-      vesselVisits: { value: vesselVisits, trend: null, isPositive: null },
-      maneuveringHours: { value: Number(maneuveringHours.toFixed(2)), trend: 24.4, isPositive: true }
+    // 10. Maneuvering Hours
+    const maneuveringEvents = filteredVoyageEvents.filter(event => 
+      event.parentEvent === 'Maneuvering' ||
+      event.event?.toLowerCase().includes('maneuvering') ||
+      event.event?.toLowerCase().includes('positioning')
+    );
+    const maneuveringHours = maneuveringEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+
+    // Calculate trends (mock data for now - in production, compare with previous period)
+    const calculateTrend = (current: number, previous: number) => {
+      if (previous === 0) return 0;
+      return ((current - previous) / previous) * 100;
     };
-  }, [voyageEvents, vesselManifests]);
+
+    // Mock previous period data (would come from actual historical data)
+    const mockPreviousPeriod = {
+      cargoTons: (cargoTons || 0) * 0.85,
+      liftsPerHour: (liftsPerHour || 0) * 1.1,
+      osvProductiveHours: (osvProductiveHours || 0) * 0.92,
+      waitingTime: (waitingTimeOffshore || 0) * 1.15,
+      rtCargoTons: (rtCargoTons || 0) * 1.08,
+      fluidMovement: (fluidMovement || 0) * 0.88,
+      vesselUtilization: (vesselUtilization || 0) * 0.98,
+      fsvRuns: (fsvRuns || 0) * 0.91,
+      vesselVisits: (vesselVisits || 0) * 0.95,
+      maneuveringHours: (maneuveringHours || 0) * 1.12
+    };
+
+    return {
+      cargoTons: { 
+        value: Math.round(cargoTons), 
+        trend: Number(calculateTrend(cargoTons, mockPreviousPeriod.cargoTons).toFixed(1)), 
+        isPositive: cargoTons > mockPreviousPeriod.cargoTons 
+      },
+      liftsPerHour: { 
+        value: Number((Number(liftsPerHour) || 0).toFixed(2)), 
+        trend: Number(calculateTrend(Number(liftsPerHour) || 0, mockPreviousPeriod.liftsPerHour).toFixed(1)), 
+        isPositive: (Number(liftsPerHour) || 0) > mockPreviousPeriod.liftsPerHour 
+      },
+      osvProductiveHours: { 
+        value: Math.round(osvProductiveHours), 
+        trend: Number(calculateTrend(osvProductiveHours, mockPreviousPeriod.osvProductiveHours).toFixed(1)), 
+        isPositive: osvProductiveHours > mockPreviousPeriod.osvProductiveHours 
+      },
+      waitingTime: { 
+        value: Math.round(waitingTimeOffshore), 
+        trend: Number(calculateTrend(waitingTimeOffshore, mockPreviousPeriod.waitingTime).toFixed(1)), 
+        isPositive: waitingTimeOffshore < mockPreviousPeriod.waitingTime // Lower waiting time is better
+      },
+      rtCargoTons: { 
+        value: Number((Number(rtCargoTons) || 0).toFixed(2)), 
+        trend: Number(calculateTrend(Number(rtCargoTons) || 0, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
+        isPositive: (Number(rtCargoTons) || 0) < mockPreviousPeriod.rtCargoTons // Lower RT cargo might be better
+      },
+      fluidMovement: { 
+        value: fluidMovement > 0 ? Math.round(fluidMovement) : 'N/A', 
+        trend: fluidMovement > 0 ? Number(calculateTrend(fluidMovement, mockPreviousPeriod.fluidMovement).toFixed(1)) : null, 
+        isPositive: fluidMovement > 0 ? fluidMovement > mockPreviousPeriod.fluidMovement : null 
+      },
+      vesselUtilization: { 
+        value: Math.round(Number(vesselUtilization) || 0), 
+        trend: Number(calculateTrend(Number(vesselUtilization) || 0, mockPreviousPeriod.vesselUtilization).toFixed(1)), 
+        isPositive: (Number(vesselUtilization) || 0) > mockPreviousPeriod.vesselUtilization 
+      },
+      fsvRuns: { 
+        value: fsvRuns, 
+        trend: Number(calculateTrend(fsvRuns, mockPreviousPeriod.fsvRuns).toFixed(1)), 
+        isPositive: fsvRuns > mockPreviousPeriod.fsvRuns 
+      },
+      vesselVisits: { 
+        value: vesselVisits, 
+        trend: Number(calculateTrend(vesselVisits, mockPreviousPeriod.vesselVisits).toFixed(1)), 
+        isPositive: vesselVisits > mockPreviousPeriod.vesselVisits 
+      },
+      maneuveringHours: { 
+        value: Number((Number(maneuveringHours) || 0).toFixed(2)), 
+        trend: Number(calculateTrend(Number(maneuveringHours) || 0, mockPreviousPeriod.maneuveringHours).toFixed(1)), 
+        isPositive: (Number(maneuveringHours) || 0) < mockPreviousPeriod.maneuveringHours // Lower maneuvering time is better
+      },
+      // Additional metrics for charts
+      totalEvents: filteredVoyageEvents.length,
+      totalManifests: filteredVesselManifests.length,
+      totalHours,
+      cargoOpsHours,
+      nonProductiveHours: totalHours - osvProductiveHours,
+      
+      // Vessel type breakdown
+      vesselTypeData: (() => {
+        const vessels = [...new Set(filteredVoyageEvents.map(event => event.vessel))];
+        const vesselCounts = vessels.reduce((acc, vessel) => {
+          // Simple vessel type detection based on naming patterns
+          let type = 'OSV';
+          if (vessel.toLowerCase().includes('fsv') || vessel.toLowerCase().includes('supply')) {
+            type = 'FSV';
+          } else if (vessel.toLowerCase().includes('msv') || vessel.toLowerCase().includes('multi')) {
+            type = 'MSV';
+          } else if (vessel.toLowerCase().includes('ahts') || vessel.toLowerCase().includes('tug')) {
+            type = 'AHTS';
+          }
+          
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        return Object.entries(vesselCounts).map(([type, count]) => ({
+          type,
+          count,
+          percentage: vessels.length > 0 ? (count / vessels.length) * 100 : 0
+        }));
+      })(),
+      
+      // Activity breakdown
+      activityData: (() => {
+        const activities = [
+          { name: 'Cargo Operations', hours: cargoOpsHours, color: 'bg-blue-500' },
+          { name: 'Waiting Time', hours: waitingTimeOffshore, color: 'bg-orange-500' },
+          { name: 'Maneuvering', hours: maneuveringHours, color: 'bg-purple-500' },
+          { name: 'Other Productive', hours: Math.max(0, osvProductiveHours - cargoOpsHours), color: 'bg-green-500' },
+          { name: 'Non-Productive', hours: Math.max(0, totalHours - osvProductiveHours - waitingTimeOffshore), color: 'bg-red-500' }
+        ].filter(activity => activity.hours > 0);
+        
+        return activities.sort((a, b) => b.hours - a.hours);
+      })()
+    };
+  }, [voyageEvents, vesselManifests, filters]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
-    const months = Array.from(new Set(voyageEvents.map(ve => ve.monthName))).sort();
-    const locations = Array.from(new Set(voyageEvents
+    // Create month options with proper chronological sorting
+    const monthMap = new Map<string, string>();
+    
+    voyageEvents.forEach(event => {
+      if (event.eventDate) {
+        const date = new Date(event.eventDate);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthName = date.toLocaleString('default', { month: 'long' });
+        const label = `${monthName} ${date.getFullYear()}`;
+        monthMap.set(monthKey, label);
+      }
+    });
+    
+    const months = ['All Months', ...Array.from(monthMap.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.value.localeCompare(b.value)) // Sort chronologically
+      .map(item => item.label)]; // Extract just the labels for the current format
+    
+    const locations = ['All Locations', ...Array.from(new Set(voyageEvents
       .filter(ve => ve.department === 'Drilling')
       .map(ve => ve.location)
-    )).sort();
+    )).sort()];
 
     return { months, locations };
   }, [voyageEvents]);
@@ -251,7 +427,43 @@ const DrillingDashboard: React.FC = () => {
         />
       </div>
 
-      {/* Charts Section - Placeholder for now */}
+      {/* Performance Summary */}
+      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Performance Summary</h3>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span className="text-sm text-gray-600">
+              {drillingMetrics.totalEvents} events | {drillingMetrics.totalManifests} manifests
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="text-gray-600">Efficiency Score</div>
+            <div className="text-2xl font-bold text-green-600">
+              {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
+            </div>
+            <div className="text-xs text-gray-500">Productive vs Total Hours</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="text-gray-600">Cargo Efficiency</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {drillingMetrics.liftsPerHour.value}
+            </div>
+            <div className="text-xs text-gray-500">Lifts per Cargo Hour</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="text-gray-600">Average per Visit</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {drillingMetrics.vesselVisits.value > 0 ? (drillingMetrics.cargoTons.value / drillingMetrics.vesselVisits.value).toFixed(1) : '0'}
+            </div>
+            <div className="text-xs text-gray-500">Tons per Vessel Visit</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Fluid Movements Chart */}
         <div className="bg-white rounded-lg p-6 shadow-md">
@@ -274,14 +486,70 @@ const DrillingDashboard: React.FC = () => {
         <div className="bg-white rounded-lg p-6 shadow-md">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Productive & Non-Productive Vessel Time</h3>
+            <div className="text-sm text-gray-500">{drillingMetrics.totalHours.toFixed(0)} Total Hours</div>
           </div>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-md">
-            <div className="text-center">
-              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-gray-600 font-medium">Time Analysis Chart</p>
-              <p className="text-sm text-gray-500 mt-2">Visualization pending</p>
+          <div className="h-64">
+            {/* Simple horizontal bar chart */}
+            <div className="space-y-4 h-full flex flex-col justify-center">
+              <div>
+                <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                  <span>Productive Hours</span>
+                  <span>{drillingMetrics.osvProductiveHours.value} hrs ({((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-8">
+                  <div 
+                    className="bg-green-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
+                    style={{ width: `${Math.max(5, (drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100)}%` }}
+                  >
+                    {drillingMetrics.osvProductiveHours.value}h
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                  <span>Non-Productive Hours</span>
+                  <span>{drillingMetrics.nonProductiveHours} hrs ({((drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-8">
+                  <div 
+                    className="bg-red-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
+                    style={{ width: `${Math.max(5, (drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100)}%` }}
+                  >
+                    {drillingMetrics.nonProductiveHours}h
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                  <span>Cargo Operations</span>
+                  <span>{drillingMetrics.cargoOpsHours} hrs ({((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-8">
+                  <div 
+                    className="bg-blue-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
+                    style={{ width: `${Math.max(5, (drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100)}%` }}
+                  >
+                    {drillingMetrics.cargoOpsHours}h
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                  <span>Waiting Time</span>
+                  <span>{drillingMetrics.waitingTime.value} hrs ({((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-8">
+                  <div 
+                    className="bg-orange-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
+                    style={{ width: `${Math.max(5, (drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100)}%` }}
+                  >
+                    {drillingMetrics.waitingTime.value}h
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -295,14 +563,40 @@ const DrillingDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900">VESSELS</h3>
             <div className="text-sm text-gray-500">SPLIT BY TYPE</div>
           </div>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-md">
-            <div className="text-center">
-              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1M9 17v4m6-4v4M9 17h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <p className="text-gray-600 font-medium">Vessel Type Distribution</p>
-              <p className="text-sm text-gray-500 mt-2">Chart coming soon</p>
-            </div>
+          <div className="h-64">
+            {drillingMetrics.vesselTypeData.length > 0 ? (
+              <div className="space-y-4 h-full flex flex-col justify-center">
+                {drillingMetrics.vesselTypeData.map((item, index) => {
+                  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500'];
+                  return (
+                    <div key={item.type}>
+                      <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                        <span>{item.type}</span>
+                        <span>{item.count} vessels ({item.percentage.toFixed(1)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-6">
+                        <div 
+                          className={`${colors[index % colors.length]} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium`}
+                          style={{ width: `${Math.max(10, item.percentage)}%` }}
+                        >
+                          {item.count}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="mt-4 text-xs text-gray-500">
+                  Total: {drillingMetrics.vesselTypeData.reduce((sum, item) => sum + item.count, 0)} unique vessels
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <p>No vessel data available</p>
+                  <p className="text-sm mt-1">Check your filters</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -310,15 +604,36 @@ const DrillingDashboard: React.FC = () => {
         <div className="bg-white rounded-lg p-6 shadow-md">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Offshore Hours by Key Activities</h3>
+            <div className="text-sm text-gray-500">{drillingMetrics.totalHours.toFixed(0)} Total Hours</div>
           </div>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-md">
-            <div className="text-center">
-              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-gray-600 font-medium">Activity Breakdown</p>
-              <p className="text-sm text-gray-500 mt-2">Bar chart pending</p>
-            </div>
+          <div className="h-64">
+            {drillingMetrics.activityData.length > 0 ? (
+              <div className="space-y-3 h-full flex flex-col justify-center">
+                {drillingMetrics.activityData.map((activity, index) => (
+                  <div key={activity.name}>
+                    <div className="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                      <span>{activity.name}</span>
+                      <span>{activity.hours.toFixed(1)} hrs ({((activity.hours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-6">
+                      <div 
+                        className={`${activity.color} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium`}
+                        style={{ width: `${Math.max(5, (activity.hours / drillingMetrics.totalHours) * 100)}%` }}
+                      >
+                        {activity.hours.toFixed(0)}h
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <p>No activity data available</p>
+                  <p className="text-sm mt-1">Check your filters</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
