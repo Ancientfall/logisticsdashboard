@@ -22,14 +22,16 @@ const AppContent: React.FC = () => {
       costAllocation: costAllocation.length
     });
     
-    if (isDataReady) {
+    // Only auto-redirect to dashboard if data becomes ready and we're on upload page
+    if (isDataReady && currentView === 'upload') {
       console.log('🎯 App: Data is ready, navigating to dashboard...');
       setCurrentView('dashboard');
-    } else {
-      console.log('❌ App: Data not ready, staying on current view:', currentView);
+    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling')) {
+      console.log('❌ App: Data not ready, redirecting to upload...');
+      setCurrentView('upload');
     }
-    // Note: We don't automatically redirect to upload anymore - user chooses from landing page
-  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length, currentView]);
+    // Note: We don't automatically redirect from other views anymore
+  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length]);
 
   // Show loading state during processing
   if (isLoading) {
@@ -118,7 +120,7 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
         >
-          <MainDashboard />
+          <MainDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'upload' && (
@@ -138,7 +140,7 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
         >
-          <DrillingDashboard />
+          <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
       )}
     </>

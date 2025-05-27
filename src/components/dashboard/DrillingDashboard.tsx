@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 
-const DrillingDashboard: React.FC = () => {
+interface DrillingDashboardProps {
+  onNavigateToUpload?: () => void;
+}
+
+const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUpload }) => {
   const { 
     voyageEvents, 
     vesselManifests, 
-    isDataReady,
-    resetToUpload
+    isDataReady
   } = useData();
 
   // Filters state - matching PowerBI layout
@@ -318,7 +321,7 @@ const DrillingDashboard: React.FC = () => {
           <p className="text-lg text-gray-600 font-medium">LOGISTICS DASHBOARD</p>
         </div>
         <button
-          onClick={resetToUpload}
+          onClick={onNavigateToUpload}
           className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">

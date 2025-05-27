@@ -2,19 +2,22 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 
-const MainDashboard: React.FC = () => {
+interface MainDashboardProps {
+  onNavigateToUpload?: () => void;
+}
+
+const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => {
   const { 
     voyageEvents, 
     vesselManifests, 
     masterFacilities, 
     vesselClassifications,
     isDataReady,
-    lastUpdated,
-    resetToUpload
+    lastUpdated
   } = useData();
   
   const goBackToUpload = () => {
-    resetToUpload();
+    onNavigateToUpload?.();
   };
 
   // Filters state
