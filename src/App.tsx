@@ -3,21 +3,21 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from './components/layout/DashboardLayout';
 import FileUploadPage from './components/dashboard/FileUploadPage';
 import MainDashboard from './components/dashboard/MainDashboard';
+import LandingPage from './components/LandingPage';
 import { DataProvider, useData } from './context/DataContext';
 import './index.css';
 
 // Main application content component
 const AppContent: React.FC = () => {
   const { isDataReady, isLoading } = useData();
-  const [currentView, setCurrentView] = useState<'upload' | 'dashboard'>('upload');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
     if (isDataReady) {
       setCurrentView('dashboard');
-    } else {
-      setCurrentView('upload');
     }
+    // Note: We don't automatically redirect to upload anymore - user chooses from landing page
   }, [isDataReady]);
 
   // Show loading state during processing
@@ -37,14 +37,76 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // Function to handle navigation from landing page
+  const handleGetStarted = () => {
+    setCurrentView('upload');
+  };
+
+  const handleViewDashboard = () => {
+    if (isDataReady) {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
+  const handleNavigateHome = () => {
+    setCurrentView('landing');
+  };
+
+  // Navigation functions for different dashboard views
+  const handleNavigateToDrilling = () => {
+    if (isDataReady) {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
+  const handleNavigateToProduction = () => {
+    // TODO: Implement production dashboard
+    if (isDataReady) {
+      setCurrentView('dashboard'); // For now, redirect to main dashboard
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
+  const handleNavigateToComparison = () => {
+    // TODO: Implement comparison view
+    if (isDataReady) {
+      setCurrentView('dashboard'); // For now, redirect to main dashboard
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
   return (
     <>
-      {currentView === 'dashboard' ? (
-        <DashboardLayout>
+      {currentView === 'landing' && (
+        <LandingPage 
+          onGetStarted={handleGetStarted}
+          onViewDashboard={handleViewDashboard}
+          hasData={isDataReady}
+        />
+      )}
+      {currentView === 'dashboard' && (
+        <DashboardLayout 
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+        >
           <MainDashboard />
         </DashboardLayout>
-      ) : (
-        <FileUploadPage />
+      )}
+      {currentView === 'upload' && (
+        <FileUploadPage 
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+        />
       )}
     </>
   );

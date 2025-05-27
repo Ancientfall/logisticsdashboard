@@ -32,7 +32,19 @@ interface DataStore {
   metadata: DataStoreMetadata;
 }
 
-const DataManagementSystem: React.FC = () => {
+interface DataManagementSystemProps {
+  onNavigateHome?: () => void;
+  onNavigateToDrilling?: () => void;
+  onNavigateToProduction?: () => void;
+  onNavigateToComparison?: () => void;
+}
+
+const DataManagementSystem: React.FC<DataManagementSystemProps> = ({ 
+  onNavigateHome, 
+  onNavigateToDrilling, 
+  onNavigateToProduction, 
+  onNavigateToComparison 
+}) => {
   const { 
     setVoyageEvents,
     setVesselManifests,
@@ -547,7 +559,12 @@ const DataManagementSystem: React.FC = () => {
   const hasRequiredFiles = files.voyageEvents && files.costAllocation && files.voyageList;
   
   return (
-    <DataManagementLayout>
+    <DataManagementLayout 
+      onNavigateHome={onNavigateHome}
+      onNavigateToDrilling={onNavigateToDrilling}
+      onNavigateToProduction={onNavigateToProduction}
+      onNavigateToComparison={onNavigateToComparison}
+    >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">

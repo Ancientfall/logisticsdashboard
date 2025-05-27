@@ -3,9 +3,19 @@ import { useData } from '../../context/DataContext';
 
 interface DataManagementLayoutProps {
   children: React.ReactNode;
+  onNavigateHome?: () => void;
+  onNavigateToDrilling?: () => void;
+  onNavigateToProduction?: () => void;
+  onNavigateToComparison?: () => void;
 }
 
-const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({ children }) => {
+const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({ 
+  children, 
+  onNavigateHome, 
+  onNavigateToDrilling, 
+  onNavigateToProduction, 
+  onNavigateToComparison 
+}) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { clearAllData, lastUpdated } = useData();
 
@@ -51,13 +61,22 @@ const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({ children })
 
               {/* Center Section - Navigation */}
               <nav className="hidden md:flex items-center gap-8">
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                <button 
+                  onClick={onNavigateToDrilling}
+                  className="text-gray-700 hover:text-green-600 transition-colors font-medium"
+                >
                   Drilling
                 </button>
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                <button 
+                  onClick={onNavigateToProduction}
+                  className="text-gray-700 hover:text-green-600 transition-colors font-medium"
+                >
                   Production
                 </button>
-                <button className="text-gray-700 hover:text-green-600 transition-colors font-medium">
+                <button 
+                  onClick={onNavigateToComparison}
+                  className="text-gray-700 hover:text-green-600 transition-colors font-medium"
+                >
                   Comparison
                 </button>
                 <button className="text-green-600 font-semibold border-b-2 border-green-600 pb-1">
@@ -95,7 +114,12 @@ const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({ children })
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-500">Home</span>
+                <button 
+                  onClick={onNavigateHome}
+                  className="text-gray-500 hover:text-green-600 transition-colors cursor-pointer"
+                >
+                  Home
+                </button>
                 <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                 </svg>

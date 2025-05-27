@@ -1,38 +1,46 @@
-# 🛢️ BP Logistics Dashboard
+# 🚢 BP Logistics Analytics Dashboard
 
-> **Modern React TypeScript application for offshore vessel operations analytics**
+> **Transform Your Offshore Operations with Intelligent Analytics**
 
-[![React](https://img.shields.io/badge/React-18.x-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+A comprehensive, modern analytics platform designed specifically for BP's offshore drilling and production operations. Upload your logistics data and get instant insights through beautiful, interactive dashboards.
 
-A powerful, modern web application that transforms PowerBI dashboards into a sleek, responsive React interface for analyzing offshore vessel operations and logistics data.
+![BP Logistics Dashboard](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
+![React](https://img.shields.io/badge/React-18.x-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.x-blue)
 
-## ✨ Features
+## 🌟 Features
 
-### 🎨 Modern Design System
-- **BP Corporate Branding** - Authentic green and yellow color scheme
-- **Glassmorphism UI** - Modern backdrop blur effects and transparency
-- **Animated BP Helios Logo** - Rotating sun symbol with authentic styling
-- **Responsive Design** - Works seamlessly on desktop, tablet, and mobile
+### 🎯 **Smart Data Management**
+- **Dual Upload Modes**: Initial data load vs incremental monthly updates
+- **Intelligent Processing**: Automatic deduplication and data validation
+- **Persistent Storage**: localStorage integration with automatic backup
+- **Real-time Feedback**: Live processing logs and status indicators
 
-### 🏗️ Architecture
-- **React 18** with TypeScript for type safety
-- **Component-based Architecture** - Scalable and maintainable
-- **Context API** for global state management
-- **Modern CSS3** with custom properties and animations
+### 📊 **Specialized Dashboards**
+- **Drilling Dashboard**: Monitor rig operations, efficiency metrics, and safety KPIs
+- **Production Dashboard**: Track facility output, performance indicators, and quality metrics
+- **Comparison View**: Side-by-side analysis across facilities and time periods
+- **Data Management**: Upload interface with validation and processing controls
 
-### 📊 Data Processing (Coming in Phase 2)
-- **Excel File Processing** - Direct upload and parsing
-- **PowerQuery Logic** - Complex LC number allocation and location mapping
-- **Real-time Analytics** - Instant calculations and visualizations
-- **Offline Capable** - All processing happens in the browser
+### 🎨 **Modern User Experience**
+- **Beautiful Landing Page**: Showcase platform capabilities and value proposition
+- **BP Brand Integration**: Professional design with BP green color scheme
+- **Responsive Design**: Optimized for desktop, tablet, and mobile devices
+- **Smooth Animations**: Engaging transitions and interactive elements
+
+### 🔧 **Technical Excellence**
+- **TypeScript**: Full type safety and enhanced developer experience
+- **React 18**: Latest React features with functional components and hooks
+- **Tailwind CSS**: Utility-first styling for rapid development
+- **Modular Architecture**: Clean separation of concerns and reusable components
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js** (v18 or higher)
-- **npm** or **yarn**
+- Node.js 18+ 
+- npm or yarn
+- Modern web browser
 
 ### Installation
 
@@ -50,89 +58,149 @@ npm install
 npm start
 ```
 
-The application will open at `http://localhost:3000`
+The application will open at `http://localhost:3000` with the stunning landing page.
 
 ## 📁 Project Structure
 
 ```
 src/
 ├── components/
-│   ├── dashboard/          # Main dashboard components
-│   │   └── FileUploadPage.tsx
-│   ├── charts/            # Data visualization components
-│   ├── layout/            # Layout and navigation
-│   │   └── DashboardLayout.tsx
-│   └── ui/                # Reusable UI components
+│   ├── dashboard/
+│   │   ├── FileUploadPage.tsx      # Data management interface
+│   │   └── MainDashboard.tsx       # Main analytics dashboard
+│   ├── layout/
+│   │   ├── DashboardLayout.tsx     # Layout for analytics pages
+│   │   └── DataManagementLayout.tsx # Layout for data upload
+│   ├── LandingPage.tsx             # Stunning homepage showcase
+│   └── FileUpload.tsx              # File upload components
 ├── context/
-│   └── DataContext.tsx    # Global state management
+│   └── DataContext.tsx             # Global state management
+├── data/
+│   ├── masterFacilities.ts         # Static facility data
+│   └── README.md                   # Data structure documentation
 ├── types/
-│   └── index.ts          # TypeScript interfaces
-├── utils/                # Helper functions
-├── hooks/                # Custom React hooks
-└── data/                 # Sample data and processors
+│   └── index.ts                    # TypeScript type definitions
+└── utils/
+    └── dataProcessing.ts           # Data processing utilities
 ```
 
-## 🎯 Roadmap
+## 🎯 User Journey
 
-### ✅ Phase 1 - Foundation (Complete)
-- [x] Modern React TypeScript setup
-- [x] Component architecture
-- [x] BP corporate design system
-- [x] Responsive layouts
-- [x] Type-safe data interfaces
+### 1. **Landing Experience**
+- **Compelling Hero Section**: Clear value proposition with animated statistics
+- **Feature Showcase**: Six key capabilities with interactive cards
+- **Dashboard Preview**: Visual representation of available analytics
+- **Call-to-Action**: Multiple entry points to start using the platform
 
-### 🚧 Phase 2 - Data Processing (In Progress)
-- [ ] Excel file upload with drag & drop
-- [ ] SheetJS integration for file parsing  
-- [ ] PowerQuery transformation logic
-- [ ] LC number allocation system
-- [ ] Location mapping and facility classification
+### 2. **Data Upload Process**
+- **Mode Selection**: Choose between initial load or incremental update
+- **File Upload**: Drag-and-drop interface for Excel files
+- **Real-time Processing**: Live feedback with progress indicators
+- **Validation**: Automatic data validation and error reporting
 
-### 🔮 Phase 3 - Visualizations (Planned)
-- [ ] Interactive charts with Recharts
-- [ ] KPI dashboard cards
-- [ ] Real-time filtering and search
-- [ ] Export capabilities
-- [ ] Advanced analytics
+### 3. **Analytics Experience**
+- **Drilling Dashboard**: Comprehensive drilling operations analytics
+- **Production Dashboard**: Production facility performance metrics
+- **Comparison Tools**: Cross-facility and temporal analysis
+- **Export Capabilities**: Data export for further analysis
 
-### 🌟 Phase 4 - Advanced Features (Future)
-- [ ] Dark/light theme toggle
-- [ ] Custom date range selection
-- [ ] Performance optimization
-- [ ] PWA capabilities
+## 📊 Supported Data Types
 
-## 🔧 Technology Stack
+### Required Files
+- **Voyage Events**: Vessel movement and operational events
+- **Cost Allocation**: Financial data and cost breakdowns
+- **Voyage List**: Comprehensive voyage information
 
-| Category | Technology |
-|----------|------------|
-| **Frontend** | React 18, TypeScript |
-| **Styling** | CSS3, Custom Properties, Glassmorphism |
-| **Charts** | Recharts, D3.js integration |
-| **Icons** | Lucide React |
-| **File Processing** | SheetJS (xlsx) |
-| **Data Manipulation** | Lodash, Date-fns |
-| **State Management** | React Context API |
+### Optional Files
+- **Vessel Manifests**: Detailed cargo and passenger information
 
-## 📊 Data Sources
+### Automatic Data
+- **Master Facilities**: Pre-loaded facility information (5 Production, 10 Drilling, 2 Integrated)
 
-The application processes the following Excel files:
+## 🎨 Design System
 
-- **Voyage Events.xlsx** - Hourly vessel activity data
-- **Vessel Manifests.xlsx** - Cargo shipment details  
-- **Master Facilities.xlsx** - Facility classifications
-- **Cost Allocation.xlsx** - LC number mappings
+### Color Palette
+- **Primary Green**: `#059669` (BP Brand)
+- **Secondary Blue**: `#2563eb`
+- **Accent Colors**: Purple, Orange, Yellow for data visualization
+- **Neutrals**: Gray scale for text and backgrounds
 
-## 🎨 Design Philosophy
+### Typography
+- **Headings**: Bold, modern sans-serif
+- **Body Text**: Clean, readable font stack
+- **Code**: Monospace for technical content
 
-This dashboard embraces modern web design principles:
+### Components
+- **Cards**: Rounded corners with subtle shadows
+- **Buttons**: Gradient backgrounds with hover effects
+- **Forms**: Clean inputs with validation states
+- **Navigation**: Consistent styling across layouts
 
-- **Performance First** - Client-side processing for instant results
-- **User Experience** - Intuitive navigation and smooth interactions
-- **Corporate Identity** - Authentic BP branding and colors
-- **Accessibility** - WCAG compliant design patterns
-- **Responsive** - Mobile-first approach
+## 🔧 Development
 
-## 🤝 Contributing
+### Available Scripts
+
+```bash
+# Development server
+npm start
+
+# Build for production
+npm run build
+
+# Run tests
+npm test
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+```
+
+### Key Technologies
+
+- **React 18**: Modern React with hooks and functional components
+- **TypeScript**: Full type safety and IntelliSense
+- **Tailwind CSS**: Utility-first CSS framework
+- **Lucide React**: Beautiful, customizable icons
+- **Vite/Create React App**: Fast development and build tools
+
+## 📈 Performance Features
+
+- **Lazy Loading**: Components loaded on demand
+- **Optimized Images**: Compressed and responsive images
+- **Code Splitting**: Reduced bundle sizes
+- **Caching**: Intelligent data caching strategies
+- **Responsive Design**: Mobile-first approach
+
+## 🛡️ Security & Compliance
+
+- **Data Validation**: Comprehensive input validation
+- **Type Safety**: TypeScript prevents runtime errors
+- **Secure Storage**: localStorage with data encryption
+- **Error Handling**: Graceful error recovery
+- **Audit Trail**: Processing logs and data tracking
+
+## 🚀 Deployment
+
+### Production Build
+
+```bash
+# Create optimized production build
+npm run build
+
+# Serve locally for testing
+npx serve -s build
+```
+
+### Environment Variables
+
+```env
+REACT_APP_VERSION=1.0.0
+REACT_APP_ENVIRONMENT=production
+```
+
+## 📝 Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -140,43 +208,23 @@ This dashboard embraces modern web design principles:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 Development Notes
-
-### Key Business Logic
-- **LC Number Processing** - Complex percentage allocation across multiple cost centers
-- **Activity Classification** - Productive vs Non-Productive categorization
-- **Location Mapping** - Integrated facility handling (Mad Dog, Thunder Horse)
-- **Department Assignment** - Drilling vs Production classification
-
-### Performance Considerations
-- **Lazy Loading** - Components load on demand
-- **Memoization** - Expensive calculations are cached
-- **Virtual Scrolling** - Handle large datasets efficiently
-
-## 📈 Advantages Over PowerBI
-
-| Feature | PowerBI | This Dashboard |
-|---------|---------|----------------|
-| **Performance** | Model refresh required | Instant processing |
-| **Customization** | Limited | Unlimited flexibility |
-| **Mobile Experience** | Basic | Fully responsive |
-| **Licensing** | Per user cost | No licensing fees |
-| **Offline Capability** | No | Yes |
-| **Custom Logic** | DAX limitations | Full JavaScript power |
-
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software owned by BP p.l.c. All rights reserved.
 
-## 🙏 Acknowledgments
+## 🤝 Support
 
-- **BP Corporate** - For the authentic branding and color palette
-- **React Team** - For the amazing framework
-- **TypeScript Team** - For making JavaScript better
-- **Open Source Community** - For the incredible tools and libraries
+For technical support or questions:
+- **Internal Teams**: Contact the Digital Analytics team
+- **Issues**: Use the GitHub issue tracker
+- **Documentation**: Check the `/docs` folder for detailed guides
 
 ---
 
-**Built with ❤️ for offshore energy operations**
+<div align="center">
 
-*Transform your data. Empower your decisions. Drive your business forward.*
+**Built with ❤️ for BP's Offshore Operations**
+
+*Transforming data into actionable insights for safer, more efficient operations*
+
+</div>
