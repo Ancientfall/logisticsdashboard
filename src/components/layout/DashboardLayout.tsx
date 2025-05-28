@@ -3,12 +3,13 @@ import { useData } from '../../context/DataContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
-  currentView?: 'dashboard' | 'drilling' | 'production' | 'comparison';
+  currentView?: 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage';
   onNavigateHome?: () => void;
   onNavigateToDashboard?: () => void;
   onNavigateToDrilling?: () => void;
   onNavigateToProduction?: () => void;
   onNavigateToComparison?: () => void;
+  onNavigateToVoyage?: () => void;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
@@ -18,7 +19,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onNavigateToDashboard,
   onNavigateToDrilling, 
   onNavigateToProduction, 
-  onNavigateToComparison 
+  onNavigateToComparison,
+  onNavigateToVoyage 
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { clearAllData, lastUpdated } = useData();
@@ -96,6 +98,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   Comparison
                 </button>
                 <button 
+                  onClick={onNavigateToVoyage}
+                  className={`transition-colors font-medium pb-1 ${
+                    currentView === 'voyage' 
+                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
+                      : 'text-gray-700 hover:text-green-600'
+                  }`}
+                >
+                  Voyage Analytics
+                </button>
+                <button 
                   onClick={onNavigateToDashboard}
                   className={`transition-colors font-medium pb-1 ${
                     currentView === 'dashboard' 
@@ -150,6 +162,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   {currentView === 'drilling' && 'Drilling Dashboard'}
                   {currentView === 'production' && 'Production Dashboard'}
                   {currentView === 'comparison' && 'Comparison Dashboard'}
+                  {currentView === 'voyage' && 'Voyage Analytics Dashboard'}
                   {currentView === 'dashboard' && 'Data Settings Dashboard'}
                 </span>
               </div>
@@ -192,71 +205,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       {/* Main Content */}
       <main className="relative z-10">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Performance Metrics Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-green-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Active Vessels</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">24</p>
-                  <p className="text-xs text-green-600 mt-1">+12% from last month</p>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M12 17v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-blue-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Total Cargo</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">157K MT</p>
-                  <p className="text-xs text-blue-600 mt-1">98.5% capacity</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-yellow-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Efficiency Rate</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">87.3%</p>
-                  <p className="text-xs text-yellow-600 mt-1">Above target</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-yellow-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 shadow-md border-l-4 border-gray-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">Cost Savings</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">$2.4M</p>
-                  <p className="text-xs text-green-600 mt-1">This quarter</p>
-                </div>
-                <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-          
           {/* Main Content Area */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
             {children}

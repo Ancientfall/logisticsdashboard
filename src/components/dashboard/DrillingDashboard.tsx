@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
+import { getVesselTypeFromName } from '../../data/vesselClassification';
+import { getAllDrillingCapableLocations } from '../../data/masterFacilities';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -10,6 +12,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     voyageEvents, 
     vesselManifests, 
     costAllocation,
+    voyageList,
     isDataReady
   } = useData();
 
@@ -31,7 +34,17 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
     const filterByLocation = (location: string) => {
       if (filters.selectedLocation === 'all' || filters.selectedLocation === 'All Locations') return true;
-      return location === filters.selectedLocation;
+      
+      // Get all drilling facilities to map display names to location names
+      const drillingFacilities = getAllDrillingCapableLocations();
+      const selectedFacility = drillingFacilities.find(f => f.displayName === filters.selectedLocation);
+      
+      // Check against both display name and location name
+      return location === filters.selectedLocation || 
+             (selectedFacility && (
+               location === selectedFacility.locationName ||
+               location === selectedFacility.displayName
+             ));
     };
 
     // Apply filters to data
@@ -56,70 +69,91 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       selectedLocation: filters.selectedLocation
     });
 
-    // Calculate KPIs based on filtered data
+    // Calculate KPIs based on filtered data using exact PowerBI DAX logic
     
-    // 1. Cargo Tons - Total cargo moved
-    const cargoTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0), 0);
+    // 1. Cargo Tons - Total cargo moved (Deck Tons + RT Tons)
+    const deckTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0), 0);
+    const rtTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.rtTons || 0), 0);
+    const cargoTons = deckTons + rtTons;
     
-    // 2. Lifts/Hr - Efficiency metric
+    // 2. Lifts/Hr - Efficiency metric using actual cargo operations hours
     const totalLifts = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.lifts || 0), 0);
+    
+    // More precise cargo operations filtering
     const cargoOpsEvents = filteredVoyageEvents.filter(event => 
       event.parentEvent === 'Cargo Ops' ||
-      event.event?.toLowerCase().includes('cargo') ||
-      event.event?.toLowerCase().includes('loading') ||
-      event.event?.toLowerCase().includes('offloading')
+      (event.parentEvent === 'Installation Productive Time' && 
+       (event.event?.toLowerCase().includes('cargo') || 
+        event.event?.toLowerCase().includes('loading') || 
+        event.event?.toLowerCase().includes('offloading') ||
+        event.event?.toLowerCase().includes('discharge'))) ||
+      event.event?.toLowerCase().includes('simops')
     );
     const cargoOpsHours = cargoOpsEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     const liftsPerHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
     
-    // 3. OSV Productive Hours
+    // 3. OSV Productive Hours - Using activity category classification
     const productiveEvents = filteredVoyageEvents.filter(event => 
-      event.activityCategory === 'Productive' ||
-      (event.event && !event.event.toLowerCase().includes('waiting') && 
-       !event.event.toLowerCase().includes('standby'))
+      event.activityCategory === 'Productive'
     );
     const osvProductiveHours = productiveEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     
-    // 4. Waiting Time Offshore
+    // 4. Waiting Time Offshore - Specific offshore waiting events
     const waitingEvents = filteredVoyageEvents.filter(event => 
-      event.parentEvent === 'Waiting on Installation' ||
-      event.event?.toLowerCase().includes('waiting') ||
-      event.event?.toLowerCase().includes('standby') ||
-      (event.portType === 'rig' && event.activityCategory === 'Non-Productive')
+      event.portType === 'rig' && (
+        event.parentEvent === 'Waiting on Installation' ||
+        event.parentEvent === 'Waiting on Weather' ||
+        (event.activityCategory === 'Non-Productive' && 
+         (event.event?.toLowerCase().includes('waiting') ||
+          event.event?.toLowerCase().includes('standby')))
+      )
     );
     const waitingTimeOffshore = waitingEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     
-    // 5. RT Cargo (Return Transport Cargo)
-    const rtCargoTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.rtTons || 0), 0);
+    // 5. Fluid Movement - Wet bulk cargo (bbls + gals converted to bbls)
+    const wetBulkBbls = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkBbls || 0), 0);
+    const wetBulkGals = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkGals || 0), 0);
+    const fluidMovement = wetBulkBbls + (wetBulkGals / 42); // Convert gallons to barrels
     
-    // 6. Fluid Movement (calculated from specific cargo types)
-    const fluidManifests = filteredVesselManifests.filter(manifest => 
-      manifest.cargoType === 'Liquid Bulk' ||
-      manifest.remarks?.toLowerCase().includes('fluid') ||
-      manifest.remarks?.toLowerCase().includes('water') ||
-      manifest.remarks?.toLowerCase().includes('mud') ||
-      manifest.remarks?.toLowerCase().includes('brine')
+    // 6. Vessel Utilization - Productive hours vs total offshore time
+    const totalOffshoreHours = filteredVoyageEvents
+      .filter(event => event.portType === 'rig')
+      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const vesselUtilization = totalOffshoreHours > 0 ? (osvProductiveHours / totalOffshoreHours) * 100 : 0;
+    
+    // 7. Voyage Efficiency - Using voyage list data for better accuracy
+    const drillingVoyages = voyageList.filter(voyage => 
+      voyage.voyagePurpose === 'Drilling' || voyage.voyagePurpose === 'Mixed'
     );
-    const fluidMovement = fluidManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0), 0);
+    const fsvRuns = drillingVoyages.length;
     
-    // 7. Vessel Utilization
-    const totalHours = filteredVoyageEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const vesselUtilization = totalHours > 0 ? (osvProductiveHours / totalHours) * 100 : 0;
-    
-    // 8. FSV Runs (unique voyages)
-    const uniqueVoyages = new Set(filteredVoyageEvents.map(event => event.voyageNumber));
-    const fsvRuns = uniqueVoyages.size;
-    
-    // 9. Vessel Visits (unique vessel visits to locations)
+    // 8. Vessel Visits - Unique manifest entries (actual visits)
     const vesselVisits = filteredVesselManifests.length;
     
-    // 10. Maneuvering Hours
+    // 9. Maneuvering Hours - Setup and positioning activities
     const maneuveringEvents = filteredVoyageEvents.filter(event => 
       event.parentEvent === 'Maneuvering' ||
       event.event?.toLowerCase().includes('maneuvering') ||
-      event.event?.toLowerCase().includes('positioning')
+      event.event?.toLowerCase().includes('positioning') ||
+      event.event?.toLowerCase().includes('setup') ||
+      event.event?.toLowerCase().includes('shifting')
     );
     const maneuveringHours = maneuveringEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    
+    // 10. Non-Productive Time Analysis
+    const nonProductiveEvents = filteredVoyageEvents.filter(event => 
+      event.activityCategory === 'Non-Productive'
+    );
+    const nonProductiveHours = nonProductiveEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const totalHours = filteredVoyageEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const nptPercentage = totalHours > 0 ? (nonProductiveHours / totalHours) * 100 : 0;
+    
+    // 11. Weather Impact Analysis
+    const weatherEvents = filteredVoyageEvents.filter(event => 
+      event.parentEvent === 'Waiting on Weather'
+    );
+    const weatherWaitingHours = weatherEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const weatherImpactPercentage = totalOffshoreHours > 0 ? (weatherWaitingHours / totalOffshoreHours) * 100 : 0;
 
     // NEW METRICS FOR UPDATED KPI CARDS
     
@@ -129,12 +163,25 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       cost.department === 'Drilling' &&
       cost.year === currentYear
     );
-    // Mock calculation since totalCost is not in the interface - using count * average cost estimate
-    const totalCostYTD = drillingCosts.length * 50000; // Mock: $50k per cost allocation entry
+    
+    // Calculate actual total cost from cost allocation data
+    const totalCostYTD = drillingCosts.reduce((sum, cost) => {
+      return sum + (cost.totalCost || 0);
+    }, 0);
+    
+    // If no actual cost data, use estimated calculation based on allocated days and average costs
+    const estimatedTotalCost = drillingCosts.reduce((sum, cost) => {
+      if (cost.totalAllocatedDays && cost.averageVesselCostPerDay) {
+        return sum + (cost.totalAllocatedDays * cost.averageVesselCostPerDay);
+      }
+      return sum;
+    }, 0);
+    
+    const finalTotalCost = totalCostYTD > 0 ? totalCostYTD : estimatedTotalCost;
     
     // 12. Average Monthly Cost - Total cost divided by months elapsed in year
     const monthsElapsed = new Date().getMonth() + 1; // Current month (1-12)
-    const avgMonthlyCost = monthsElapsed > 0 ? totalCostYTD / monthsElapsed : 0;
+    const avgMonthlyCost = monthsElapsed > 0 ? finalTotalCost / monthsElapsed : 0;
     
     // 13. Vessel Visits per Week - Calculate based on filtered data
     const dateRange = (() => {
@@ -148,8 +195,38 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const weeksDiff = Math.max(1, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (7 * 24 * 60 * 60 * 1000)));
     const vesselVisitsPerWeek = vesselVisits / weeksDiff;
     
-    // 14. Allocated Days - Mock calculation since allocatedDays is not in the interface
-    const allocatedDays = drillingCosts.length * 30; // Mock: 30 days per cost allocation entry
+    // 14. Allocated Days - Sum from actual cost allocation data
+    const allocatedDays = drillingCosts.reduce((sum, cost) => {
+      return sum + (cost.totalAllocatedDays || 0);
+    }, 0);
+    
+    // 15. Cost per Hour - Calculate from cost allocation data
+    const totalCostPerHour = drillingCosts.reduce((sum, cost) => {
+      return sum + (cost.costPerHour || 0);
+    }, 0);
+    const avgCostPerHour = drillingCosts.length > 0 ? totalCostPerHour / drillingCosts.length : 0;
+    
+    // 16. Rig Location Analysis
+    const rigLocationData = drillingCosts.reduce((acc, cost) => {
+      if (cost.rigLocation) {
+        if (!acc[cost.rigLocation]) {
+          acc[cost.rigLocation] = {
+            location: cost.rigLocation,
+            totalCost: 0,
+            totalDays: 0,
+            rigType: cost.rigType || 'Unknown',
+            waterDepth: cost.waterDepth || 0,
+            count: 0
+          };
+        }
+        acc[cost.rigLocation].totalCost += cost.totalCost || 0;
+        acc[cost.rigLocation].totalDays += cost.totalAllocatedDays || 0;
+        acc[cost.rigLocation].count += 1;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+    
+    const rigLocations = Object.values(rigLocationData).sort((a: any, b: any) => b.totalCost - a.totalCost);
 
     // Calculate trends (mock data for now - in production, compare with previous period)
     const calculateTrend = (current: number, previous: number) => {
@@ -163,16 +240,17 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       liftsPerHour: (liftsPerHour || 0) * 1.1,
       osvProductiveHours: (osvProductiveHours || 0) * 0.92,
       waitingTime: (waitingTimeOffshore || 0) * 1.15,
-      rtCargoTons: (rtCargoTons || 0) * 1.08,
+      rtCargoTons: (rtTons || 0) * 1.08,
       fluidMovement: (fluidMovement || 0) * 0.88,
       vesselUtilization: (vesselUtilization || 0) * 0.98,
       fsvRuns: (fsvRuns || 0) * 0.91,
       vesselVisits: (vesselVisits || 0) * 0.95,
       maneuveringHours: (maneuveringHours || 0) * 1.12,
-      totalCostYTD: totalCostYTD * 0.93,
+      totalCostYTD: finalTotalCost * 0.93,
       avgMonthlyCost: avgMonthlyCost * 0.96,
       vesselVisitsPerWeek: vesselVisitsPerWeek * 0.89,
-      allocatedDays: allocatedDays * 1.05
+      allocatedDays: allocatedDays * 1.05,
+      avgCostPerHour: avgCostPerHour * 0.98
     };
 
     return {
@@ -197,9 +275,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         isPositive: waitingTimeOffshore < mockPreviousPeriod.waitingTime // Lower waiting time is better
       },
       rtCargoTons: { 
-        value: Number((Number(rtCargoTons) || 0).toFixed(2)), 
-        trend: Number(calculateTrend(Number(rtCargoTons) || 0, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
-        isPositive: (Number(rtCargoTons) || 0) < mockPreviousPeriod.rtCargoTons // Lower RT cargo might be better
+        value: Number((Number(rtTons) || 0).toFixed(2)), 
+        trend: Number(calculateTrend(Number(rtTons) || 0, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
+        isPositive: (Number(rtTons) || 0) < mockPreviousPeriod.rtCargoTons // Lower RT cargo might be better
       },
       fluidMovement: { 
         value: fluidMovement > 0 ? Math.round(fluidMovement) : 'N/A', 
@@ -228,9 +306,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       },
       // NEW METRICS FOR UPDATED KPI CARDS
       totalCostYTD: {
-        value: Math.round(totalCostYTD),
-        trend: Number(calculateTrend(totalCostYTD, mockPreviousPeriod.totalCostYTD).toFixed(1)),
-        isPositive: totalCostYTD < mockPreviousPeriod.totalCostYTD // Lower cost is better
+        value: Math.round(finalTotalCost),
+        trend: Number(calculateTrend(finalTotalCost, mockPreviousPeriod.totalCostYTD).toFixed(1)),
+        isPositive: finalTotalCost < mockPreviousPeriod.totalCostYTD // Lower cost is better
       },
       avgMonthlyCost: {
         value: Math.round(avgMonthlyCost),
@@ -247,6 +325,21 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         trend: Number(calculateTrend(allocatedDays, mockPreviousPeriod.allocatedDays).toFixed(1)),
         isPositive: allocatedDays > mockPreviousPeriod.allocatedDays // More allocated days might be better
       },
+      avgCostPerHour: {
+        value: Number(avgCostPerHour.toFixed(2)),
+        trend: Number(calculateTrend(avgCostPerHour, mockPreviousPeriod.avgCostPerHour).toFixed(1)),
+        isPositive: avgCostPerHour < mockPreviousPeriod.avgCostPerHour // Lower cost per hour is better
+      },
+      nptPercentage: {
+        value: Number(nptPercentage.toFixed(1)),
+        trend: 0, // Would need historical data for trend
+        isPositive: false // Lower NPT is always better
+      },
+      weatherImpact: {
+        value: Number(weatherImpactPercentage.toFixed(1)),
+        trend: 0, // Would need historical data for trend
+        isPositive: false // Lower weather impact is better
+      },
       // Additional metrics for charts
       totalEvents: filteredVoyageEvents.length,
       totalManifests: filteredVesselManifests.length,
@@ -254,20 +347,16 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       cargoOpsHours,
       nonProductiveHours: totalHours - osvProductiveHours,
       
+      // Cost allocation data
+      rigLocations,
+      totalCostAllocations: drillingCosts.length,
+      
       // Vessel type breakdown
       vesselTypeData: (() => {
         const vessels = [...new Set(filteredVoyageEvents.map(event => event.vessel))];
         const vesselCounts = vessels.reduce((acc, vessel) => {
-          // Simple vessel type detection based on naming patterns
-          let type = 'OSV';
-          if (vessel.toLowerCase().includes('fsv') || vessel.toLowerCase().includes('supply')) {
-            type = 'FSV';
-          } else if (vessel.toLowerCase().includes('msv') || vessel.toLowerCase().includes('multi')) {
-            type = 'MSV';
-          } else if (vessel.toLowerCase().includes('ahts') || vessel.toLowerCase().includes('tug')) {
-            type = 'AHTS';
-          }
-          
+          // Use vessel classification data for accurate type detection
+          const type = getVesselTypeFromName(vessel);
           acc[type] = (acc[type] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
@@ -292,7 +381,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         return activities.sort((a, b) => b.hours - a.hours);
       })()
     };
-  }, [voyageEvents, vesselManifests, costAllocation, filters]);
+  }, [voyageEvents, vesselManifests, costAllocation, voyageList, filters]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
@@ -314,10 +403,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       .sort((a, b) => a.value.localeCompare(b.value)) // Sort chronologically
       .map(item => item.label)]; // Extract just the labels for the current format
     
-    const locations = ['All Locations', ...Array.from(new Set(voyageEvents
-      .filter(ve => ve.department === 'Drilling')
-      .map(ve => ve.location)
-    )).sort()];
+    // Get drilling locations from master facilities data
+    const drillingFacilities = getAllDrillingCapableLocations();
+    const locations = ['All Locations', ...drillingFacilities.map(facility => facility.displayName)];
 
     return { months, locations };
   }, [voyageEvents]);
@@ -418,46 +506,36 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         </div>
       </div>
 
-      {/* KPI Cards Grid - Matching PowerBI Layout */}
+      {/* KPI Cards Grid - Enhanced Drilling Operations */}
       <div className="grid grid-cols-5 gap-4">
-        {/* First Row - Updated KPI Cards */}
+        {/* First Row - Core Operational Metrics */}
         <KPICard 
-          title="Total Cost (YTD)" 
-          value={`$${(drillingMetrics.totalCostYTD.value / 1000000).toFixed(1)}M`}
-          trend={drillingMetrics.totalCostYTD.trend}
-          isPositive={drillingMetrics.totalCostYTD.isPositive}
+          title="Cargo Tons" 
+          value={drillingMetrics.cargoTons.value.toLocaleString()}
+          trend={drillingMetrics.cargoTons.trend}
+          isPositive={drillingMetrics.cargoTons.isPositive}
+          unit="tons"
         />
         <KPICard 
-          title="Avg Monthly Cost" 
-          value={`$${(drillingMetrics.avgMonthlyCost.value / 1000).toFixed(0)}K`}
-          trend={drillingMetrics.avgMonthlyCost.trend}
-          isPositive={drillingMetrics.avgMonthlyCost.isPositive}
+          title="Lifts per Hour" 
+          value={drillingMetrics.liftsPerHour.value}
+          trend={drillingMetrics.liftsPerHour.trend}
+          isPositive={drillingMetrics.liftsPerHour.isPositive}
+          unit="lifts/hr"
         />
         <KPICard 
-          title="Vessel Visits per Week" 
-          value={drillingMetrics.vesselVisitsPerWeek.value}
-          trend={drillingMetrics.vesselVisitsPerWeek.trend}
-          isPositive={drillingMetrics.vesselVisitsPerWeek.isPositive}
+          title="Productive Hours" 
+          value={drillingMetrics.osvProductiveHours.value}
+          trend={drillingMetrics.osvProductiveHours.trend}
+          isPositive={drillingMetrics.osvProductiveHours.isPositive}
+          unit="hrs"
         />
         <KPICard 
-          title="Allocated Days" 
-          value={drillingMetrics.allocatedDays.value}
-          trend={drillingMetrics.allocatedDays.trend}
-          isPositive={drillingMetrics.allocatedDays.isPositive}
-        />
-        <KPICard 
-          title="RT Cargo (Tons)" 
-          value={drillingMetrics.rtCargoTons.value}
-          trend={drillingMetrics.rtCargoTons.trend}
-          isPositive={drillingMetrics.rtCargoTons.isPositive}
-        />
-        
-        {/* Second Row */}
-        <KPICard 
-          title="Fluid Movement" 
-          value={drillingMetrics.fluidMovement.value}
-          trend={drillingMetrics.fluidMovement.trend}
-          isPositive={drillingMetrics.fluidMovement.isPositive}
+          title="Waiting Time" 
+          value={drillingMetrics.waitingTime.value}
+          trend={drillingMetrics.waitingTime.trend}
+          isPositive={drillingMetrics.waitingTime.isPositive}
+          unit="hrs"
         />
         <KPICard 
           title="Vessel Utilization" 
@@ -466,23 +544,42 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           isPositive={drillingMetrics.vesselUtilization.isPositive}
           unit="%"
         />
+        
+        {/* Second Row - Efficiency & Performance Metrics */}
         <KPICard 
-          title="FSV Runs" 
+          title="Fluid Movement" 
+          value={drillingMetrics.fluidMovement.value === 'N/A' ? 'N/A' : `${Number(drillingMetrics.fluidMovement.value).toLocaleString()}`}
+          trend={drillingMetrics.fluidMovement.trend}
+          isPositive={drillingMetrics.fluidMovement.isPositive}
+          unit={drillingMetrics.fluidMovement.value !== 'N/A' ? "bbls" : undefined}
+        />
+        <KPICard 
+          title="NPT Percentage" 
+          value={drillingMetrics.nptPercentage?.value.toFixed(1) || '0.0'}
+          trend={drillingMetrics.nptPercentage?.trend}
+          isPositive={drillingMetrics.nptPercentage?.isPositive}
+          unit="%"
+        />
+        <KPICard 
+          title="Weather Impact" 
+          value={drillingMetrics.weatherImpact?.value.toFixed(1) || '0.0'}
+          trend={drillingMetrics.weatherImpact?.trend}
+          isPositive={drillingMetrics.weatherImpact?.isPositive}
+          unit="%"
+        />
+        <KPICard 
+          title="Drilling Voyages" 
           value={drillingMetrics.fsvRuns.value}
           trend={drillingMetrics.fsvRuns.trend}
           isPositive={drillingMetrics.fsvRuns.isPositive}
-        />
-        <KPICard 
-          title="Vessel Visits" 
-          value={drillingMetrics.vesselVisits.value}
-          trend={drillingMetrics.vesselVisits.trend}
-          isPositive={drillingMetrics.vesselVisits.isPositive}
+          unit="voyages"
         />
         <KPICard 
           title="Maneuvering Hours" 
           value={drillingMetrics.maneuveringHours.value}
           trend={drillingMetrics.maneuveringHours.trend}
           isPositive={drillingMetrics.maneuveringHours.isPositive}
+          unit="hrs"
         />
       </div>
 
@@ -513,11 +610,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             <div className="text-xs text-gray-500">Lifts per Cargo Hour</div>
           </div>
           <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Average per Visit</div>
+            <div className="text-gray-600">Cost Efficiency</div>
             <div className="text-2xl font-bold text-purple-600">
-              {drillingMetrics.vesselVisits.value > 0 ? (drillingMetrics.cargoTons.value / drillingMetrics.vesselVisits.value).toFixed(1) : '0'}
+              ${drillingMetrics.avgCostPerHour.value.toLocaleString()}
             </div>
-            <div className="text-xs text-gray-500">Tons per Vessel Visit</div>
+            <div className="text-xs text-gray-500">Average Cost per Hour</div>
           </div>
         </div>
       </div>
@@ -698,6 +795,91 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           </div>
         </div>
       </div>
+
+      {/* Rig Location Cost Analysis Section */}
+      {drillingMetrics.rigLocations && drillingMetrics.rigLocations.length > 0 && (
+        <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">RIG LOCATION COST ANALYSIS</h3>
+            <div className="text-sm text-gray-500">{drillingMetrics.totalCostAllocations} Cost Allocations</div>
+          </div>
+          <div className="space-y-4">
+            {drillingMetrics.rigLocations.slice(0, 8).map((rig: any, index: number) => {
+              const costPerDay = rig.totalDays > 0 ? rig.totalCost / rig.totalDays : 0;
+              const maxCost = Math.max(...drillingMetrics.rigLocations.map((r: any) => r.totalCost));
+              const widthPercentage = maxCost > 0 ? (rig.totalCost / maxCost) * 100 : 0;
+              const colors = ['bg-blue-600', 'bg-green-600', 'bg-purple-600', 'bg-orange-600', 'bg-red-600', 'bg-indigo-600', 'bg-pink-600', 'bg-yellow-600'];
+              
+              return (
+                <div key={rig.location} className="border-b border-gray-100 pb-4 last:border-b-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`}></div>
+                      <div>
+                        <span className="font-medium text-gray-900">{rig.location}</span>
+                        <div className="text-xs text-gray-500">
+                          {rig.rigType} • {rig.waterDepth > 0 ? `${rig.waterDepth}ft depth` : 'Depth N/A'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900">
+                        ${(rig.totalCost / 1000000).toFixed(1)}M
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        ${costPerDay.toLocaleString()}/day
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div 
+                          className={`${colors[index % colors.length]} h-3 rounded-full transition-all duration-500`}
+                          style={{ width: `${Math.max(2, widthPercentage)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-600 min-w-[60px] text-right">
+                      {rig.totalDays} days
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {drillingMetrics.rigLocations.length > 8 && (
+            <div className="mt-4 text-center">
+              <div className="text-sm text-gray-500">
+                Showing top 8 of {drillingMetrics.rigLocations.length} rig locations
+              </div>
+            </div>
+          )}
+          
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                ${(drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000).toFixed(1)}M
+              </div>
+              <div className="text-sm text-gray-600">Total Rig Costs</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalDays, 0).toLocaleString()}
+              </div>
+              <div className="text-sm text-gray-600">Total Allocated Days</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                ${(drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
+                   Math.max(1, drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalDays, 0))).toLocaleString()}
+              </div>
+              <div className="text-sm text-gray-600">Average Cost per Day</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -23,7 +23,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   const { forceRefreshFromStorage } = useData();
   const [currentStat, setCurrentStat] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [animatedCards, setAnimatedCards] = useState<Set<number>>(new Set());
 
   const stats = [
     { value: '24', label: 'Active Vessels', icon: Ship },
@@ -141,25 +140,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       }
     }
   }, [hasData]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const cardIndex = parseInt(entry.target.getAttribute('data-card-index') || '0');
-            setAnimatedCards(prev => new Set(prev).add(cardIndex));
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    const cards = document.querySelectorAll('[data-card-index]');
-    cards.forEach((card) => observer.observe(card));
-
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     setIsVisible(true);

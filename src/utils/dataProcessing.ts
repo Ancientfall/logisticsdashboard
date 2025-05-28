@@ -12,7 +12,7 @@ import {
   DateRange,
   DashboardFilters 
 } from '../types';
-import { getMasterFacilitiesData } from '../data/masterFacilities';
+import { masterFacilitiesData } from '../data/masterFacilities';
 
 // ===================== RAW DATA INTERFACES =====================
 // These represent the data as it comes from Excel files
@@ -66,6 +66,17 @@ interface RawCostAllocation {
   "Cost Element"?: string;
   "Month-Year"?: string;
   Mission?: string;
+  
+  // Cost Information
+  "Total Allocated Days"?: number;
+  "Average Vessel Cost Per Day"?: number;
+  "Total Cost"?: number;
+  "Cost Per Hour"?: number;
+  
+  // Rig Location Information
+  "Rig Location"?: string;
+  "Rig Type"?: string;
+  "Water Depth"?: number;
 }
 
 interface RawVoyageList {
@@ -149,7 +160,8 @@ export const processExcelFiles = async (options: ProcessingOptions): Promise<Pro
     // Calculate metrics
     const metrics = calculateMetrics(
       results.voyageEvents,
-      results.vesselManifests
+      results.vesselManifests,
+      results.voyageList
     );
 
     // Create data store
@@ -196,7 +208,7 @@ const processFiles = async (files: {
     const rawCostAllocation = await readExcelFile<RawCostAllocation>(costAllocationFile);
     
     // Use static master facilities data instead of file upload
-    const staticMasterFacilities = getMasterFacilitiesData();
+    const staticMasterFacilities = masterFacilitiesData;
     
     // Read optional files with null checks
     const rawVesselManifests = files.vesselManifestsFile ? 
@@ -221,15 +233,15 @@ const processFiles = async (files: {
     // Process reference data first (needed for lookups)
     // Use static master facilities data directly (already in correct format)
     const masterFacilities = staticMasterFacilities.map(facility => ({
-      locationName: facility.LocationName,
-      facilityType: facility.FacilityType as 'Production' | 'Drilling' | 'Integrated' | 'Logistics',
-      parentFacility: facility.ParentFacility || undefined,
-      isProductionCapable: facility.IsProductionCapable,
-      isDrillingCapable: facility.IsDrillingCapable,
-      productionLCs: facility.ProductionLCs ? facility.ProductionLCs.split(',').map(lc => lc.trim()) : undefined,
-      region: facility.Region,
+      locationName: facility.locationName,
+      facilityType: facility.facilityType as 'Production' | 'Drilling' | 'Integrated' | 'Logistics',
+      parentFacility: facility.parentFacility || undefined,
+      isProductionCapable: facility.isProductionCapable,
+      isDrillingCapable: facility.isDrillingCapable,
+      productionLCs: facility.productionCS ? [facility.productionCS.toString()] : undefined,
+      region: facility.region,
       notes: undefined,
-      isActive: facility.IsActive
+      isActive: facility.isActive
     }));
     const costAllocation = processCostAllocation(rawCostAllocation);
 
@@ -546,24 +558,56 @@ const readExcelFile = async <T>(file: File): Promise<T[]> => {
 
 // ===================== REFERENCE DATA PROCESSING =====================
 
-
-
 /**
  * Process CostAllocation raw data
  */
 const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): CostAllocation[] => {
-  return rawCostAllocation.map((costAlloc, index) => ({
-    lcNumber: costAlloc["LC Number"],
-    locationReference: costAlloc["Location Reference"],
-    description: costAlloc.Description,
-    costElement: costAlloc["Cost Element"],
-    monthYear: costAlloc["Month-Year"],
-    month: costAlloc["Month-Year"] ? parseInt(costAlloc["Month-Year"].split('-')[1]) : undefined,
-    year: costAlloc["Month-Year"] ? parseInt(costAlloc["Month-Year"].split('-')[0]) : undefined,
-    mission: costAlloc.Mission,
-    department: inferDepartmentFromDescription(costAlloc.Description),
-    isActive: true
-  }));
+  return rawCostAllocation.map((costAlloc, index) => {
+    // Parse month and year from Month-Year field
+    let month: number | undefined;
+    let year: number | undefined;
+    
+    if (costAlloc["Month-Year"]) {
+      const parts = costAlloc["Month-Year"].split('-');
+      if (parts.length >= 2) {
+        year = parseInt(parts[0]);
+        month = parseInt(parts[1]);
+      }
+    }
+    
+    // Calculate cost per hour if we have both total cost and allocated days
+    let costPerHour: number | undefined;
+    if (costAlloc["Total Cost"] && costAlloc["Total Allocated Days"]) {
+      const totalHours = costAlloc["Total Allocated Days"] * 24; // Convert days to hours
+      costPerHour = costAlloc["Total Cost"] / totalHours;
+    }
+    
+    return {
+      lcNumber: String(costAlloc["LC Number"]),
+      locationReference: costAlloc["Location Reference"],
+      description: costAlloc.Description,
+      costElement: costAlloc["Cost Element"],
+      monthYear: costAlloc["Month-Year"],
+      month,
+      year,
+      
+      // Cost Information
+      totalAllocatedDays: costAlloc["Total Allocated Days"],
+      averageVesselCostPerDay: costAlloc["Average Vessel Cost Per Day"],
+      totalCost: costAlloc["Total Cost"],
+      costPerHour,
+      
+      // Rig Location Information
+      rigLocation: costAlloc["Rig Location"],
+      rigType: costAlloc["Rig Type"],
+      waterDepth: costAlloc["Water Depth"],
+      
+      // Additional Information
+      mission: costAlloc.Mission,
+      department: inferDepartmentFromDescription(costAlloc.Description),
+      isActive: true
+    };
+  });
 };
 
 // ===================== MAIN DATA PROCESSING =====================
@@ -578,7 +622,12 @@ const processVoyageEvents = (
 ): VoyageEvent[] => {
   const processedEvents: VoyageEvent[] = [];
 
-  for (const event of rawEvents) {
+  // Filter to only include active events
+  const activeEvents = rawEvents.filter(event => event["Is active?"] === "Yes");
+  
+  console.log(`📊 Processing ${activeEvents.length} active events out of ${rawEvents.length} total events`);
+
+  for (const event of activeEvents) {
     try {
       // Parse dates
       const from = parseDate(event.From);
@@ -642,7 +691,7 @@ const processVoyageEvents = (
           dayOfMonth: eventDate.getDate(),
           portType: event["Port Type"] as 'rig' | 'base',
           locationType: event["Port Type"] === "rig" ? "Offshore" : event["Port Type"] === "base" ? "Onshore" : "Other",
-          activityCategory: classifyActivity(event["Parent Event"], event.Event || null), // Convert undefined to null
+          activityCategory: classifyActivity(event["Parent Event"], event.Event || null),
           eventCategory: event["Event Category"],
           department: allocation.department || undefined, // Convert null to undefined
           costDedicatedTo: event["Cost Dedicated to"] || undefined, // Convert null to undefined
@@ -823,80 +872,187 @@ const processBulkActions = (rawData: any[]): BulkAction[] => {
 // ===================== METRICS CALCULATION =====================
 
 /**
- * Calculate KPI metrics from processed data
+ * Calculate KPI metrics from processed data using exact PowerBI DAX logic
  */
 const calculateMetrics = (
   voyageEvents: VoyageEvent[],
-  vesselManifests: VesselManifest[]
+  vesselManifests: VesselManifest[],
+  voyageList: VoyageList[] = []
 ): KPIMetrics => {
-  // Default time period (current month)
+  // Filter for current month (you can adjust this based on your needs)
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
   
-  // Filter for current month
   const currentMonthEvents = voyageEvents.filter(event => 
     event.eventDate.getMonth() === currentMonth && 
     event.eventDate.getFullYear() === currentYear
   );
   
-  // Filter for previous month
+  // Previous month for MoM calculations
   const prevMonthEvents = voyageEvents.filter(event => {
     const date = event.eventDate;
     const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
     return date.getMonth() === prevMonth && date.getFullYear() === prevYear;
   });
+
+  // ===== EXACT DAX IMPLEMENTATIONS =====
+
+  // Waiting Time Offshore (DAX: Port Type = "rig" AND Parent Event = "Waiting on Installation")
+  const waitingTimeOffshore = calculateTotalHours(
+    currentMonthEvents.filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent === 'Waiting on Installation'
+    )
+  );
+
+  // Total Offshore Time (DAX: Complex logic with rig activities + base transit)
+  const rigActivitiesExcludingWeather = calculateTotalHours(
+    currentMonthEvents.filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent !== 'Waiting on Weather'
+    )
+  );
   
-  // Calculate current month metrics
-  const totalOffshoreTime = calculateTotalHours(currentMonthEvents.filter(e => e.portType === 'rig'));
-  const totalOnshoreTime = calculateTotalHours(currentMonthEvents.filter(e => e.portType === 'base'));
-  const productiveHours = calculateTotalHours(currentMonthEvents.filter(e => e.activityCategory === 'Productive'));
-  const nonProductiveHours = calculateTotalHours(currentMonthEvents.filter(e => e.activityCategory === 'Non-Productive'));
+  const baseTransitTime = calculateTotalHours(
+    currentMonthEvents.filter(event => 
+      event.portType === 'base' && 
+      event.parentEvent === 'Transit'
+    )
+  );
   
-  // Drilling metrics
-  const drillingEvents = currentMonthEvents.filter(e => e.department === 'Drilling');
+  const totalOffshoreTime = rigActivitiesExcludingWeather + baseTransitTime;
+
+  // Waiting Time Percentage (DAX: DIVIDE([Waiting Time Offshore], [Total Offshore Time], 0))
+  const waitingTimePercentage = totalOffshoreTime > 0 ? 
+    (waitingTimeOffshore / totalOffshoreTime) * 100 : 0;
+
+  // Total Onshore Time (all base activities except transit)
+  const totalOnshoreTime = calculateTotalHours(
+    currentMonthEvents.filter(event => 
+      event.portType === 'base' && 
+      event.parentEvent !== 'Transit'
+    )
+  );
+
+  // Productive vs Non-Productive Hours
+  const productiveHours = calculateTotalHours(
+    currentMonthEvents.filter(event => event.activityCategory === 'Productive')
+  );
+  
+  const nonProductiveHours = calculateTotalHours(
+    currentMonthEvents.filter(event => event.activityCategory === 'Non-Productive')
+  );
+
+  // Drilling-specific metrics (filter by department = "Drilling")
+  const drillingEvents = currentMonthEvents.filter(event => event.department === 'Drilling');
   const drillingHours = calculateTotalHours(drillingEvents);
-  const drillingNPTHours = calculateTotalHours(drillingEvents.filter(e => e.activityCategory === 'Non-Productive'));
+  const drillingNPTHours = calculateTotalHours(
+    drillingEvents.filter(event => event.activityCategory === 'Non-Productive')
+  );
   const drillingNPTPercentage = drillingHours > 0 ? (drillingNPTHours / drillingHours) * 100 : 0;
-  const drillingCargoOpsHours = calculateTotalHours(drillingEvents.filter(e => e.parentEvent === 'Cargo Ops'));
+  const drillingCargoOpsHours = calculateTotalHours(
+    drillingEvents.filter(event => event.parentEvent === 'Cargo Ops')
+  );
+
+  // Weather and Installation Waiting breakdown
+  const weatherWaitingHours = calculateTotalHours(
+    currentMonthEvents.filter(event => event.parentEvent === 'Waiting on Weather')
+  );
   
-  // Waiting time metrics
-  const waitingTimeOffshore = calculateTotalHours(currentMonthEvents.filter(e => 
-    e.portType === 'rig' && e.parentEvent === 'Waiting on Installation'
-  ));
-  const waitingTimePercentage = totalOffshoreTime > 0 ? (waitingTimeOffshore / totalOffshoreTime) * 100 : 0;
-  const weatherWaitingHours = calculateTotalHours(currentMonthEvents.filter(e => e.parentEvent === 'Waiting on Weather'));
-  const installationWaitingHours = calculateTotalHours(currentMonthEvents.filter(e => e.parentEvent === 'Waiting on Installation'));
+  const installationWaitingHours = calculateTotalHours(
+    currentMonthEvents.filter(event => event.parentEvent === 'Waiting on Installation')
+  );
+
+  // Cargo Operations Hours (Parent Event = "Cargo Ops")
+  const cargoOpsHours = calculateTotalHours(
+    currentMonthEvents.filter(event => event.parentEvent === 'Cargo Ops')
+  );
+
+  // Calculate manifest metrics using exact DAX formulas
+  const manifestMetrics = calculateManifestMetrics(vesselManifests, currentMonth, currentYear);
+
+  // Calculate voyage list metrics using exact DAX formulas
+  const voyageListMetrics = calculateVoyageListMetrics(voyageList, voyageEvents, vesselManifests, currentMonth, currentYear);
+
+  // Lifts per Cargo Hour (using manifest data and voyage event cargo hours)
+  const liftsPerCargoHour = cargoOpsHours > 0 ? manifestMetrics.totalLifts / cargoOpsHours : 0;
+
+  // Use manifest metrics for cargo calculations
+  const totalLifts = manifestMetrics.totalLifts;
+  const totalDeckTons = manifestMetrics.totalDeckTons;
+  const totalRTTons = manifestMetrics.totalRTTons;
+  const cargoTonnagePerVisit = manifestMetrics.cargoTonnagePerVisit;
+
+  // Vessel Utilization Rate (Productive Hours / Total Hours)
+  const totalHours = totalOffshoreTime + totalOnshoreTime;
+  const vesselUtilizationRate = totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
+
+  // Average Trip Duration
+  const averageTripDuration = calculateAverageTripDuration(currentMonthEvents);
+
+  // Previous month calculations for MoM changes
+  const prevWaitingTimeOffshore = calculateTotalHours(
+    prevMonthEvents.filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent === 'Waiting on Installation'
+    )
+  );
   
-  // Cargo metrics
-  const cargoOpsHours = calculateTotalHours(currentMonthEvents.filter(e => e.parentEvent === 'Cargo Ops'));
-  const totalLifts = vesselManifests.reduce((sum, manifest) => sum + manifest.lifts, 0);
-  const liftsPerCargoHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
-  const totalDeckTons = vesselManifests.reduce((sum, manifest) => sum + manifest.deckTons, 0);
-  const totalRTTons = vesselManifests.reduce((sum, manifest) => sum + manifest.rtTons, 0);
+  const prevRigActivities = calculateTotalHours(
+    prevMonthEvents.filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent !== 'Waiting on Weather'
+    )
+  );
   
-  // Efficiency metrics
-  const vesselUtilizationRate = (totalOffshoreTime + totalOnshoreTime) > 0 ? 
-    (productiveHours / (totalOffshoreTime + totalOnshoreTime)) * 100 : 0;
-  const averageTripDuration = calculateAverageTripDuration(voyageEvents);
-  const cargoTonnagePerVisit = vesselManifests.length > 0 ? 
-    (totalDeckTons + totalRTTons) / vesselManifests.length : 0;
+  const prevBaseTransit = calculateTotalHours(
+    prevMonthEvents.filter(event => 
+      event.portType === 'base' && 
+      event.parentEvent === 'Transit'
+    )
+  );
   
-  // Calculate previous month metrics
-  const prevTotalOffshoreTime = calculateTotalHours(prevMonthEvents.filter(e => e.portType === 'rig'));
-  const prevWaitingTimeOffshore = calculateTotalHours(prevMonthEvents.filter(e => 
-    e.portType === 'rig' && e.parentEvent === 'Waiting on Installation'
-  ));
+  const prevTotalOffshoreTime = prevRigActivities + prevBaseTransit;
   const prevWaitingTimePercentage = prevTotalOffshoreTime > 0 ? 
     (prevWaitingTimeOffshore / prevTotalOffshoreTime) * 100 : 0;
-  const prevCargoOpsHours = calculateTotalHours(prevMonthEvents.filter(e => e.parentEvent === 'Cargo Ops'));
   
+  const prevCargoOpsHours = calculateTotalHours(
+    prevMonthEvents.filter(event => event.parentEvent === 'Cargo Ops')
+  );
+
   // Month-over-month changes
   const waitingTimePercentageMoM = waitingTimePercentage - prevWaitingTimePercentage;
   const cargoOpsHoursMoM = prevCargoOpsHours > 0 ? 
     ((cargoOpsHours - prevCargoOpsHours) / prevCargoOpsHours) * 100 : 0;
-  
+
+  console.log('📊 KPI Calculations Summary:', {
+    waitingTimeOffshore: `${waitingTimeOffshore}h`,
+    totalOffshoreTime: `${totalOffshoreTime}h`,
+    waitingTimePercentage: `${waitingTimePercentage.toFixed(1)}%`,
+    cargoOpsHours: `${cargoOpsHours}h`,
+    drillingHours: `${drillingHours}h`,
+    vesselUtilizationRate: `${vesselUtilizationRate.toFixed(1)}%`,
+    // Manifest metrics
+    cargoTonnagePerVisit: `${cargoTonnagePerVisit.toFixed(1)} tons`,
+    totalManifests: manifestMetrics.totalManifests,
+    rtPercentage: `${manifestMetrics.rtPercentage.toFixed(1)}%`,
+    totalWetBulk: `${manifestMetrics.totalWetBulkNormalized.toFixed(1)} bbls`,
+    fsvVsOsvRatio: manifestMetrics.fsvVsOsvRatio.toFixed(2),
+    // Voyage List metrics
+    totalVoyages: voyageListMetrics.totalVoyages,
+    averageVoyageDuration: `${voyageListMetrics.averageVoyageDuration.toFixed(1)}h`,
+    drillingVoyagePercentage: `${voyageListMetrics.drillingVoyagePercentage.toFixed(1)}%`,
+    multiStopPercentage: `${voyageListMetrics.multiStopPercentage.toFixed(1)}%`,
+    onTimeVoyagePercentage: `${voyageListMetrics.onTimeVoyagePercentage.toFixed(1)}%`,
+    routeConcentration: `${voyageListMetrics.routeConcentration.toFixed(1)}%`
+  });
+
+  // TODO: Expand KPIMetrics interface to include manifest-specific metrics:
+  // - manifestMetrics (RT analysis, fluid breakdown, location visits, vessel type performance)
+  // - This will require updating the interface in types/index.ts
+
   return {
     totalOffshoreTime,
     totalOnshoreTime,
@@ -918,13 +1074,164 @@ const calculateMetrics = (
     vesselUtilizationRate,
     averageTripDuration,
     cargoTonnagePerVisit,
+    voyageListMetrics: {
+      totalVoyages: voyageListMetrics.totalVoyages,
+      averageVoyageDuration: voyageListMetrics.averageVoyageDuration,
+      avgVoyageDurationMoMChange: voyageListMetrics.avgVoyageDurationMoMChange,
+      drillingVoyagePercentage: voyageListMetrics.drillingVoyagePercentage,
+      mixedVoyageEfficiency: voyageListMetrics.mixedVoyageEfficiency,
+      averageStopsPerVoyage: voyageListMetrics.averageStopsPerVoyage,
+      multiStopPercentage: voyageListMetrics.multiStopPercentage,
+      routeEfficiencyScore: voyageListMetrics.routeEfficiencyScore,
+      activeVesselsThisMonth: voyageListMetrics.activeVesselsThisMonth,
+      voyagesPerVessel: voyageListMetrics.voyagesPerVessel,
+      routeConcentration: voyageListMetrics.routeConcentration,
+      onTimeVoyagePercentage: voyageListMetrics.onTimeVoyagePercentage,
+      averageExecutionEfficiency: voyageListMetrics.averageExecutionEfficiency,
+      consolidationBenefit: voyageListMetrics.consolidationBenefit,
+      peakSeasonIndicator: voyageListMetrics.peakSeasonIndicator,
+      voyagePurposeDistribution: voyageListMetrics.voyagePurposeDistribution,
+      popularDestinations: voyageListMetrics.popularDestinations
+    },
     momChanges: {
       waitingTimePercentage: waitingTimePercentageMoM,
       cargoOpsHours: cargoOpsHoursMoM,
-      liftsPerCargoHour: 0, // Would need previous month manifests
-      drillingNPTPercentage: 0, // Would need previous month calculation
+      liftsPerCargoHour: 0, // Would need previous month manifests for accurate calculation
+      drillingNPTPercentage: 0, // Would need previous month drilling calculation
       vesselUtilizationRate: 0 // Would need previous month calculation
     }
+  };
+};
+
+/**
+ * Calculate Vessel Manifest KPIs using exact PowerBI DAX logic
+ */
+const calculateManifestMetrics = (
+  vesselManifests: VesselManifest[],
+  currentMonth: number,
+  currentYear: number
+) => {
+  // Filter manifests for current month
+  const currentMonthManifests = vesselManifests.filter(manifest => 
+    manifest.manifestDate.getMonth() === currentMonth && 
+    manifest.manifestDate.getFullYear() === currentYear
+  );
+
+  // 1. Cargo Tonnage Per Visit (DAX: DIVIDE(SUM(Deck Tons) + SUM(RT Tons), DISTINCTCOUNT(Manifest Number), 0))
+  const totalDeckTons = currentMonthManifests.reduce((sum, manifest) => sum + manifest.deckTons, 0);
+  const totalRTTons = currentMonthManifests.reduce((sum, manifest) => sum + manifest.rtTons, 0);
+  const totalCargoTons = totalDeckTons + totalRTTons;
+  const uniqueManifests = new Set(currentMonthManifests.map(m => m.manifestNumber)).size;
+  const cargoTonnagePerVisit = uniqueManifests > 0 ? totalCargoTons / uniqueManifests : 0;
+
+  // 2. RT Tons Analysis
+  const rtTons = totalRTTons;
+  const rtPercentage = totalCargoTons > 0 ? (totalRTTons / totalCargoTons) * 100 : 0;
+  const rtStatus = rtTons > 0 ? "⚠️ RT Present" : "✓ No RT";
+
+  // 3. Wet Bulk Fluid Analysis (DAX: Normalize bbls + gals/42)
+  const totalWetBulkBbls = currentMonthManifests.reduce((sum, manifest) => sum + manifest.wetBulkBbls, 0);
+  const totalWetBulkGals = currentMonthManifests.reduce((sum, manifest) => sum + manifest.wetBulkGals, 0);
+  const totalWetBulkNormalized = totalWetBulkBbls + (totalWetBulkGals / 42);
+
+  // Fluid type breakdown based on remarks
+  const fluidBreakdown = currentMonthManifests.reduce((breakdown, manifest) => {
+    const remarks = (manifest.remarks || '').toLowerCase();
+    const manifestWetBulk = manifest.wetBulkBbls + (manifest.wetBulkGals / 42);
+    
+    if (remarks.includes('fuel') || remarks.includes('diesel')) {
+      breakdown.fuel += manifestWetBulk;
+    } else if (remarks.includes('water') || remarks.includes('potable')) {
+      breakdown.water += manifestWetBulk;
+    } else if (remarks.includes('methanol')) {
+      breakdown.methanol += manifestWetBulk;
+    } else if (remarks.includes('mud') || remarks.includes('brine') || remarks.includes('drilling')) {
+      breakdown.drillingFluid += manifestWetBulk;
+    } else if (manifestWetBulk > 0) {
+      breakdown.other += manifestWetBulk;
+    }
+    
+    return breakdown;
+  }, { fuel: 0, water: 0, methanol: 0, drillingFluid: 0, other: 0 });
+
+  // Calculate fluid percentages
+  const fluidPercentages = totalWetBulkNormalized > 0 ? {
+    fuel: (fluidBreakdown.fuel / totalWetBulkNormalized) * 100,
+    water: (fluidBreakdown.water / totalWetBulkNormalized) * 100,
+    methanol: (fluidBreakdown.methanol / totalWetBulkNormalized) * 100,
+    drillingFluid: (fluidBreakdown.drillingFluid / totalWetBulkNormalized) * 100,
+    other: (fluidBreakdown.other / totalWetBulkNormalized) * 100
+  } : { fuel: 0, water: 0, methanol: 0, drillingFluid: 0, other: 0 };
+
+  // 4. Location Visit Frequency
+  const locationVisits = currentMonthManifests.reduce((visits, manifest) => {
+    const location = manifest.offshoreLocation;
+    if (!visits[location]) {
+      visits[location] = new Set();
+    }
+    visits[location].add(manifest.manifestNumber);
+    return visits;
+  }, {} as Record<string, Set<string>>);
+
+  const locationVisitCounts = Object.entries(locationVisits).map(([location, manifestSet]) => ({
+    location,
+    visitCount: manifestSet.size,
+    tonnage: currentMonthManifests
+      .filter(m => m.offshoreLocation === location)
+      .reduce((sum, m) => sum + m.deckTons + m.rtTons, 0)
+  }));
+
+  // 5. Vessel Type Performance Analysis (requires vessel classification data)
+  const vesselTypePerformance = currentMonthManifests.reduce((performance, manifest) => {
+    const vesselType = manifest.vesselType || 'Unknown';
+    const cargoTons = manifest.deckTons + manifest.rtTons;
+    
+    if (!performance[vesselType]) {
+      performance[vesselType] = { tonnage: 0, manifests: 0, lifts: 0 };
+    }
+    
+    performance[vesselType].tonnage += cargoTons;
+    performance[vesselType].manifests += 1;
+    performance[vesselType].lifts += manifest.lifts;
+    
+    return performance;
+  }, {} as Record<string, { tonnage: number; manifests: number; lifts: number }>);
+
+  // Calculate FSV vs OSV metrics
+  const fsvTonnage = vesselTypePerformance['FSV']?.tonnage || 0;
+  const osvTonnage = vesselTypePerformance['OSV']?.tonnage || 0;
+  const fsvVsOsvRatio = osvTonnage > 0 ? fsvTonnage / osvTonnage : 0;
+
+  return {
+    // Core metrics
+    totalDeckTons,
+    totalRTTons,
+    totalCargoTons,
+    cargoTonnagePerVisit,
+    uniqueManifests,
+    
+    // RT Analysis
+    rtTons,
+    rtPercentage,
+    rtStatus,
+    
+    // Wet Bulk Analysis
+    totalWetBulkNormalized,
+    fluidBreakdown,
+    fluidPercentages,
+    
+    // Location Analysis
+    locationVisitCounts,
+    
+    // Vessel Type Performance
+    vesselTypePerformance,
+    fsvTonnage,
+    osvTonnage,
+    fsvVsOsvRatio,
+    
+    // Total metrics
+    totalLifts: currentMonthManifests.reduce((sum, manifest) => sum + manifest.lifts, 0),
+    totalManifests: currentMonthManifests.length
   };
 };
 
@@ -979,10 +1286,11 @@ const getMonthNumber = (month: string): number => {
 const classifyActivity = (
   parentEvent: string | null,
   event: string | null
-): "Productive" | "Non-Productive" | "Uncategorized" => {
+): "Productive" | "Non-Productive" | "Needs Review - Null Event" | "Uncategorized" => {
   if (!parentEvent) return "Uncategorized";
   
-  if (!event) {
+  // Handle null event values first
+  if (event === null || event === undefined || event === '') {
     const productiveParentEvents = [
       "End Voyage", "Standby inside 500m zone", "Standby Inside 500m zone",
       "Standby - Close", "Cargo Ops", "Marine Trial"
@@ -998,10 +1306,11 @@ const classifyActivity = (
     } else if (nonProductiveParentEvents.includes(parentEvent)) {
       return "Non-Productive";
     } else {
-      return "Uncategorized";
+      return "Needs Review - Null Event";
     }
   }
   
+  // Handle productive combinations (Parent Event + Event)
   const productiveCombinations = [
     "ROV Operations,ROV Operational duties",
     "Cargo Ops,Load - Fuel, Water or Methanol",
@@ -1027,10 +1336,12 @@ const classifyActivity = (
     "Tank Cleaning,Tank Cleaning"
   ];
   
-  if (productiveCombinations.includes(`${parentEvent},${event}`)) {
+  const combination = `${parentEvent},${event}`;
+  if (productiveCombinations.includes(combination)) {
     return "Productive";
   }
   
+  // Handle non-productive parent events
   const nonProductiveParentEvents = [
     "Waiting on Weather", "Waiting on Installation",
     "Waiting on Quay", "Port or Supply Base closed"
@@ -1043,7 +1354,7 @@ const classifyActivity = (
   return "Uncategorized";
 };
 
-// LC Allocation Processing (simplified version)
+// LC Allocation Processing - handles multi-allocation format like "9358 45, 10137 12, 10101"
 interface LCAllocation {
   lcNumber: string;
   percentage: number;
@@ -1052,6 +1363,11 @@ interface LCAllocation {
   department: "Drilling" | "Production" | "Logistics" | null;
   isSpecialCase: boolean;
 }
+
+/**
+ * Special LC numbers that auto-assign to Logistics when at Fourchon
+ */
+const FOURCHON_LOGISTICS_LCS = ['999', '333', '7777', '8888'];
 
 const processLCAllocations = (
   costDedicatedTo: string | null | undefined,
@@ -1063,19 +1379,20 @@ const processLCAllocations = (
   facilitiesMap: Map<string, MasterFacility>,
   costAllocationMap: Map<string, CostAllocation>
 ): LCAllocation[] => {
-  // Default allocation if no LC info
-  if (!costDedicatedTo) {
-    if (location === "Fourchon" && portType === "base") {
-      return [{
-        lcNumber: "AUTO",
-        percentage: 100,
-        originalLocation: "Fourchon",
-        mappedLocation: "Fourchon",
-        department: "Logistics",
-        isSpecialCase: true
-      }];
-    }
-    
+  // Handle special case: Fourchon base operations
+  if (location === "Fourchon" && portType === "base") {
+    return [{
+      lcNumber: "FOURCHON_BASE",
+      percentage: 100,
+      originalLocation: "Fourchon",
+      mappedLocation: "Fourchon",
+      department: "Logistics",
+      isSpecialCase: true
+    }];
+  }
+  
+  // Handle missing LC info
+  if (!costDedicatedTo || costDedicatedTo.trim() === '') {
     return [{
       lcNumber: "",
       percentage: 100,
@@ -1086,18 +1403,185 @@ const processLCAllocations = (
     }];
   }
   
-  // Simple LC processing - single LC with 100%
-  const lcNumber = costDedicatedTo.split(' ')[0];
-  const costAlloc = costAllocationMap.get(lcNumber);
+  // Parse multi-allocation LC string
+  const allocations = parseLCAllocationString(costDedicatedTo);
   
-  return [{
-    lcNumber,
-    percentage: 100,
-    originalLocation: costAlloc?.locationReference || null,
-    mappedLocation: costAlloc?.locationReference || location,
-    department: costAlloc?.department || null,
-    isSpecialCase: false
-  }];
+  // Debug logging for LC allocation parsing
+  if (allocations.length > 1) {
+    console.log(`🔍 Multi-LC allocation parsed: "${costDedicatedTo}" -> ${allocations.length} allocations:`, 
+      allocations.map(a => `${a.lcNumber}: ${a.percentage}%`).join(', '));
+  }
+  
+  // Convert to LCAllocation objects with department lookup
+  return allocations.map(allocation => {
+    const costAlloc = costAllocationMap.get(allocation.lcNumber);
+    
+    if (!costAlloc && allocation.lcNumber !== '') {
+      console.warn(`⚠️ LC Number "${allocation.lcNumber}" not found in Cost Allocation reference data`);
+    }
+    
+    // Determine department with enhanced logic
+    let department: "Drilling" | "Production" | "Logistics" | null = null;
+    
+    // Special handling: Fourchon Logistics LCs
+    if (location === "Fourchon" && FOURCHON_LOGISTICS_LCS.includes(allocation.lcNumber)) {
+      department = "Logistics";
+      console.log(`🚛 LC ${allocation.lcNumber} at Fourchon auto-assigned to Logistics (${allocation.percentage.toFixed(1)}%)`);
+    } else if (costAlloc?.department) {
+      // Use department from Cost Allocation reference table (primary source)
+      department = costAlloc.department;
+    } else if (allocation.lcNumber) {
+      // Fallback to Master Facilities Production LC mapping
+      department = inferDepartmentFromLCNumber(allocation.lcNumber) || null;
+    }
+    
+    // Log department assignment for debugging
+    if (allocation.lcNumber && department && !FOURCHON_LOGISTICS_LCS.includes(allocation.lcNumber)) {
+      const facilityInfo = PRODUCTION_LC_MAPPING[allocation.lcNumber];
+      const facilityName = facilityInfo ? ` (${facilityInfo.facility})` : '';
+      console.log(`🏢 LC ${allocation.lcNumber} assigned to ${department} department${facilityName} (${allocation.percentage.toFixed(1)}%)`);
+    }
+    
+    return {
+      lcNumber: allocation.lcNumber,
+      percentage: allocation.percentage,
+      originalLocation: costAlloc?.locationReference || null,
+      mappedLocation: costAlloc?.locationReference || location,
+      department,
+      isSpecialCase: FOURCHON_LOGISTICS_LCS.includes(allocation.lcNumber) && location === "Fourchon"
+    };
+  });
+};
+
+/**
+ * Parse LC allocation string like "9358 45, 10137 12, 10101" into individual allocations
+ * Handles various scenarios:
+ * - Only LC (no percent): Assume 100%
+ * - Multiple LCs with percent: Use defined percentages
+ * - Last LC without percent: Assign remainder
+ * - Some LCs missing percent: Split remainder equally among those without
+ * - Percent ≠ 100%: Normalize or flag for review
+ * - Invalid values: Flag for review
+ * - Alternate delimiters: Normalize first
+ */
+const parseLCAllocationString = (costDedicatedTo: string): { lcNumber: string; percentage: number }[] => {
+  if (!costDedicatedTo || costDedicatedTo.trim() === '') {
+    return [];
+  }
+  
+  // Normalize delimiters - replace semicolons, pipes, etc. with commas
+  const normalized = costDedicatedTo
+    .replace(/[;|]/g, ',')  // Replace semicolons and pipes with commas
+    .replace(/\s*,\s*/g, ',')  // Normalize spacing around commas
+    .trim();
+  
+  // Split by comma and clean up
+  const parts = normalized.split(',').map(part => part.trim()).filter(part => part.length > 0);
+  
+  if (parts.length === 0) {
+    return [];
+  }
+  
+  // If only one part and no percentage, assume 100%
+  if (parts.length === 1 && !parts[0].includes(' ')) {
+    return [{
+      lcNumber: parts[0].trim(),
+      percentage: 100
+    }];
+  }
+  
+  const allocationsWithPercent: { lcNumber: string; percentage: number }[] = [];
+  const allocationsWithoutPercent: string[] = [];
+  let totalAllocatedPercentage = 0;
+  
+  // Parse each part to separate those with and without percentages
+  for (const part of parts) {
+    const tokens = part.trim().split(/\s+/);
+    
+    if (tokens.length === 1) {
+      // LC number without percentage
+      allocationsWithoutPercent.push(tokens[0]);
+    } else if (tokens.length >= 2) {
+      // LC number with potential percentage
+      const lcNumber = tokens[0];
+      const percentageStr = tokens[1];
+      const percentage = parseFloat(percentageStr);
+      
+      if (!isNaN(percentage) && percentage >= 0 && percentage <= 100) {
+        allocationsWithPercent.push({
+          lcNumber,
+          percentage
+        });
+        totalAllocatedPercentage += percentage;
+      } else {
+        console.warn(`Invalid percentage "${percentageStr}" for LC ${lcNumber}, treating as no percentage`);
+        allocationsWithoutPercent.push(lcNumber);
+      }
+    }
+  }
+  
+  // Calculate remainder for LCs without percentages
+  const remainderPercentage = Math.max(0, 100 - totalAllocatedPercentage);
+  
+  // Handle LCs without percentages
+  if (allocationsWithoutPercent.length > 0) {
+    if (remainderPercentage > 0) {
+      // Split remainder equally among LCs without percentages
+      const percentagePerLC = remainderPercentage / allocationsWithoutPercent.length;
+      
+      for (const lcNumber of allocationsWithoutPercent) {
+        allocationsWithPercent.push({
+          lcNumber,
+          percentage: percentagePerLC
+        });
+      }
+      
+      totalAllocatedPercentage = 100; // Should now equal 100%
+    } else {
+      // No remainder available - this is an error condition
+      console.error(`No remainder percentage available for LCs without percentages: ${allocationsWithoutPercent.join(', ')} in "${costDedicatedTo}"`);
+      
+      // Assign 0% to these LCs (they'll be flagged for review)
+      for (const lcNumber of allocationsWithoutPercent) {
+        allocationsWithPercent.push({
+          lcNumber,
+          percentage: 0
+        });
+      }
+    }
+  }
+  
+  // Validate and normalize total percentage
+  if (Math.abs(totalAllocatedPercentage - 100) > 0.01) {
+    console.warn(`LC allocation percentages don't add up to 100%: ${totalAllocatedPercentage.toFixed(2)}% for "${costDedicatedTo}"`);
+    
+    // Normalize percentages to sum to 100% if we have valid allocations
+    if (totalAllocatedPercentage > 0 && allocationsWithPercent.length > 0) {
+      const normalizationFactor = 100 / totalAllocatedPercentage;
+      allocationsWithPercent.forEach(allocation => {
+        allocation.percentage *= normalizationFactor;
+      });
+      
+      console.log(`📊 Normalized LC percentages for "${costDedicatedTo}":`, 
+        allocationsWithPercent.map(a => `${a.lcNumber}: ${a.percentage.toFixed(1)}%`).join(', '));
+    }
+  }
+  
+  // Final validation - ensure all percentages are reasonable
+  const finalAllocations = allocationsWithPercent.filter(allocation => {
+    if (allocation.percentage < 0 || allocation.percentage > 100) {
+      console.error(`Invalid final percentage ${allocation.percentage}% for LC ${allocation.lcNumber} in "${costDedicatedTo}"`);
+      return false;
+    }
+    return true;
+  });
+  
+  // Round percentages to avoid floating point precision issues
+  finalAllocations.forEach(allocation => {
+    allocation.percentage = Math.round(allocation.percentage * 100) / 100;
+  });
+  
+  return finalAllocations;
 };
 
 // Simplified helper functions
@@ -1109,17 +1593,32 @@ const processMappedLocationForManifest = (
   facilitiesMap: Map<string, MasterFacility>,
   costAllocationMap: Map<string, CostAllocation>
 ): { mappedLocation: string, department: "Drilling" | "Production" | "Logistics" | null } => {
+  let department: "Drilling" | "Production" | "Logistics" | null = null;
+  
   if (costCode && costAllocationMap.has(costCode)) {
     const costAlloc = costAllocationMap.get(costCode)!;
+    department = costAlloc.department || null;
+    
     return {
       mappedLocation: costAlloc.locationReference,
-      department: costAlloc.department || null // Convert undefined to null, then we'll convert back to undefined in the calling function
+      department
     };
+  }
+  
+  // If no cost code mapping, try to infer department from location and context
+  if (costCode) {
+    // Check special Fourchon Logistics LCs
+    if (from === "Fourchon" && FOURCHON_LOGISTICS_LCS.includes(costCode)) {
+      department = "Logistics";
+    } else {
+      // Check Production LC mapping from Master Facilities
+      department = inferDepartmentFromLCNumber(costCode) || null;
+    }
   }
   
   return {
     mappedLocation: offshoreLocation,
-    department: null
+    department
   };
 };
 
@@ -1165,7 +1664,7 @@ const includesProductionLocation = (locations: string[]): boolean => {
 
 const includesDrillingLocation = (locations: string[]): boolean => {
   const drillingLocations = [
-    "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean Blackhornet",
+    "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean BlackHornet",
     "Ocean BlackLion", "Stena IceMAX", "Ocean Blacktip", "Island Venture",
     "Argos", "Deepwater Invictus"
   ];
@@ -1185,13 +1684,62 @@ const determineVoyagePurpose = (locations: string[]): "Production" | "Drilling" 
   return "Other";
 };
 
+/**
+ * Generate Production LC mapping from Master Facilities data
+ * This ensures we always use the authoritative source for Production LC numbers
+ */
+const generateProductionLCMapping = (): Record<string, { department: "Production"; facility: string }> => {
+  const mapping: Record<string, { department: "Production"; facility: string }> = {};
+  
+  // Extract Production LC numbers from Master Facilities
+  masterFacilitiesData.forEach(facility => {
+    if (facility.facilityType === 'Production' && facility.productionCS) {
+      // Convert productionCS to string and extract the main LC number (before decimal)
+      const lcNumber = Math.floor(facility.productionCS).toString();
+      mapping[lcNumber] = {
+        department: "Production",
+        facility: facility.displayName
+      };
+    }
+  });
+  
+  console.log('📋 Generated Production LC mapping from Master Facilities:', mapping);
+  return mapping;
+};
+
+// Generate the mapping dynamically from Master Facilities data
+const PRODUCTION_LC_MAPPING = generateProductionLCMapping();
+
+const inferDepartmentFromLCNumber = (lcNumber: string): "Drilling" | "Production" | "Logistics" | undefined => {
+  // Check Production LC Numbers from Master Facilities
+  if (PRODUCTION_LC_MAPPING[lcNumber]) {
+    return "Production";
+  }
+  
+  // For other LC numbers, we'll rely on the Cost Allocation reference table
+  // This function is used as a fallback when Cost Allocation lookup fails
+  return undefined;
+};
+
 const inferDepartmentFromDescription = (description: string | undefined): "Drilling" | "Production" | "Logistics" | undefined => {
   if (!description) return undefined;
   
   const desc = description.toLowerCase();
-  if (desc.includes('drill')) return "Drilling";
-  if (desc.includes('production') || desc.includes('prod')) return "Production";
-  if (desc.includes('logistics') || desc.includes('fourchon')) return "Logistics";
+  
+  // More specific drilling keywords
+  if (desc.includes('drill') || desc.includes('completion') || desc.includes('workover')) {
+    return "Drilling";
+  }
+  
+  // More specific production keywords
+  if (desc.includes('production') || desc.includes('prod') || desc.includes('facility') || desc.includes('platform')) {
+    return "Production";
+  }
+  
+  // Logistics keywords
+  if (desc.includes('logistics') || desc.includes('fourchon') || desc.includes('supply base') || desc.includes('port')) {
+    return "Logistics";
+  }
   
   return undefined;
 };
@@ -1359,4 +1907,275 @@ export const createMockDataStore = (): ProcessingResults & { metrics: KPIMetrics
       selectedMonth: new Date().toISOString().slice(0, 7)
     }
   };
+};
+
+/**
+ * Calculate Voyage List KPIs using exact PowerBI DAX logic
+ */
+const calculateVoyageListMetrics = (
+  voyageList: VoyageList[],
+  voyageEvents: VoyageEvent[],
+  vesselManifests: VesselManifest[],
+  currentMonth: number,
+  currentYear: number
+) => {
+  // Filter voyages for current month
+  const currentMonthVoyages = voyageList.filter(voyage => 
+    voyage.voyageDate.getMonth() === currentMonth && 
+    voyage.voyageDate.getFullYear() === currentYear
+  );
+
+  // Previous month for MoM calculations
+  const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+  const prevMonthVoyages = voyageList.filter(voyage => 
+    voyage.voyageDate.getMonth() === prevMonth && 
+    voyage.voyageDate.getFullYear() === prevYear
+  );
+
+  // 1. Average Voyage Duration (DAX: AVERAGEX('Voyage List', 'Voyage List'[Duration Hours]))
+  const totalDurationHours = currentMonthVoyages.reduce((sum, voyage) => sum + (voyage.durationHours || 0), 0);
+  const averageVoyageDuration = currentMonthVoyages.length > 0 ? totalDurationHours / currentMonthVoyages.length : 0;
+  
+  const prevTotalDuration = prevMonthVoyages.reduce((sum, voyage) => sum + (voyage.durationHours || 0), 0);
+  const prevAverageVoyageDuration = prevMonthVoyages.length > 0 ? prevTotalDuration / prevMonthVoyages.length : 0;
+  const avgVoyageDurationMoMChange = prevAverageVoyageDuration > 0 ? 
+    ((averageVoyageDuration - prevAverageVoyageDuration) / prevAverageVoyageDuration) * 100 : 0;
+
+  // 2. Voyage Purpose Distribution
+  const voyagePurposeDistribution = currentMonthVoyages.reduce((dist, voyage) => {
+    const purpose = voyage.voyagePurpose || 'Other';
+    dist[purpose] = (dist[purpose] || 0) + 1;
+    return dist;
+  }, {} as Record<string, number>);
+
+  const totalVoyages = currentMonthVoyages.length;
+  const drillingVoyages = voyagePurposeDistribution['Drilling'] || 0;
+  const productionVoyages = voyagePurposeDistribution['Production'] || 0;
+  const mixedVoyages = voyagePurposeDistribution['Mixed'] || 0;
+  const otherVoyages = voyagePurposeDistribution['Other'] || 0;
+
+  const drillingVoyagePercentage = totalVoyages > 0 ? (drillingVoyages / totalVoyages) * 100 : 0;
+  const mixedVoyageEfficiency = totalVoyages > 0 ? (mixedVoyages / totalVoyages) * 100 : 0;
+
+  // 3. Route Complexity Analysis
+  const totalStops = currentMonthVoyages.reduce((sum, voyage) => sum + voyage.stopCount, 0);
+  const averageStopsPerVoyage = totalVoyages > 0 ? totalStops / totalVoyages : 0;
+  
+  const multiStopVoyages = currentMonthVoyages.filter(voyage => voyage.stopCount > 2).length;
+  const multiStopPercentage = totalVoyages > 0 ? (multiStopVoyages / totalVoyages) * 100 : 0;
+  
+  const routeEfficiencyScore = averageVoyageDuration > 0 ? 
+    averageStopsPerVoyage / (averageVoyageDuration / 24) : 0;
+
+  // 4. Vessel Voyage Frequency
+  const uniqueVessels = new Set(currentMonthVoyages.map(voyage => voyage.vessel));
+  const activeVesselsThisMonth = uniqueVessels.size;
+  const voyagesPerVessel = activeVesselsThisMonth > 0 ? totalVoyages / activeVesselsThisMonth : 0;
+  
+  const highActivityVessels = currentMonthVoyages
+    .filter(voyage => voyage.stopCount >= 3)
+    .map(voyage => voyage.vessel);
+  const uniqueHighActivityVessels = new Set(highActivityVessels).size;
+
+  // 5. Origin-Destination Analysis
+  const fourchonDepartures = currentMonthVoyages.filter(voyage => 
+    voyage.originPort === 'Fourchon' || 
+    voyage.locations.toLowerCase().includes('fourchon') ||
+    (voyage.locationList.length > 0 && voyage.locationList[0].toLowerCase().includes('fourchon'))
+  ).length;
+  const routeConcentration = totalVoyages > 0 ? (fourchonDepartures / totalVoyages) * 100 : 0;
+
+  // Popular destinations analysis
+  const destinationCounts = currentMonthVoyages.reduce((counts, voyage) => {
+    const destination = voyage.mainDestination || 'Unknown';
+    counts[destination] = (counts[destination] || 0) + 1;
+    return counts;
+  }, {} as Record<string, number>);
+
+  const popularDestinations = Object.entries(destinationCounts)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 5)
+    .map(([destination, count]) => ({ destination, count, percentage: (count / totalVoyages) * 100 }));
+
+  // 6. Seasonal Voyage Patterns
+  const monthlyVoyageCount = totalVoyages;
+  const prevMonthlyVoyageCount = prevMonthVoyages.length;
+  const voyageSeasonalIndex = prevMonthlyVoyageCount > 0 ? monthlyVoyageCount / prevMonthlyVoyageCount : 1;
+  
+  const peakSeasonIndicator = voyageSeasonalIndex > 1.2 ? "🔥 Peak" : 
+                             voyageSeasonalIndex < 0.8 ? "❄️ Low" : "📊 Normal";
+
+  // Cross-table integration metrics
+  
+  // 7. Voyage Planning vs Execution Analysis
+  const voyageExecutionMetrics = currentMonthVoyages.map(voyage => {
+    // Find related voyage events
+    const relatedEvents = voyageEvents.filter(event => 
+      event.standardizedVoyageNumber === voyage.standardizedVoyageId ||
+      (event.vessel === voyage.vessel && 
+       Math.abs(event.eventDate.getTime() - voyage.voyageDate.getTime()) < 7 * 24 * 60 * 60 * 1000) // Within 7 days
+    );
+    
+    const actualDuration = relatedEvents.reduce((sum, event) => sum + event.finalHours, 0);
+    const plannedDuration = voyage.durationHours || 0;
+    const plannedVsActualDuration = actualDuration - plannedDuration;
+    const voyageExecutionEfficiency = actualDuration > 0 ? plannedDuration / actualDuration : 0;
+    
+    return {
+      voyageId: voyage.standardizedVoyageId,
+      plannedDuration,
+      actualDuration,
+      plannedVsActualDuration,
+      voyageExecutionEfficiency,
+      isOnTime: Math.abs(plannedVsActualDuration) <= 2 // Within 2 hours
+    };
+  });
+
+  const onTimeVoyages = voyageExecutionMetrics.filter(metric => metric.isOnTime).length;
+  const onTimeVoyagePercentage = totalVoyages > 0 ? (onTimeVoyages / totalVoyages) * 100 : 0;
+  const averageExecutionEfficiency = voyageExecutionMetrics.length > 0 ? 
+    voyageExecutionMetrics.reduce((sum, metric) => sum + metric.voyageExecutionEfficiency, 0) / voyageExecutionMetrics.length : 0;
+
+  // 8. Route Complexity vs Operational Performance
+  const complexRouteVoyages = currentMonthVoyages.filter(voyage => voyage.stopCount >= 4);
+  const simpleRouteVoyages = currentMonthVoyages.filter(voyage => voyage.stopCount <= 2);
+  
+  const complexRoutePerformance = calculateRoutePerformance(complexRouteVoyages, voyageEvents);
+  const simpleRoutePerformance = calculateRoutePerformance(simpleRouteVoyages, voyageEvents);
+  const routeComplexityImpact = complexRoutePerformance - simpleRoutePerformance;
+
+  // 9. Cargo Delivery Effectiveness by Voyage Purpose
+  const cargoEfficiencyByPurpose = {
+    drilling: calculateCargoEfficiencyByPurpose('Drilling', currentMonthVoyages, vesselManifests),
+    production: calculateCargoEfficiencyByPurpose('Production', currentMonthVoyages, vesselManifests),
+    mixed: calculateCargoEfficiencyByPurpose('Mixed', currentMonthVoyages, vesselManifests)
+  };
+
+  // 10. Multi-Stop Voyage Efficiency
+  const multiStopCargoData = calculateMultiStopEfficiency(currentMonthVoyages, vesselManifests, true);
+  const singleStopCargoData = calculateMultiStopEfficiency(currentMonthVoyages, vesselManifests, false);
+  const consolidationBenefit = multiStopCargoData.cargoDensity - singleStopCargoData.cargoDensity;
+
+  return {
+    // Core voyage metrics
+    totalVoyages,
+    averageVoyageDuration,
+    avgVoyageDurationMoMChange,
+    
+    // Purpose distribution
+    voyagePurposeDistribution,
+    drillingVoyages,
+    productionVoyages,
+    mixedVoyages,
+    otherVoyages,
+    drillingVoyagePercentage,
+    mixedVoyageEfficiency,
+    
+    // Route complexity
+    averageStopsPerVoyage,
+    multiStopVoyages,
+    multiStopPercentage,
+    routeEfficiencyScore,
+    
+    // Vessel utilization
+    activeVesselsThisMonth,
+    voyagesPerVessel,
+    uniqueHighActivityVessels,
+    
+    // Origin-destination
+    fourchonDepartures,
+    routeConcentration,
+    popularDestinations,
+    
+    // Seasonal patterns
+    monthlyVoyageCount,
+    voyageSeasonalIndex,
+    peakSeasonIndicator,
+    
+    // Execution analysis
+    voyageExecutionMetrics,
+    onTimeVoyagePercentage,
+    averageExecutionEfficiency,
+    
+    // Route performance
+    complexRoutePerformance,
+    simpleRoutePerformance,
+    routeComplexityImpact,
+    
+    // Cargo effectiveness
+    cargoEfficiencyByPurpose,
+    
+    // Multi-stop efficiency
+    multiStopCargoData,
+    singleStopCargoData,
+    consolidationBenefit
+  };
+};
+
+// Helper functions for voyage list calculations
+const calculateRoutePerformance = (voyages: VoyageList[], voyageEvents: VoyageEvent[]): number => {
+  if (voyages.length === 0) return 0;
+  
+  const voyageIds = voyages.map(v => v.standardizedVoyageId);
+  const relatedEvents = voyageEvents.filter(event => 
+    voyageIds.includes(event.standardizedVoyageNumber || '') ||
+    voyages.some(v => v.vessel === event.vessel)
+  );
+  
+  const productiveHours = relatedEvents
+    .filter(event => event.activityCategory === 'Productive')
+    .reduce((sum, event) => sum + event.finalHours, 0);
+  
+  const totalHours = relatedEvents.reduce((sum, event) => sum + event.finalHours, 0);
+  
+  return totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
+};
+
+const calculateCargoEfficiencyByPurpose = (
+  purpose: string, 
+  voyages: VoyageList[], 
+  manifests: VesselManifest[]
+): { tonnagePerVoyage: number; totalTonnage: number; voyageCount: number } => {
+  const purposeVoyages = voyages.filter(voyage => voyage.voyagePurpose === purpose);
+  const voyageIds = purposeVoyages.map(v => v.standardizedVoyageId);
+  
+  const relatedManifests = manifests.filter(manifest => 
+    voyageIds.includes(manifest.standardizedVoyageId) ||
+    purposeVoyages.some(v => v.vessel === manifest.transporter)
+  );
+  
+  const totalTonnage = relatedManifests.reduce((sum, manifest) => 
+    sum + manifest.deckTons + manifest.rtTons, 0);
+  
+  const voyageCount = purposeVoyages.length;
+  const tonnagePerVoyage = voyageCount > 0 ? totalTonnage / voyageCount : 0;
+  
+  return { tonnagePerVoyage, totalTonnage, voyageCount };
+};
+
+const calculateMultiStopEfficiency = (
+  voyages: VoyageList[], 
+  manifests: VesselManifest[], 
+  isMultiStop: boolean
+): { cargoDensity: number; totalTonnage: number; totalDuration: number } => {
+  const filteredVoyages = voyages.filter(voyage => 
+    isMultiStop ? voyage.stopCount >= 3 : voyage.stopCount <= 2
+  );
+  
+  const voyageIds = filteredVoyages.map(v => v.standardizedVoyageId);
+  const relatedManifests = manifests.filter(manifest => 
+    voyageIds.includes(manifest.standardizedVoyageId) ||
+    filteredVoyages.some(v => v.vessel === manifest.transporter)
+  );
+  
+  const totalTonnage = relatedManifests.reduce((sum, manifest) => 
+    sum + manifest.deckTons + manifest.rtTons, 0);
+  
+  const totalDuration = filteredVoyages.reduce((sum, voyage) => 
+    sum + (voyage.durationHours || 0), 0);
+  
+  const cargoDensity = totalDuration > 0 ? totalTonnage / totalDuration : 0;
+  
+  return { cargoDensity, totalTonnage, totalDuration };
 };

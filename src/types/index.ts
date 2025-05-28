@@ -37,7 +37,7 @@ export interface VoyageEvent {
   // Classification
   portType: 'rig' | 'base';
   locationType: 'Offshore' | 'Onshore' | 'Other';
-  activityCategory: 'Productive' | 'Non-Productive' | 'Uncategorized';
+  activityCategory: 'Productive' | 'Non-Productive' | 'Needs Review - Null Event' | 'Uncategorized';
   eventCategory?: string;
   
   // Business Logic Fields
@@ -130,6 +130,17 @@ export interface CostAllocation {
   monthYear?: string;
   month?: number;
   year?: number;
+  
+  // Cost Information
+  totalAllocatedDays?: number;
+  averageVesselCostPerDay?: number;
+  totalCost?: number;
+  costPerHour?: number;
+  
+  // Rig Location Information
+  rigLocation?: string;
+  rigType?: string;
+  waterDepth?: number;
   
   // Additional Information
   mission?: string;
@@ -298,6 +309,27 @@ export interface KPIMetrics {
   vesselUtilizationRate: number;
   averageTripDuration: number;
   cargoTonnagePerVisit: number;
+  
+  // Voyage List Metrics
+  voyageListMetrics?: {
+    totalVoyages: number;
+    averageVoyageDuration: number;
+    avgVoyageDurationMoMChange: number;
+    drillingVoyagePercentage: number;
+    mixedVoyageEfficiency: number;
+    averageStopsPerVoyage: number;
+    multiStopPercentage: number;
+    routeEfficiencyScore: number;
+    activeVesselsThisMonth: number;
+    voyagesPerVessel: number;
+    routeConcentration: number;
+    onTimeVoyagePercentage: number;
+    averageExecutionEfficiency: number;
+    consolidationBenefit: number;
+    peakSeasonIndicator: string;
+    voyagePurposeDistribution: Record<string, number>;
+    popularDestinations: Array<{ destination: string; count: number; percentage: number }>;
+  };
   
   // Month-over-Month Changes
   momChanges: {

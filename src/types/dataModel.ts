@@ -130,7 +130,7 @@ export interface ProcessedVoyageEvent {
   finalHours: number; // After LC allocation
   portType: "rig" | "base" | string;
   locationType: "Offshore" | "Onshore" | "Other";
-  activityCategory: "Productive" | "Non-Productive" | "Uncategorized";
+  activityCategory: "Productive" | "Non-Productive" | "Needs Review - Null Event" | "Uncategorized";
   year: number;
   quarter: string;
   month: string;

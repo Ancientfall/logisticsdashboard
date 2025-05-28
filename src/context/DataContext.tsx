@@ -269,7 +269,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // Reconstruct chunked arrays
       Object.keys(parsed).forEach(key => {
         if (parsed[key] && typeof parsed[key] === 'object' && parsed[key].chunked) {
-          const { totalChunks, itemsPerChunk, partial, originalLength, savedLength } = parsed[key];
+          const { totalChunks, partial, originalLength, savedLength } = parsed[key];
           const fullArray: any[] = [];
           
           if (partial) {

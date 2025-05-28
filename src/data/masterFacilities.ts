@@ -2,332 +2,352 @@
 // Static Master Facilities data - rarely changes, so hardcoded for efficiency
 // Based on PowerBI PowerQuery model for BP Gulf of Mexico operations
 
-export interface MasterFacility {
-  LocationID: number;
-  LocationName: string;
-  DisplayName: string;
-  FacilityType: 'Production' | 'Drilling' | 'Integrated';
-  ParentFacility: string | null;
-  Region: string;
-  IsActive: boolean;
-  SortOrder: number;
-  ProductionLCs: string | null; // Comma-separated LC numbers for production facilities
-  IsProductionCapable: boolean;
-  IsDrillingCapable: boolean;
-  Category: string;
-  IsIntegrated: boolean;
+export interface FacilityClassification {
+  locationID: number;
+  locationName: string;
+  displayName: string;
+  facilityType: 'Production' | 'Drilling' | 'Integrated';
+  parentFacility?: string;
+  region: string;
+  isActive: boolean;
+  sortOrder: number;
+  productionCS?: number;
+  isProductionCapable: boolean;
+  isDrillingCapable: boolean;
+  category: 'Production Facilities' | 'Drilling Rigs' | 'Integrated Facilities';
+  isIntegrated: boolean;
+  slicerOrder: number;
 }
 
-export const MASTER_FACILITIES: MasterFacility[] = [
-  // Production facilities
+export const masterFacilitiesData: FacilityClassification[] = [
+  // Production Facilities
   {
-    LocationID: 1,
-    LocationName: "Argos",
-    DisplayName: "Argos",
-    FacilityType: "Production",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 10,
-    ProductionLCs: "9999,9779,10027,10039,10070,10082,10106",
-    IsProductionCapable: true,
-    IsDrillingCapable: false,
-    Category: "Production Facilities",
-    IsIntegrated: false
+    locationID: 1,
+    locationName: 'Argos',
+    displayName: 'Argos',
+    facilityType: 'Production',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 10,
+    productionCS: 9999.9779,
+    isProductionCapable: true,
+    isDrillingCapable: false,
+    category: 'Production Facilities',
+    isIntegrated: false,
+    slicerOrder: 10
   },
   {
-    LocationID: 2,
-    LocationName: "Atlantis PQ",
-    DisplayName: "Atlantis",
-    FacilityType: "Production",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 20,
-    ProductionLCs: "9361,10103,10096,10071,10115",
-    IsProductionCapable: true,
-    IsDrillingCapable: false,
-    Category: "Production Facilities",
-    IsIntegrated: false
+    locationID: 2,
+    locationName: 'Atlantis PQ',
+    displayName: 'Atlantis',
+    facilityType: 'Production',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 20,
+    productionCS: 9361.1003,
+    isProductionCapable: true,
+    isDrillingCapable: false,
+    category: 'Production Facilities',
+    isIntegrated: false,
+    slicerOrder: 20
   },
   {
-    LocationID: 3,
-    LocationName: "Na Kika",
-    DisplayName: "Na Kika",
-    FacilityType: "Production",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 30,
-    ProductionLCs: "9359,9364,9367,10098,10080,10051,10021,10017",
-    IsProductionCapable: true,
-    IsDrillingCapable: false,
-    Category: "Production Facilities",
-    IsIntegrated: false
+    locationID: 3,
+    locationName: 'Na Kika',
+    displayName: 'Na Kika',
+    facilityType: 'Production',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 30,
+    productionCS: 9359.9364,
+    isProductionCapable: true,
+    isDrillingCapable: false,
+    category: 'Production Facilities',
+    isIntegrated: false,
+    slicerOrder: 30
   },
   {
-    LocationID: 4,
-    LocationName: "Thunder horse Prod",
-    DisplayName: "Thunder Horse (Production)",
-    FacilityType: "Production",
-    ParentFacility: "Thunder Horse PDQ",
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 40,
-    ProductionLCs: "9360,10099,10081,10074,10052",
-    IsProductionCapable: true,
-    IsDrillingCapable: false,
-    Category: "Production Facilities",
-    IsIntegrated: false
+    locationID: 4,
+    locationName: 'Thunder Horse Prod',
+    displayName: 'Thunder Horse (Production)',
+    facilityType: 'Production',
+    parentFacility: 'Thunder Horse PDQ',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 40,
+    productionCS: 9360.10099,
+    isProductionCapable: true,
+    isDrillingCapable: false,
+    category: 'Production Facilities',
+    isIntegrated: false,
+    slicerOrder: 40
   },
   {
-    LocationID: 5,
-    LocationName: "Mad Dog Prod",
-    DisplayName: "Mad Dog (Production)",
-    FacilityType: "Production",
-    ParentFacility: "Mad Dog",
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 50,
-    ProductionLCs: "9358,10097,10084,10072,10067",
-    IsProductionCapable: true,
-    IsDrillingCapable: false,
-    Category: "Production Facilities",
-    IsIntegrated: false
-  },
-
-  // Drilling facilities
-  {
-    LocationID: 11,
-    LocationName: "Thunder Horse Drilling",
-    DisplayName: "Thunder Horse (Drilling)",
-    FacilityType: "Drilling",
-    ParentFacility: "Thunder Horse PDQ",
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 110,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 12,
-    LocationName: "Mad Dog Drilling",
-    DisplayName: "Mad Dog (Drilling)",
-    FacilityType: "Drilling",
-    ParentFacility: "Mad Dog",
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 120,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 13,
-    LocationName: "Ocean Blackhornet",
-    DisplayName: "Ocean Blackhornet",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 130,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 14,
-    LocationName: "Ocean BlackLion",
-    DisplayName: "Ocean BlackLion",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 140,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 15,
-    LocationName: "Deepwater Invictus",
-    DisplayName: "Deepwater Invictus",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 150,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 16,
-    LocationName: "Island Venture",
-    DisplayName: "Island Venture",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 160,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 17,
-    LocationName: "Stena IceMAX",
-    DisplayName: "Stena IceMAX",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 170,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 18,
-    LocationName: "Auriga",
-    DisplayName: "Auriga",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 180,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 19,
-    LocationName: "Island Intervention",
-    DisplayName: "Island Intervention",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 190,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
-  },
-  {
-    LocationID: 20,
-    LocationName: "C-Constructor",
-    DisplayName: "C-Constructor",
-    FacilityType: "Drilling",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 200,
-    ProductionLCs: null,
-    IsProductionCapable: false,
-    IsDrillingCapable: true,
-    Category: "Drilling Rigs",
-    IsIntegrated: false
+    locationID: 5,
+    locationName: 'Mad Dog Prod',
+    displayName: 'Mad Dog (Production)',
+    facilityType: 'Production',
+    parentFacility: 'Mad Dog',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 50,
+    productionCS: 9358.10097,
+    isProductionCapable: true,
+    isDrillingCapable: false,
+    category: 'Production Facilities',
+    isIntegrated: false,
+    slicerOrder: 50
   },
 
-  // Integrated facilities
+  // Drilling Rigs
   {
-    LocationID: 101,
-    LocationName: "Thunder Horse PDQ",
-    DisplayName: "Thunder Horse (All)",
-    FacilityType: "Integrated",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 1000,
-    ProductionLCs: null,
-    IsProductionCapable: true,
-    IsDrillingCapable: true,
-    Category: "Integrated Facilities",
-    IsIntegrated: true
+    locationID: 11,
+    locationName: 'Thunder Horse Drilling',
+    displayName: 'Thunder Horse (Drilling)',
+    facilityType: 'Drilling',
+    parentFacility: 'Thunder Horse PDQ',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 110,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 110
   },
   {
-    LocationID: 102,
-    LocationName: "Mad Dog",
-    DisplayName: "Mad Dog (All)",
-    FacilityType: "Integrated",
-    ParentFacility: null,
-    Region: "Gulf of Mexico",
-    IsActive: true,
-    SortOrder: 1010,
-    ProductionLCs: null,
-    IsProductionCapable: true,
-    IsDrillingCapable: true,
-    Category: "Integrated Facilities",
-    IsIntegrated: true
+    locationID: 12,
+    locationName: 'Mad Dog Drilling',
+    displayName: 'Mad Dog (Drilling)',
+    facilityType: 'Drilling',
+    parentFacility: 'Mad Dog',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 120,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 120
+  },
+  {
+    locationID: 13,
+    locationName: 'Ocean Blackhornet',
+    displayName: 'Ocean BlackHornet',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 130,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 130
+  },
+  {
+    locationID: 14,
+    locationName: 'Ocean BlackLion',
+    displayName: 'Ocean BlackLion',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 140,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 140
+  },
+  {
+    locationID: 15,
+    locationName: 'Deepwater Invictus',
+    displayName: 'Deepwater Invictus',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 150,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 150
+  },
+  {
+    locationID: 16,
+    locationName: 'Island Venture',
+    displayName: 'Island Venture',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 160,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 160
+  },
+  {
+    locationID: 17,
+    locationName: 'Stena IceMAX',
+    displayName: 'Stena IceMAX',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 170,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 170
+  },
+  {
+    locationID: 18,
+    locationName: 'Auriga',
+    displayName: 'Auriga',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 180,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 180
+  },
+  {
+    locationID: 19,
+    locationName: 'Island Intervention',
+    displayName: 'Island Intervention',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 190,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 190
+  },
+  {
+    locationID: 20,
+    locationName: 'C-Constructor',
+    displayName: 'C-Constructor',
+    facilityType: 'Drilling',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 200,
+    isProductionCapable: false,
+    isDrillingCapable: true,
+    category: 'Drilling Rigs',
+    isIntegrated: false,
+    slicerOrder: 200
+  },
+
+  // Integrated Facilities
+  {
+    locationID: 101,
+    locationName: 'Thunder Horse PDQ',
+    displayName: 'Thunder Horse (Drill/Prod)',
+    facilityType: 'Integrated',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 1000,
+    productionCS: 1000,
+    isProductionCapable: true,
+    isDrillingCapable: true,
+    category: 'Integrated Facilities',
+    isIntegrated: true,
+    slicerOrder: 1000
+  },
+  {
+    locationID: 102,
+    locationName: 'Mad Dog',
+    displayName: 'Mad Dog (Drill/Prod)',
+    facilityType: 'Integrated',
+    region: 'Gulf of Mexico',
+    isActive: true,
+    sortOrder: 1010,
+    productionCS: 1010,
+    isProductionCapable: true,
+    isDrillingCapable: true,
+    category: 'Integrated Facilities',
+    isIntegrated: true,
+    slicerOrder: 1010
   }
 ];
 
-// Utility functions for working with facilities data
-export const getFacilityById = (id: number): MasterFacility | undefined => {
-  return MASTER_FACILITIES.find(facility => facility.LocationID === id);
-};
-
-export const getFacilityByName = (name: string): MasterFacility | undefined => {
-  return MASTER_FACILITIES.find(facility => 
-    facility.LocationName.toLowerCase() === name.toLowerCase() ||
-    facility.DisplayName.toLowerCase() === name.toLowerCase()
+// Helper functions for facility classification
+export const getFacilityByName = (locationName: string): FacilityClassification | undefined => {
+  return masterFacilitiesData.find(facility => 
+    facility.locationName.toLowerCase() === locationName.toLowerCase() ||
+    facility.displayName.toLowerCase() === locationName.toLowerCase()
   );
 };
 
-export const getProductionFacilities = (): MasterFacility[] => {
-  return MASTER_FACILITIES.filter(facility => facility.IsProductionCapable);
+export const getFacilitiesByType = (facilityType: string): FacilityClassification[] => {
+  return masterFacilitiesData.filter(facility => 
+    facility.facilityType.toLowerCase() === facilityType.toLowerCase()
+  );
 };
 
-export const getDrillingFacilities = (): MasterFacility[] => {
-  return MASTER_FACILITIES.filter(facility => facility.IsDrillingCapable);
+export const getDrillingFacilities = (): FacilityClassification[] => {
+  return masterFacilitiesData.filter(facility => 
+    facility.facilityType === 'Drilling' && facility.isActive
+  ).sort((a, b) => a.sortOrder - b.sortOrder);
 };
 
-export const getActiveFacilities = (): MasterFacility[] => {
-  return MASTER_FACILITIES.filter(facility => facility.IsActive);
+export const getProductionFacilities = (): FacilityClassification[] => {
+  return masterFacilitiesData.filter(facility => 
+    facility.facilityType === 'Production' && facility.isActive
+  ).sort((a, b) => a.sortOrder - b.sortOrder);
 };
 
-export const getFacilitiesByType = (type: 'Production' | 'Drilling' | 'Integrated'): MasterFacility[] => {
-  return MASTER_FACILITIES.filter(facility => facility.FacilityType === type);
+export const getIntegratedFacilities = (): FacilityClassification[] => {
+  return masterFacilitiesData.filter(facility => 
+    facility.facilityType === 'Integrated' && facility.isActive
+  ).sort((a, b) => a.sortOrder - b.sortOrder);
 };
 
-export const getProductionLCsForFacility = (facilityName: string): string[] => {
-  const facility = getFacilityByName(facilityName);
-  if (facility && facility.ProductionLCs) {
-    return facility.ProductionLCs.split(',').map(lc => lc.trim());
-  }
-  return [];
+export const getAllDrillingCapableLocations = (): FacilityClassification[] => {
+  return masterFacilitiesData.filter(facility => 
+    facility.isDrillingCapable && facility.isActive
+  ).sort((a, b) => a.sortOrder - b.sortOrder);
 };
 
-export const isProductionFacility = (facilityName: string): boolean => {
-  const facility = getFacilityByName(facilityName);
-  return facility ? facility.IsProductionCapable : false;
+export const getFacilityTypeFromName = (locationName: string): string => {
+  const facility = getFacilityByName(locationName);
+  return facility?.facilityType || 'Unknown';
 };
 
-export const isDrillingFacility = (facilityName: string): boolean => {
-  const facility = getFacilityByName(facilityName);
-  return facility ? facility.IsDrillingCapable : false;
+export const getFacilityDisplayName = (locationName: string): string => {
+  const facility = getFacilityByName(locationName);
+  return facility?.displayName || locationName;
 };
 
-// Export the data in the format expected by the existing data processing
-export const getMasterFacilitiesData = (): MasterFacility[] => {
-  return MASTER_FACILITIES;
-}; 
+// Statistics functions
+export const getFacilityStatistics = () => {
+  const totalFacilities = masterFacilitiesData.length;
+  const activeFacilities = masterFacilitiesData.filter(f => f.isActive).length;
+  
+  const facilitiesByType = masterFacilitiesData.reduce((acc, facility) => {
+    acc[facility.facilityType] = (acc[facility.facilityType] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const facilitiesByCategory = masterFacilitiesData.reduce((acc, facility) => {
+    acc[facility.category] = (acc[facility.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  return {
+    totalFacilities,
+    activeFacilities,
+    facilitiesByType,
+    facilitiesByCategory,
+    drillingRigs: masterFacilitiesData.filter(f => f.facilityType === 'Drilling').length,
+    productionFacilities: masterFacilitiesData.filter(f => f.facilityType === 'Production').length,
+    integratedFacilities: masterFacilitiesData.filter(f => f.facilityType === 'Integrated').length
+  };
+};
+
+export default masterFacilitiesData; 

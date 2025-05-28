@@ -37,13 +37,15 @@ interface DataManagementSystemProps {
   onNavigateToDrilling?: () => void;
   onNavigateToProduction?: () => void;
   onNavigateToComparison?: () => void;
+  onNavigateToVoyage?: () => void;
 }
 
 const DataManagementSystem: React.FC<DataManagementSystemProps> = ({ 
   onNavigateHome, 
   onNavigateToDrilling, 
   onNavigateToProduction, 
-  onNavigateToComparison 
+  onNavigateToComparison,
+  onNavigateToVoyage 
 }) => {
   const { 
     voyageEvents,
@@ -131,8 +133,9 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   
   // Add initial log entry if we loaded existing data
   React.useEffect(() => {
-    if (dataStore.metadata.totalRecords > 0) {
-      addLog(`Existing data detected: ${dataStore.metadata.totalRecords} records loaded`, 'success');
+    const totalRecords = voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length;
+    if (totalRecords > 0) {
+      addLog(`Existing data detected: ${totalRecords} records loaded`, 'success');
     }
     
     // Check for emergency storage mode
@@ -151,7 +154,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         addLog('🚨 Emergency storage mode detected but data corrupted', 'error');
       }
     }
-  }, []); // Only run once on mount
+  }, [voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length]); // Include dependencies
   const [files, setFiles] = useState<{
     voyageEvents: File | null;
     vesselManifests: File | null;
@@ -168,16 +171,17 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   useEffect(() => {
     // Remove duplicate loading logic - DataContext already handles this
     // Just add debugging to see what data we have
+    const totalRecords = voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length;
     console.log('📊 FileUploadPage: Current data state:', {
       voyageEventsCount: voyageEvents.length,
       vesselManifestsCount: vesselManifests.length,
       costAllocationCount: costAllocation.length,
       voyageListCount: voyageList.length,
-      totalRecords: dataStore.metadata.totalRecords,
+      totalRecords: totalRecords,
       isDataReady,
       lastUpdated
     });
-  }, [voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, dataStore.metadata.totalRecords, isDataReady, lastUpdated]);
+  }, [voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, isDataReady, lastUpdated]);
   
   const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const newLogEntry = {
@@ -240,17 +244,77 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       setBulkActions(newData.bulkActions);
       setIsDataReady(true);
       
-      // Update local dataStore for UI display
-      const updatedDataStore = {
-        ...newData,
-        metadata: {
-          lastUpdated: new Date(),
-          dateRange: { start: new Date(2024, 0, 1), end: new Date() },
-          totalRecords,
-          dataVersion: '1.0-mock'
+      // Calculate date range for logging
+      const dateRange = calculateDateRange(newData.voyageEvents);
+      
+      console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
+      
+      // Add detailed debugging information
+      const uniqueVesselsFromEvents = new Set(newData.voyageEvents.map(e => e.vessel));
+      const uniqueVesselsFromManifests = new Set(newData.vesselManifests.map(m => m.transporter));
+      const uniqueVesselsFromVoyageList = new Set(newData.voyageList.map(v => v.vessel));
+      
+      // Additional data validation
+      const eventsByYear = newData.voyageEvents.reduce((acc, e) => {
+        const year = e.eventYear || new Date(e.eventDate).getFullYear();
+        acc[year] = (acc[year] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      
+      const manifestsByYear = newData.vesselManifests.reduce((acc, m) => {
+        const year = m.year;
+        acc[year] = (acc[year] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      
+      const voyagesByYear = newData.voyageList.reduce((acc, v) => {
+        const year = v.year;
+        acc[year] = (acc[year] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      
+      // Check for potential duplicates or empty records
+      const emptyVesselsInEvents = newData.voyageEvents.filter(e => !e.vessel || e.vessel.trim() === '').length;
+      const emptyVesselsInManifests = newData.vesselManifests.filter(m => !m.transporter || m.transporter.trim() === '').length;
+      const emptyVesselsInVoyageList = newData.voyageList.filter(v => !v.vessel || v.vessel.trim() === '').length;
+      
+      console.log('📊 Data Processing Complete - Detailed Analysis:', {
+        voyageEvents: newData.voyageEvents.length,
+        vesselManifests: newData.vesselManifests.length,
+        voyageList: newData.voyageList.length,
+        costAllocation: newData.costAllocation.length,
+        masterFacilities: newData.masterFacilities.length,
+        uniqueVesselsFromEvents: uniqueVesselsFromEvents.size,
+        uniqueVesselsFromManifests: uniqueVesselsFromManifests.size,
+        uniqueVesselsFromVoyageList: uniqueVesselsFromVoyageList.size,
+        allVesselsFromEvents: Array.from(uniqueVesselsFromEvents).sort(),
+        allVesselsFromManifests: Array.from(uniqueVesselsFromManifests).sort(),
+        allVesselsFromVoyageList: Array.from(uniqueVesselsFromVoyageList).sort(),
+        dateRange: dateRange,
+        totalRecords,
+        yearlyBreakdown: {
+          events: eventsByYear,
+          manifests: manifestsByYear,
+          voyages: voyagesByYear
+        },
+        dataQuality: {
+          emptyVesselsInEvents,
+          emptyVesselsInManifests,
+          emptyVesselsInVoyageList,
+          eventDateRange: {
+            earliest: newData.voyageEvents.length > 0 ? 
+              new Date(Math.min(...newData.voyageEvents.map(e => e.eventDate.getTime()))).toISOString() : 'N/A',
+            latest: newData.voyageEvents.length > 0 ? 
+              new Date(Math.max(...newData.voyageEvents.map(e => e.eventDate.getTime()))).toISOString() : 'N/A'
+          },
+          manifestDateRange: {
+            earliest: newData.vesselManifests.length > 0 ? 
+              new Date(Math.min(...newData.vesselManifests.map(m => m.manifestDate.getTime()))).toISOString() : 'N/A',
+            latest: newData.vesselManifests.length > 0 ? 
+              new Date(Math.max(...newData.vesselManifests.map(m => m.manifestDate.getTime()))).toISOString() : 'N/A'
+          }
         }
-      };
-      // setDataStore(updatedDataStore);
+      });
       
       addLog(`Mock data loaded successfully: ${totalRecords} records`, 'success');
       setProcessingState('complete');
@@ -327,17 +391,9 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         setBulkActions(newData.bulkActions);
         setIsDataReady(true);
         
-        // Update local dataStore for UI display
-        const updatedDataStore = {
-          ...newData,
-          metadata: {
-            lastUpdated: new Date(),
-            dateRange: calculateDateRange(newData.voyageEvents),
-            totalRecords,
-            dataVersion: '1.0'
-          }
-        };
-        // setDataStore(updatedDataStore);
+        // Calculate date range for logging
+        const dateRange = calculateDateRange(newData.voyageEvents);
+        
         console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
         
         // Add detailed debugging information
@@ -381,7 +437,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
           allVesselsFromEvents: Array.from(uniqueVesselsFromEvents).sort(),
           allVesselsFromManifests: Array.from(uniqueVesselsFromManifests).sort(),
           allVesselsFromVoyageList: Array.from(uniqueVesselsFromVoyageList).sort(),
-          dateRange: updatedDataStore.metadata.dateRange,
+          dateRange: dateRange,
           totalRecords,
           yearlyBreakdown: {
             events: eventsByYear,
@@ -798,8 +854,9 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         addLog(`💾 Storage Info: ${storageInfo.usedMB}MB used, ${storageInfo.status}`, 'info');
         
         // Add computed dataStore info
-        addLog(`🧮 Computed dataStore: ${dataStore.metadata.totalRecords} total records`, 'info');
-        addLog(`📊 DataStore breakdown: VE(${dataStore.voyageEvents.length}), VM(${dataStore.vesselManifests.length}), CA(${dataStore.costAllocation.length}), VL(${dataStore.voyageList.length})`, 'info');
+        const totalRecords = voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length;
+        addLog(`🧮 Computed dataStore: ${totalRecords} total records`, 'info');
+        addLog(`📊 DataStore breakdown: VE(${voyageEvents.length}), VM(${vesselManifests.length}), CA(${costAllocation.length}), VL(${voyageList.length})`, 'info');
         
       } catch (error) {
         console.error('🔍 DEBUG: Error reading localStorage:', error);
@@ -962,7 +1019,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
                 </span>
               </div>
               <div className="text-gray-700">
-                Total Records: {dataStore.metadata.totalRecords.toLocaleString()}
+                Total Records: {(voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length).toLocaleString()}
               </div>
             </div>
             {dataStore.metadata.dateRange.start && dataStore.metadata.dateRange.end && (
@@ -1189,17 +1246,77 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
           setBulkActions(newData.bulkActions);
           setIsDataReady(true);
           
-          // Update local dataStore for UI display
-          const updatedDataStore = {
-            ...newData,
-            metadata: {
-              lastUpdated: new Date(),
-              dateRange: calculateDateRange(newData.voyageEvents),
-              totalRecords,
-              dataVersion: '1.0-preload'
+          // Calculate date range for logging
+          const dateRange = calculateDateRange(newData.voyageEvents);
+          
+          console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
+          
+          // Add detailed debugging information
+          const uniqueVesselsFromEvents = new Set(newData.voyageEvents.map(e => e.vessel));
+          const uniqueVesselsFromManifests = new Set(newData.vesselManifests.map(m => m.transporter));
+          const uniqueVesselsFromVoyageList = new Set(newData.voyageList.map(v => v.vessel));
+          
+          // Additional data validation
+          const eventsByYear = newData.voyageEvents.reduce((acc, e) => {
+            const year = e.eventYear || new Date(e.eventDate).getFullYear();
+            acc[year] = (acc[year] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          const manifestsByYear = newData.vesselManifests.reduce((acc, m) => {
+            const year = m.year;
+            acc[year] = (acc[year] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          const voyagesByYear = newData.voyageList.reduce((acc, v) => {
+            const year = v.year;
+            acc[year] = (acc[year] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          // Check for potential duplicates or empty records
+          const emptyVesselsInEvents = newData.voyageEvents.filter(e => !e.vessel || e.vessel.trim() === '').length;
+          const emptyVesselsInManifests = newData.vesselManifests.filter(m => !m.transporter || m.transporter.trim() === '').length;
+          const emptyVesselsInVoyageList = newData.voyageList.filter(v => !v.vessel || v.vessel.trim() === '').length;
+          
+          console.log('📊 Data Processing Complete - Detailed Analysis:', {
+            voyageEvents: newData.voyageEvents.length,
+            vesselManifests: newData.vesselManifests.length,
+            voyageList: newData.voyageList.length,
+            costAllocation: newData.costAllocation.length,
+            masterFacilities: newData.masterFacilities.length,
+            uniqueVesselsFromEvents: uniqueVesselsFromEvents.size,
+            uniqueVesselsFromManifests: uniqueVesselsFromManifests.size,
+            uniqueVesselsFromVoyageList: uniqueVesselsFromVoyageList.size,
+            allVesselsFromEvents: Array.from(uniqueVesselsFromEvents).sort(),
+            allVesselsFromManifests: Array.from(uniqueVesselsFromManifests).sort(),
+            allVesselsFromVoyageList: Array.from(uniqueVesselsFromVoyageList).sort(),
+            dateRange: dateRange,
+            totalRecords,
+            yearlyBreakdown: {
+              events: eventsByYear,
+              manifests: manifestsByYear,
+              voyages: voyagesByYear
+            },
+            dataQuality: {
+              emptyVesselsInEvents,
+              emptyVesselsInManifests,
+              emptyVesselsInVoyageList,
+              eventDateRange: {
+                earliest: newData.voyageEvents.length > 0 ? 
+                  new Date(Math.min(...newData.voyageEvents.map(e => e.eventDate.getTime()))).toISOString() : 'N/A',
+                latest: newData.voyageEvents.length > 0 ? 
+                  new Date(Math.max(...newData.voyageEvents.map(e => e.eventDate.getTime()))).toISOString() : 'N/A'
+              },
+              manifestDateRange: {
+                earliest: newData.vesselManifests.length > 0 ? 
+                  new Date(Math.min(...newData.vesselManifests.map(m => m.manifestDate.getTime()))).toISOString() : 'N/A',
+                latest: newData.vesselManifests.length > 0 ? 
+                  new Date(Math.max(...newData.vesselManifests.map(m => m.manifestDate.getTime()))).toISOString() : 'N/A'
+              }
             }
-          };
-          // No longer need to set local dataStore since we use computed dataStore from context
+          });
           
           addLog(`✅ Preload completed successfully: ${totalRecords} records`, 'success');
           setProcessingState('complete');
@@ -1248,6 +1365,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       onNavigateToDrilling={onNavigateToDrilling}
       onNavigateToProduction={onNavigateToProduction}
       onNavigateToComparison={onNavigateToComparison}
+      onNavigateToVoyage={onNavigateToVoyage}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}

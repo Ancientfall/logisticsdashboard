@@ -1,7 +1,8 @@
 // src/components/dashboard/MainDashboard.tsx
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
-import { Calendar, Database, FileText, AlertTriangle, CheckCircle, Users, MapPin, Clock, TrendingUp, Download, RefreshCw, Settings } from 'lucide-react';
+import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings } from 'lucide-react';
+import { getVesselTypeFromName, getVesselCompanyFromName, getVesselStatistics } from '../../data/vesselClassification';
 
 interface MainDashboardProps {
   onNavigateToUpload?: () => void;
@@ -11,13 +12,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
   const { 
     voyageEvents, 
     vesselManifests, 
-    masterFacilities, 
     costAllocation,
     voyageList,
-    vesselClassifications,
-    bulkActions,
     isDataReady,
-    lastUpdated,
     forceRefreshFromStorage,
     clearAllData
   } = useData();
@@ -112,50 +109,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     );
   }
 
-  const DataCard: React.FC<{
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    icon: React.ReactNode;
-    color: 'green' | 'blue' | 'purple' | 'orange' | 'red';
-    action?: () => void;
-    actionLabel?: string;
-  }> = ({ title, value, subtitle, icon, color, action, actionLabel }) => {
-    const colorClasses = {
-      green: 'bg-green-50 text-green-700 border-green-200',
-      blue: 'bg-blue-50 text-blue-700 border-blue-200',
-      purple: 'bg-purple-50 text-purple-700 border-purple-200',
-      orange: 'bg-orange-50 text-orange-700 border-orange-200',
-      red: 'bg-red-50 text-red-700 border-red-200'
-    };
-    
-    return (
-      <div className={`rounded-lg p-6 border ${colorClasses[color]}`}>
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              {icon}
-              <h3 className="font-semibold text-gray-900">{title}</h3>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-            {subtitle && <p className="text-sm text-gray-600 mt-1">{subtitle}</p>}
-          </div>
-          {action && actionLabel && (
-            <button
-              onClick={action}
-              className="text-sm text-gray-600 hover:text-gray-800 underline"
-            >
-              {actionLabel}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Data Processing Summary */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Data Processing Summary</h2>
@@ -179,44 +135,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             Manage Data
           </button>
         </div>
-      </div>
-
-      {/* Data Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <DataCard
-          title="Total Records"
-          value={dataAnalysis.totalRecords}
-          subtitle={`Last updated: ${lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'Unknown'}`}
-          icon={<Database size={20} className="text-green-600" />}
-          color="green"
-        />
-        <DataCard
-          title="Unique Vessels"
-          value={dataAnalysis.uniqueVessels.total}
-          subtitle={`Across all data sources`}
-          icon={<Users size={20} className="text-blue-600" />}
-          color="blue"
-        />
-        <DataCard
-          title="Locations"
-          value={dataAnalysis.uniqueLocations}
-          subtitle={`Operational locations`}
-          icon={<MapPin size={20} className="text-purple-600" />}
-          color="purple"
-        />
-        <DataCard
-          title="Date Range"
-          value={dataAnalysis.dateRange ? 
-            `${Math.ceil((dataAnalysis.dateRange.end.getTime() - dataAnalysis.dateRange.start.getTime()) / (1000 * 60 * 60 * 24))} days` : 
-            'No dates'
-          }
-          subtitle={dataAnalysis.dateRange ? 
-            `${dataAnalysis.dateRange.start.toLocaleDateString()} - ${dataAnalysis.dateRange.end.toLocaleDateString()}` : 
-            'Invalid date range'
-          }
-          icon={<Calendar size={20} className="text-orange-600" />}
-          color="orange"
-        />
       </div>
 
       {/* Tab Navigation */}
@@ -392,7 +310,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       )}
 
       {activeTab === 'vessels' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Vessel Source Analysis */}
           <div className="bg-white rounded-lg p-6 shadow-md">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Vessel Data Sources</h3>
@@ -416,16 +334,82 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             </div>
           </div>
 
-          {/* Vessel List */}
+          {/* Vessel Type Classification */}
           <div className="bg-white rounded-lg p-6 shadow-md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">All Vessels ({dataAnalysis.uniqueVessels.total})</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vessel Type Classification</h3>
+            <div className="space-y-3">
+              {(() => {
+                const vesselStats = getVesselStatistics();
+                return Object.entries(vesselStats.vesselsByType)
+                  .sort(([,a], [,b]) => b - a)
+                  .map(([type, count]) => {
+                    const percentage = ((count / vesselStats.totalVessels) * 100).toFixed(1);
+                    const colors = {
+                      'OSV': 'bg-blue-500',
+                      'FSV': 'bg-green-500', 
+                      'Support': 'bg-purple-500',
+                      'Specialty': 'bg-orange-500',
+                      'AHTS': 'bg-red-500',
+                      'MSV': 'bg-yellow-500',
+                      'PSV': 'bg-indigo-500'
+                    };
+                    return (
+                      <div key={type} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${colors[type as keyof typeof colors] || 'bg-gray-500'}`}></div>
+                          <span className="font-medium text-gray-700">{type}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${colors[type as keyof typeof colors] || 'bg-gray-500'}`}
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-gray-600 w-16 text-right">
+                            {count} ({percentage}%)
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  });
+              })()}
+            </div>
+          </div>
+
+          {/* Vessel List with Classification */}
+          <div className="bg-white rounded-lg p-6 shadow-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vessel Details ({dataAnalysis.uniqueVessels.total})</h3>
             <div className="max-h-64 overflow-y-auto space-y-1">
-              {dataAnalysis.uniqueVessels.list.map((vessel, index) => (
-                <div key={vessel} className="flex items-center justify-between py-2 px-3 hover:bg-gray-50 rounded">
-                  <span className="font-medium text-gray-700">{vessel}</span>
-                  <span className="text-xs text-gray-500">#{index + 1}</span>
-                </div>
-              ))}
+              {dataAnalysis.uniqueVessels.list.map((vessel, index) => {
+                const vesselType = getVesselTypeFromName(vessel);
+                const vesselCompany = getVesselCompanyFromName(vessel);
+                const typeColors = {
+                  'OSV': 'text-blue-600 bg-blue-50',
+                  'FSV': 'text-green-600 bg-green-50',
+                  'Support': 'text-purple-600 bg-purple-50',
+                  'Specialty': 'text-orange-600 bg-orange-50',
+                  'Unknown': 'text-gray-600 bg-gray-50'
+                };
+                return (
+                  <div key={vessel} className="flex items-center justify-between py-2 px-3 hover:bg-gray-50 rounded">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-700">{vessel}</div>
+                      {vesselCompany !== 'Unknown' && (
+                        <div className="text-xs text-gray-500">{vesselCompany}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        typeColors[vesselType as keyof typeof typeColors] || typeColors.Unknown
+                      }`}>
+                        {vesselType}
+                      </span>
+                      <span className="text-xs text-gray-400">#{index + 1}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

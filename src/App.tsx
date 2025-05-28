@@ -7,11 +7,12 @@ import LandingPage from './components/LandingPage';
 import { DataProvider, useData } from './context/DataContext';
 import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
+import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
 
 // Main application content component
 const AppContent: React.FC = () => {
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'voyage'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
@@ -26,12 +27,12 @@ const AppContent: React.FC = () => {
     if (isDataReady && currentView === 'upload') {
       console.log('🎯 App: Data is ready, navigating to dashboard...');
       setCurrentView('dashboard');
-    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling')) {
+    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'voyage')) {
       console.log('❌ App: Data not ready, redirecting to upload...');
       setCurrentView('upload');
     }
     // Note: We don't automatically redirect from other views anymore
-  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length]);
+  }, [isDataReady, currentView, voyageEvents.length, vesselManifests.length, costAllocation.length]);
 
   // Show loading state during processing
   if (isLoading) {
@@ -102,6 +103,14 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleNavigateToVoyage = () => {
+    if (isDataReady) {
+      setCurrentView('voyage');
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
   return (
     <>
       {currentView === 'landing' && (
@@ -119,6 +128,7 @@ const AppContent: React.FC = () => {
           onNavigateToDrilling={handleNavigateToDrilling}
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
         >
           <MainDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -129,6 +139,7 @@ const AppContent: React.FC = () => {
           onNavigateToDrilling={handleNavigateToDrilling}
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
         />
       )}
       {currentView === 'drilling' && (
@@ -139,8 +150,22 @@ const AppContent: React.FC = () => {
           onNavigateToDrilling={handleNavigateToDrilling}
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
         >
           <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+        </DashboardLayout>
+      )}
+      {currentView === 'voyage' && (
+        <DashboardLayout 
+          currentView="voyage"
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDashboard={handleNavigateToDashboard}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
+        >
+          <VoyageAnalyticsDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
       )}
     </>
