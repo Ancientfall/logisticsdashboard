@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName } from '../../data/vesselClassification';
-import { getAllDrillingCapableLocations } from '../../data/masterFacilities';
+import { getAllDrillingCapableLocations, mapCostAllocationLocation } from '../../data/masterFacilities';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -155,33 +155,98 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const weatherWaitingHours = weatherEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     const weatherImpactPercentage = totalOffshoreHours > 0 ? (weatherWaitingHours / totalOffshoreHours) * 100 : 0;
 
-    // NEW METRICS FOR UPDATED KPI CARDS
+    // NEW ENHANCED COST ALLOCATION INTEGRATION
     
-    // 11. Total Cost (YTD) - Sum of all drilling-related costs for the year
-    const currentYear = new Date().getFullYear();
-    const drillingCosts = costAllocation.filter(cost => 
-      cost.department === 'Drilling' &&
-      cost.year === currentYear
+    // Filter cost allocation data for drilling operations
+    const drillingCostAllocation = costAllocation.filter(cost => 
+      cost.department === 'Drilling' ||
+      cost.projectType === 'Drilling' ||
+      cost.projectType === 'Completions'
     );
     
-    // Calculate actual total cost from cost allocation data
-    const totalCostYTD = drillingCosts.reduce((sum, cost) => {
-      return sum + (cost.totalCost || 0);
-    }, 0);
-    
-    // If no actual cost data, use estimated calculation based on allocated days and average costs
-    const estimatedTotalCost = drillingCosts.reduce((sum, cost) => {
-      if (cost.totalAllocatedDays && cost.averageVesselCostPerDay) {
-        return sum + (cost.totalAllocatedDays * cost.averageVesselCostPerDay);
+    // Apply location filter to cost allocation
+    const filteredDrillingCosts = drillingCostAllocation.filter(cost => {
+      if (filters.selectedLocation === 'all' || filters.selectedLocation === 'All Locations') return true;
+      
+      // Get available drilling facilities
+      const drillingFacilities = getAllDrillingCapableLocations();
+      const selectedFacility = drillingFacilities.find(f => f.displayName === filters.selectedLocation);
+      
+      // Use improved location mapping
+      const mappedFacility = mapCostAllocationLocation(cost.rigLocation, cost.locationReference);
+      
+      // Debug logging for location mapping (only for first few records to avoid spam)
+      if (drillingCostAllocation.indexOf(cost) < 3) {
+        console.log(`🗺️ Cost LC ${cost.lcNumber} mapping:`, {
+          rigLocation: cost.rigLocation,
+          locationReference: cost.locationReference,
+          mappedTo: mappedFacility?.displayName || 'UNMAPPED',
+          selectedLocation: filters.selectedLocation,
+          selectedFacility: selectedFacility?.displayName
+        });
       }
+      
+      // Check if this cost allocation matches the selected location
+      const isDirectMatch = cost.rigLocation === filters.selectedLocation ||
+                           cost.locationReference === filters.selectedLocation;
+      
+      const isFacilityMatch = selectedFacility && (
+        cost.rigLocation === selectedFacility.locationName ||
+        cost.locationReference === selectedFacility.locationName ||
+        cost.rigLocation === selectedFacility.displayName ||
+        cost.locationReference === selectedFacility.displayName
+      );
+      
+      const isMappedMatch = mappedFacility && selectedFacility && 
+                           mappedFacility.locationID === selectedFacility.locationID;
+      
+      return isDirectMatch || isFacilityMatch || isMappedMatch;
+    });
+    
+    // Debug summary of filtering results
+    if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+      console.log(`🎯 LOCATION FILTER RESULTS for "${filters.selectedLocation}":`, {
+        totalDrillingCosts: drillingCostAllocation.length,
+        filteredCosts: filteredDrillingCosts.length,
+        filteredLCs: filteredDrillingCosts.map(c => c.lcNumber),
+        totalCostValue: filteredDrillingCosts.reduce((sum, c) => sum + (c.totalCost || c.budgetedVesselCost || 0), 0),
+        totalAllocatedDays: filteredDrillingCosts.reduce((sum, c) => sum + (c.totalAllocatedDays || 0), 0)
+      });
+    }
+    
+    // Apply date filter to cost allocation
+    const dateFilteredDrillingCosts = filteredDrillingCosts.filter(cost => {
+      if (filters.selectedMonth === 'all' || filters.selectedMonth === 'All Months') return true;
+      if (!cost.costAllocationDate) return true; // Include if no date available
+      
+      const costDate = new Date(cost.costAllocationDate);
+      const monthLabel = `${costDate.toLocaleString('default', { month: 'long' })} ${costDate.getFullYear()}`;
+      return monthLabel === filters.selectedMonth;
+    });
+    
+    // 11. Total Cost (YTD) - Enhanced calculation using filtered cost allocation
+    const totalCostYTD = dateFilteredDrillingCosts.reduce((sum, cost) => {
+      // Priority 1: Use actual total cost if available
+      if (cost.totalCost) return sum + cost.totalCost;
+      
+      // Priority 2: Use budgeted vessel cost if available
+      if (cost.budgetedVesselCost) return sum + cost.budgetedVesselCost;
+      
+      // Priority 3: Calculate from allocated days and day rate
+      if (cost.totalAllocatedDays && cost.vesselDailyRateUsed) {
+        return sum + (cost.totalAllocatedDays * cost.vesselDailyRateUsed);
+      }
+      
       return sum;
     }, 0);
     
-    const finalTotalCost = totalCostYTD > 0 ? totalCostYTD : estimatedTotalCost;
-    
-    // 12. Average Monthly Cost - Total cost divided by months elapsed in year
-    const monthsElapsed = new Date().getMonth() + 1; // Current month (1-12)
-    const avgMonthlyCost = monthsElapsed > 0 ? finalTotalCost / monthsElapsed : 0;
+    // 12. Average Monthly Cost - Based on actual cost allocation data
+    const monthsWithData = new Set(
+      dateFilteredDrillingCosts
+        .filter(cost => cost.month)
+        .map(cost => `${cost.year}-${cost.month}`)
+    ).size;
+    const avgMonthlyCost = monthsWithData > 0 ? totalCostYTD / monthsWithData : 0;
     
     // 13. Vessel Visits per Week - Calculate based on filtered data
     const dateRange = (() => {
@@ -196,37 +261,137 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const vesselVisitsPerWeek = vesselVisits / weeksDiff;
     
     // 14. Allocated Days - Sum from actual cost allocation data
-    const allocatedDays = drillingCosts.reduce((sum, cost) => {
+    const allocatedDays = dateFilteredDrillingCosts.reduce((sum, cost) => {
       return sum + (cost.totalAllocatedDays || 0);
     }, 0);
     
-    // 15. Cost per Hour - Calculate from cost allocation data
-    const totalCostPerHour = drillingCosts.reduce((sum, cost) => {
-      return sum + (cost.costPerHour || 0);
-    }, 0);
-    const avgCostPerHour = drillingCosts.length > 0 ? totalCostPerHour / drillingCosts.length : 0;
-    
-    // 16. Rig Location Analysis
-    const rigLocationData = drillingCosts.reduce((acc, cost) => {
-      if (cost.rigLocation) {
-        if (!acc[cost.rigLocation]) {
-          acc[cost.rigLocation] = {
-            location: cost.rigLocation,
-            totalCost: 0,
-            totalDays: 0,
-            rigType: cost.rigType || 'Unknown',
-            waterDepth: cost.waterDepth || 0,
-            count: 0
-          };
-        }
-        acc[cost.rigLocation].totalCost += cost.totalCost || 0;
-        acc[cost.rigLocation].totalDays += cost.totalAllocatedDays || 0;
-        acc[cost.rigLocation].count += 1;
+    // 15. Cost per Hour - Weighted average cost per hour
+    const totalCostHours = dateFilteredDrillingCosts.reduce((sum, cost) => {
+      if (cost.totalAllocatedDays) {
+        return sum + (cost.totalAllocatedDays * 24); // Convert days to hours
       }
+      return sum;
+    }, 0);
+    const avgCostPerHour = totalCostHours > 0 ? totalCostYTD / totalCostHours : 0;
+    
+    // 16. Budget vs Actual Analysis
+    const budgetVsActual = dateFilteredDrillingCosts.reduce((acc, cost) => {
+      const budgeted = cost.budgetedVesselCost || 0;
+      const actual = cost.totalCost || budgeted; // Use budgeted as fallback for actual
+      
+      acc.totalBudgeted += budgeted;
+      acc.totalActual += actual;
+      acc.variance += (actual - budgeted);
+      
+      return acc;
+    }, { totalBudgeted: 0, totalActual: 0, variance: 0 });
+    
+    const budgetVariancePercentage = budgetVsActual.totalBudgeted > 0 ? 
+      (budgetVsActual.variance / budgetVsActual.totalBudgeted) * 100 : 0;
+    
+    // 17. Rig Location Analysis - Cost and utilization by rig location with PROPER AGGREGATION
+    const rigLocationAnalysis = dateFilteredDrillingCosts.reduce((acc, cost) => {
+      const rigLocation = cost.rigLocation || cost.locationReference || 'Unknown';
+      
+      if (!acc[rigLocation]) {
+        acc[rigLocation] = {
+          rigLocation,
+          rigType: cost.rigType || 'Unknown',
+          waterDepth: cost.waterDepth || 0,
+          totalCost: 0,
+          allocatedDays: 0,
+          budgetedCost: 0,
+          projectTypes: new Set(),
+          avgDailyCost: 0,
+          utilizationScore: 0,
+          records: [] // TRACK INDIVIDUAL RECORDS FOR DEBUGGING
+        };
+      }
+      
+      // CRITICAL FIX: Ensure we're adding numbers, not concatenating strings
+      const costValue = Number(cost.totalCost || cost.budgetedVesselCost || 0);
+      const daysValue = Number(cost.totalAllocatedDays || 0);
+      const budgetedValue = Number(cost.budgetedVesselCost || 0);
+      
+      // Debug log for first few records to ensure proper aggregation
+      if (Object.keys(acc).length <= 3 && acc[rigLocation].records.length === 0) {
+        console.log(`🔧 AGGREGATING ${rigLocation}:`, {
+          lcNumber: cost.lcNumber,
+          originalCost: cost.totalCost,
+          originalBudgeted: cost.budgetedVesselCost, 
+          originalDays: cost.totalAllocatedDays,
+          costValue,
+          daysValue,
+          budgetedValue,
+          types: [typeof cost.totalCost, typeof cost.budgetedVesselCost, typeof cost.totalAllocatedDays]
+        });
+      }
+      
+      acc[rigLocation].totalCost += costValue;
+      acc[rigLocation].allocatedDays += daysValue;
+      acc[rigLocation].budgetedCost += budgetedValue;
+      acc[rigLocation].records.push({
+        lcNumber: cost.lcNumber,
+        days: daysValue,
+        cost: costValue,
+        monthYear: cost.monthYear
+      });
+      
+      if (cost.projectType) acc[rigLocation].projectTypes.add(cost.projectType);
+      
       return acc;
     }, {} as Record<string, any>);
     
-    const rigLocations = Object.values(rigLocationData).sort((a: any, b: any) => b.totalCost - a.totalCost);
+    // Calculate derived metrics for each rig location and LOG RESULTS
+    Object.values(rigLocationAnalysis).forEach((rig: any) => {
+      rig.avgDailyCost = rig.allocatedDays > 0 ? rig.totalCost / rig.allocatedDays : 0;
+      rig.projectTypeList = Array.from(rig.projectTypes);
+      
+      // Calculate utilization score based on allocated days vs typical monthly allocation
+      const typicalMonthlyDays = 30; // Assume 30 days per month as baseline
+      rig.utilizationScore = Math.min(100, (rig.allocatedDays / typicalMonthlyDays) * 100);
+      
+      // ENHANCED DEBUG: Log aggregation results
+      console.log(`📊 RIG AGGREGATION RESULT for ${rig.rigLocation}:`, {
+        totalRecords: rig.records.length,
+        totalAllocatedDays: rig.allocatedDays,
+        totalCost: rig.totalCost,
+        avgDailyCost: rig.avgDailyCost,
+        individualRecords: rig.records.map((r: any) => `LC ${r.lcNumber}: ${r.days} days`).join(', ')
+      });
+    });
+    
+    // 18. Rate Period Analysis - Show cost breakdown by rate period
+    const ratePeriodAnalysis = dateFilteredDrillingCosts.reduce((acc, cost) => {
+      const rateDescription = cost.vesselRateDescription || 'Unknown Rate Period';
+      
+      if (!acc[rateDescription]) {
+        acc[rateDescription] = {
+          rateDescription,
+          dailyRate: cost.vesselDailyRateUsed || 0,
+          totalCost: 0,
+          allocatedDays: 0,
+          lcCount: 0
+        };
+      }
+      
+      acc[rateDescription].totalCost += cost.totalCost || cost.budgetedVesselCost || 0;
+      acc[rateDescription].allocatedDays += cost.totalAllocatedDays || 0;
+      acc[rateDescription].lcCount += 1;
+      
+      return acc;
+    }, {} as Record<string, any>);
+    
+    console.log('🔧 Enhanced Drilling Dashboard Metrics:', {
+      totalCostYTD: totalCostYTD.toLocaleString(),
+      allocatedDays,
+      avgMonthlyCost: avgMonthlyCost.toLocaleString(),
+      avgCostPerHour: avgCostPerHour.toFixed(2),
+      budgetVariancePercentage: budgetVariancePercentage.toFixed(1),
+      rigLocationCount: Object.keys(rigLocationAnalysis).length,
+      ratePeriodCount: Object.keys(ratePeriodAnalysis).length,
+      filteredCostAllocations: dateFilteredDrillingCosts.length
+    });
 
     // Calculate trends (mock data for now - in production, compare with previous period)
     const calculateTrend = (current: number, previous: number) => {
@@ -246,7 +411,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       fsvRuns: (fsvRuns || 0) * 0.91,
       vesselVisits: (vesselVisits || 0) * 0.95,
       maneuveringHours: (maneuveringHours || 0) * 1.12,
-      totalCostYTD: finalTotalCost * 0.93,
+      totalCostYTD: totalCostYTD * 0.93,
       avgMonthlyCost: avgMonthlyCost * 0.96,
       vesselVisitsPerWeek: vesselVisitsPerWeek * 0.89,
       allocatedDays: allocatedDays * 1.05,
@@ -306,9 +471,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       },
       // NEW METRICS FOR UPDATED KPI CARDS
       totalCostYTD: {
-        value: Math.round(finalTotalCost),
-        trend: Number(calculateTrend(finalTotalCost, mockPreviousPeriod.totalCostYTD).toFixed(1)),
-        isPositive: finalTotalCost < mockPreviousPeriod.totalCostYTD // Lower cost is better
+        value: Math.round(totalCostYTD),
+        trend: Number(calculateTrend(totalCostYTD, mockPreviousPeriod.totalCostYTD).toFixed(1)),
+        isPositive: totalCostYTD < mockPreviousPeriod.totalCostYTD // Lower cost is better
       },
       avgMonthlyCost: {
         value: Math.round(avgMonthlyCost),
@@ -348,8 +513,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       nonProductiveHours: totalHours - osvProductiveHours,
       
       // Cost allocation data
-      rigLocations,
-      totalCostAllocations: drillingCosts.length,
+      rigLocationAnalysis,
+      totalCostAllocations: dateFilteredDrillingCosts.length,
       
       // Vessel type breakdown
       vesselTypeData: (() => {
@@ -379,36 +544,119 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         ].filter(activity => activity.hours > 0);
         
         return activities.sort((a, b) => b.hours - a.hours);
-      })()
+      })(),
+      
+      // NEW: Rate Period Cost Analysis
+      ratePeriodAnalysis,
+      
+      // NEW: Budget vs Actual Analysis
+      budgetVsActual,
+      budgetVariancePercentage,
+      
+      // Additional cost allocation data
+      dateFilteredDrillingCosts
     };
   }, [voyageEvents, vesselManifests, costAllocation, voyageList, filters]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
-    // Create month options with proper chronological sorting
+    // Create month options with proper chronological sorting from BOTH voyage events AND cost allocation
     const monthMap = new Map<string, string>();
     
-    voyageEvents.forEach(event => {
-      if (event.eventDate) {
-        const date = new Date(event.eventDate);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = date.toLocaleString('default', { month: 'long' });
-        const label = `${monthName} ${date.getFullYear()}`;
-        monthMap.set(monthKey, label);
-      }
+    // Debug: Log the data we're working with
+    console.log('🔍 DrillingDashboard filterOptions debug:', {
+      voyageEventsCount: voyageEvents.length,
+      costAllocationCount: costAllocation.length,
+      firstVoyageEvent: voyageEvents[0],
+      firstCostAllocation: costAllocation[0]
     });
     
-    const months = ['All Months', ...Array.from(monthMap.entries())
+    // Add months from voyage events (using both eventDate and from/to dates)
+    voyageEvents.forEach(event => {
+      const dates = [event.eventDate, event.from, event.to].filter(date => date);
+      dates.forEach(date => {
+        if (date) {
+          const eventDate = new Date(date);
+          if (!isNaN(eventDate.getTime())) {
+            const monthKey = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}`;
+            const monthName = eventDate.toLocaleString('default', { month: 'long' });
+            const label = `${monthName} ${eventDate.getFullYear()}`;
+            monthMap.set(monthKey, label);
+          }
+        }
+      });
+    });
+    
+    // Add months from cost allocation data (using costAllocationDate, year/month, and parsed month-year)
+    costAllocation.forEach(cost => {
+      const dates: Date[] = [];
+      
+      // Use costAllocationDate if available
+      if (cost.costAllocationDate) {
+        dates.push(cost.costAllocationDate);
+      }
+      
+      // Use year/month combination if available
+      if (cost.year && cost.month) {
+        dates.push(new Date(cost.year, cost.month - 1, 1));
+      }
+      
+      // Parse month-year string if available
+      if (cost.monthYear) {
+        const monthYearStr = String(cost.monthYear).trim();
+        if (monthYearStr.includes('-')) {
+          const parts = monthYearStr.split('-');
+          if (parts.length === 2) {
+            // Handle "Jan-24" format
+            if (isNaN(parseInt(parts[0]))) {
+              const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                               'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+              const monthIndex = monthNames.findIndex(m => 
+                m === parts[0].toLowerCase().substring(0, 3)
+              );
+              
+              if (monthIndex !== -1) {
+                let year = parseInt(parts[1]);
+                if (year < 100) {
+                  year += year < 50 ? 2000 : 1900; // 24 -> 2024
+                }
+                dates.push(new Date(year, monthIndex, 1));
+              }
+            }
+          }
+        }
+      }
+      
+      // Add all valid dates to the month map
+      dates.forEach(date => {
+        if (date && !isNaN(date.getTime())) {
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = date.toLocaleString('default', { month: 'long' });
+          const label = `${monthName} ${date.getFullYear()}`;
+          monthMap.set(monthKey, label);
+        }
+      });
+    });
+    
+    // Convert to sorted array and log results
+    const sortedMonths = Array.from(monthMap.entries())
       .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.value.localeCompare(b.value)) // Sort chronologically
-      .map(item => item.label)]; // Extract just the labels for the current format
+      .sort((a, b) => a.value.localeCompare(b.value)); // Sort chronologically
+      
+    const months = ['All Months', ...sortedMonths.map(item => item.label)];
+    
+    console.log('📅 Generated month filters:', {
+      totalMonthsFound: monthMap.size,
+      monthRange: sortedMonths.length > 0 ? `${sortedMonths[0].label} to ${sortedMonths[sortedMonths.length - 1].label}` : 'None',
+      allMonths: months
+    });
     
     // Get drilling locations from master facilities data
     const drillingFacilities = getAllDrillingCapableLocations();
     const locations = ['All Locations', ...drillingFacilities.map(facility => facility.displayName)];
 
     return { months, locations };
-  }, [voyageEvents]);
+  }, [voyageEvents, costAllocation]); // Add costAllocation as dependency
 
   if (!isDataReady || voyageEvents.length === 0) {
     return (
@@ -797,26 +1045,26 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       </div>
 
       {/* Rig Location Cost Analysis Section */}
-      {drillingMetrics.rigLocations && drillingMetrics.rigLocations.length > 0 && (
+      {drillingMetrics.rigLocationAnalysis && Object.keys(drillingMetrics.rigLocationAnalysis).length > 0 && (
         <div className="bg-white rounded-lg p-6 shadow-md">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">RIG LOCATION COST ANALYSIS</h3>
-            <div className="text-sm text-gray-500">{drillingMetrics.totalCostAllocations} Cost Allocations</div>
+            <div className="text-sm text-gray-500">{Object.keys(drillingMetrics.rigLocationAnalysis).length} Cost Allocations</div>
           </div>
           <div className="space-y-4">
-            {drillingMetrics.rigLocations.slice(0, 8).map((rig: any, index: number) => {
-              const costPerDay = rig.totalDays > 0 ? rig.totalCost / rig.totalDays : 0;
-              const maxCost = Math.max(...drillingMetrics.rigLocations.map((r: any) => r.totalCost));
+            {Object.entries(drillingMetrics.rigLocationAnalysis).map(([location, rig]) => {
+              const costPerDay = rig.allocatedDays > 0 ? rig.totalCost / rig.allocatedDays : 0;
+              const maxCost = Math.max(...Object.values(drillingMetrics.rigLocationAnalysis).map((r: any) => r.totalCost));
               const widthPercentage = maxCost > 0 ? (rig.totalCost / maxCost) * 100 : 0;
               const colors = ['bg-blue-600', 'bg-green-600', 'bg-purple-600', 'bg-orange-600', 'bg-red-600', 'bg-indigo-600', 'bg-pink-600', 'bg-yellow-600'];
               
               return (
-                <div key={rig.location} className="border-b border-gray-100 pb-4 last:border-b-0">
+                <div key={location} className="border-b border-gray-100 pb-4 last:border-b-0">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`}></div>
+                      <div className={`w-3 h-3 rounded-full ${colors[Object.keys(drillingMetrics.rigLocationAnalysis).indexOf(location) % colors.length]}`}></div>
                       <div>
-                        <span className="font-medium text-gray-900">{rig.location}</span>
+                        <span className="font-medium text-gray-900">{location}</span>
                         <div className="text-xs text-gray-500">
                           {rig.rigType} • {rig.waterDepth > 0 ? `${rig.waterDepth}ft depth` : 'Depth N/A'}
                         </div>
@@ -835,13 +1083,13 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     <div className="flex-1">
                       <div className="w-full bg-gray-200 rounded-full h-3">
                         <div 
-                          className={`${colors[index % colors.length]} h-3 rounded-full transition-all duration-500`}
+                          className={`${colors[Object.keys(drillingMetrics.rigLocationAnalysis).indexOf(location) % colors.length]} h-3 rounded-full transition-all duration-500`}
                           style={{ width: `${Math.max(2, widthPercentage)}%` }}
                         ></div>
                       </div>
                     </div>
                     <div className="text-xs text-gray-600 min-w-[60px] text-right">
-                      {rig.totalDays} days
+                      {rig.allocatedDays} days
                     </div>
                   </div>
                 </div>
@@ -849,37 +1097,265 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             })}
           </div>
           
-          {drillingMetrics.rigLocations.length > 8 && (
-            <div className="mt-4 text-center">
-              <div className="text-sm text-gray-500">
-                Showing top 8 of {drillingMetrics.rigLocations.length} rig locations
-              </div>
-            </div>
-          )}
-          
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                ${(drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000).toFixed(1)}M
+                ${(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000).toFixed(1)}M
               </div>
               <div className="text-sm text-gray-600">Total Rig Costs</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalDays, 0).toLocaleString()}
+                {Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0).toLocaleString()}
               </div>
               <div className="text-sm text-gray-600">Total Allocated Days</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                ${(drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
-                   Math.max(1, drillingMetrics.rigLocations.reduce((sum: number, rig: any) => sum + rig.totalDays, 0))).toLocaleString()}
+                ${(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
+                   Math.max(1, Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0))).toLocaleString()}
               </div>
               <div className="text-sm text-gray-600">Average Cost per Day</div>
             </div>
           </div>
         </div>
       )}
+      
+      {/* NEW: Rate Period Cost Analysis */}
+      {drillingMetrics.ratePeriodAnalysis && Object.keys(drillingMetrics.ratePeriodAnalysis).length > 0 && (
+        <div className="bg-white rounded-lg p-6 shadow-md mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">VESSEL RATE PERIOD ANALYSIS</h3>
+            <div className="text-sm text-gray-500">Cost Impact by Rate Period</div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Object.entries(drillingMetrics.ratePeriodAnalysis).map(([rateDescription, data]) => (
+              <div key={rateDescription} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-900">{data.rateDescription}</h4>
+                  <div className="text-sm font-semibold text-blue-600">
+                    ${data.dailyRate.toLocaleString()}/day
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Cost:</span>
+                    <span className="font-medium">${data.totalCost.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Allocated Days:</span>
+                    <span className="font-medium">{data.allocatedDays} days</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">LC Numbers:</span>
+                    <span className="font-medium">{data.lcCount} LCs</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-100 pt-2">
+                    <span className="text-gray-600">Avg Cost/Day:</span>
+                    <span className="font-semibold text-purple-600">
+                      ${data.allocatedDays > 0 ? (data.totalCost / data.allocatedDays).toLocaleString() : '0'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="font-medium text-blue-900">Rate Period Summary</span>
+            </div>
+            <div className="text-sm text-blue-800">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <span className="font-medium">Total Periods:</span>
+                  <div className="text-lg font-bold">{Object.keys(drillingMetrics.ratePeriodAnalysis).length}</div>
+                </div>
+                <div>
+                  <span className="font-medium">Total Cost:</span>
+                  <div className="text-lg font-bold">
+                    ${Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.totalCost, 0).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <span className="font-medium">Total Days:</span>
+                  <div className="text-lg font-bold">
+                    {Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.allocatedDays, 0)}
+                  </div>
+                </div>
+                <div>
+                  <span className="font-medium">Weighted Avg Rate:</span>
+                  <div className="text-lg font-bold">
+                    ${(() => {
+                      const totalCost = Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.totalCost, 0);
+                      const totalDays = Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.allocatedDays, 0);
+                      return totalDays > 0 ? (totalCost / totalDays).toLocaleString() : '0';
+                    })()}/day
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* NEW: Budget vs Actual Analysis */}
+      {drillingMetrics.budgetVsActual && (
+        <div className="bg-white rounded-lg p-6 shadow-md mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">BUDGET vs ACTUAL COST ANALYSIS</h3>
+            <div className={`text-sm font-medium px-3 py-1 rounded-full ${
+              drillingMetrics.budgetVariancePercentage > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+            }`}>
+              {drillingMetrics.budgetVariancePercentage > 0 ? 'Over Budget' : 'Under Budget'}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">
+                ${drillingMetrics.budgetVsActual.totalBudgeted.toLocaleString()}
+              </div>
+              <div className="text-sm text-blue-800 font-medium">Total Budgeted</div>
+            </div>
+            
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">
+                ${drillingMetrics.budgetVsActual.totalActual.toLocaleString()}
+              </div>
+              <div className="text-sm text-green-800 font-medium">Total Actual</div>
+            </div>
+            
+            <div className={`text-center p-4 rounded-lg ${
+              drillingMetrics.budgetVsActual.variance > 0 ? 'bg-red-50' : 'bg-green-50'
+            }`}>
+              <div className={`text-2xl font-bold ${
+                drillingMetrics.budgetVsActual.variance > 0 ? 'text-red-600' : 'text-green-600'
+              }`}>
+                {drillingMetrics.budgetVsActual.variance > 0 ? '+' : ''}${drillingMetrics.budgetVsActual.variance.toLocaleString()}
+              </div>
+              <div className={`text-sm font-medium ${
+                drillingMetrics.budgetVsActual.variance > 0 ? 'text-red-800' : 'text-green-800'
+              }`}>
+                Variance ({drillingMetrics.budgetVariancePercentage.toFixed(1)}%)
+              </div>
+            </div>
+          </div>
+          
+          {/* Visual variance indicator */}
+          <div className="mb-4">
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Budget Performance</span>
+              <span>{Math.abs(drillingMetrics.budgetVariancePercentage).toFixed(1)}% {drillingMetrics.budgetVariancePercentage > 0 ? 'over' : 'under'}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div 
+                className={`h-3 rounded-full transition-all duration-500 ${
+                  drillingMetrics.budgetVsActual.variance > 0 ? 'bg-red-500' : 'bg-green-500'
+                }`}
+                style={{ 
+                  width: `${Math.min(100, Math.abs(drillingMetrics.budgetVariancePercentage) * 2)}%` 
+                }}
+              ></div>
+            </div>
+          </div>
+          
+          <div className="text-sm text-gray-600">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span>Budget variance is calculated as (Actual - Budgeted) / Budgeted × 100%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              <span>Based on {drillingMetrics.totalCostAllocations} drilling cost allocations</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Enhanced Cost Allocation Summary */}
+      <div className="bg-white rounded-lg p-6 shadow-md mt-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">COST ALLOCATION INTEGRATION SUMMARY</h3>
+          <div className="text-sm text-gray-500">
+            LC-Based Cost Tracking
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600">
+              {drillingMetrics.totalCostAllocations}
+            </div>
+            <div className="text-sm text-blue-800 font-medium">Active LC Numbers</div>
+          </div>
+          
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-green-600">
+              {drillingMetrics.allocatedDays.toLocaleString()}
+            </div>
+            <div className="text-sm text-green-800 font-medium">Total Allocated Days</div>
+          </div>
+          
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-purple-600">
+              ${drillingMetrics.avgCostPerHour.value.toFixed(0)}
+            </div>
+            <div className="text-sm text-purple-800 font-medium">Avg Cost per Hour</div>
+          </div>
+          
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-orange-600">
+              {Object.keys(drillingMetrics.rigLocationAnalysis || {}).length}
+            </div>
+            <div className="text-sm text-orange-800 font-medium">Active Rig Locations</div>
+          </div>
+        </div>
+        
+        {/* Project Type Breakdown */}
+        {drillingMetrics.dateFilteredDrillingCosts && (
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="font-medium text-gray-900 mb-3">Project Type Distribution</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {(() => {
+                const projectTypeBreakdown = drillingMetrics.dateFilteredDrillingCosts.reduce((acc: any, cost: any) => {
+                  const projectType = cost.projectType || 'Unknown';
+                  if (!acc[projectType]) {
+                    acc[projectType] = { count: 0, totalCost: 0, allocatedDays: 0 };
+                  }
+                  acc[projectType].count += 1;
+                  acc[projectType].totalCost += cost.totalCost || cost.budgetedVesselCost || 0;
+                  acc[projectType].allocatedDays += cost.totalAllocatedDays || 0;
+                  return acc;
+                }, {});
+                
+                return Object.entries(projectTypeBreakdown).map(([projectType, data]: [string, any]) => (
+                  <div key={projectType} className="border border-gray-200 rounded-lg p-3">
+                    <div className="font-medium text-gray-900 mb-1">{projectType}</div>
+                    <div className="text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">LCs:</span>
+                        <span className="font-medium">{data.count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Cost:</span>
+                        <span className="font-medium">${data.totalCost.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Days:</span>
+                        <span className="font-medium">{data.allocatedDays}</span>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

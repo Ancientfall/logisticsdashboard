@@ -8,11 +8,12 @@ import { DataProvider, useData } from './context/DataContext';
 import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
+import CostAllocationManager from './components/dashboard/CostAllocationManager';
 
 // Main application content component
 const AppContent: React.FC = () => {
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'voyage'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'voyage' | 'cost'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
@@ -22,12 +23,13 @@ const AppContent: React.FC = () => {
       vesselManifests: vesselManifests.length,
       costAllocation: costAllocation.length
     });
+    console.log('🎯 App: Current view:', currentView);
     
     // Only auto-redirect to dashboard if data becomes ready and we're on upload page
     if (isDataReady && currentView === 'upload') {
       console.log('🎯 App: Data is ready, navigating to dashboard...');
       setCurrentView('dashboard');
-    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'voyage')) {
+    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'voyage' || currentView === 'cost')) {
       console.log('❌ App: Data not ready, redirecting to upload...');
       setCurrentView('upload');
     }
@@ -111,6 +113,11 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleNavigateToCost = () => {
+    // Cost allocation manager can work with or without data
+    setCurrentView('cost');
+  };
+
   return (
     <>
       {currentView === 'landing' && (
@@ -129,6 +136,7 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
         >
           <MainDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -140,6 +148,7 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
         />
       )}
       {currentView === 'drilling' && (
@@ -151,6 +160,7 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
         >
           <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -164,8 +174,23 @@ const AppContent: React.FC = () => {
           onNavigateToProduction={handleNavigateToProduction}
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
         >
           <VoyageAnalyticsDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+        </DashboardLayout>
+      )}
+      {currentView === 'cost' && (
+        <DashboardLayout 
+          currentView="cost"
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDashboard={handleNavigateToDashboard}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
+        >
+          <CostAllocationManager onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
       )}
     </>

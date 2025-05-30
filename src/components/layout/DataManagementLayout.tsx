@@ -8,6 +8,7 @@ interface DataManagementLayoutProps {
   onNavigateToProduction?: () => void;
   onNavigateToComparison?: () => void;
   onNavigateToVoyage?: () => void;
+  onNavigateToCost?: () => void;
 }
 
 const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({ 
@@ -16,7 +17,8 @@ const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({
   onNavigateToDrilling, 
   onNavigateToProduction, 
   onNavigateToComparison,
-  onNavigateToVoyage 
+  onNavigateToVoyage,
+  onNavigateToCost
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { clearAllData, lastUpdated } = useData();
@@ -80,6 +82,12 @@ const DataManagementLayout: React.FC<DataManagementLayoutProps> = ({
                   className="text-gray-700 hover:text-green-600 transition-colors font-medium"
                 >
                   Voyage Analytics
+                </button>
+                <button 
+                  onClick={onNavigateToCost}
+                  className="text-gray-700 hover:text-green-600 transition-colors font-medium"
+                >
+                  Cost Allocation
                 </button>
                 <button 
                   onClick={onNavigateToComparison}

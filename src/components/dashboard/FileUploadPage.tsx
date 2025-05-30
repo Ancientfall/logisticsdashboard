@@ -38,6 +38,7 @@ interface DataManagementSystemProps {
   onNavigateToProduction?: () => void;
   onNavigateToComparison?: () => void;
   onNavigateToVoyage?: () => void;
+  onNavigateToCost?: () => void;
 }
 
 const DataManagementSystem: React.FC<DataManagementSystemProps> = ({ 
@@ -45,7 +46,8 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   onNavigateToDrilling, 
   onNavigateToProduction, 
   onNavigateToComparison,
-  onNavigateToVoyage 
+  onNavigateToVoyage,
+  onNavigateToCost
 }) => {
   const { 
     voyageEvents,
@@ -245,7 +247,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       setIsDataReady(true);
       
       // Calculate date range for logging
-      const dateRange = calculateDateRange(newData.voyageEvents);
+      const dateRange = calculateDateRange(newData.voyageEvents, newData.costAllocation);
       
       console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
       
@@ -392,7 +394,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         setIsDataReady(true);
         
         // Calculate date range for logging
-        const dateRange = calculateDateRange(newData.voyageEvents);
+        const dateRange = calculateDateRange(newData.voyageEvents, newData.costAllocation);
         
         console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
         
@@ -546,7 +548,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       bulkActions: merged.bulkActions || existing.bulkActions,
       metadata: {
         lastUpdated: new Date(),
-        dateRange: calculateDateRange(merged.voyageEvents || existing.voyageEvents),
+        dateRange: calculateDateRange(merged.voyageEvents || existing.voyageEvents, merged.costAllocation || existing.costAllocation),
         totalRecords,
         newRecords: newRecordsCount,
         dataVersion: existing.metadata.dataVersion
@@ -554,15 +556,37 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     };
   };
   
-  const calculateDateRange = (voyageEvents: VoyageEvent[]) => {
-    if (!voyageEvents || voyageEvents.length === 0) {
+  const calculateDateRange = (voyageEvents: VoyageEvent[], costAllocation: CostAllocation[] = []) => {
+    const allDates: Date[] = [];
+    
+    // Add dates from voyage events
+    if (voyageEvents.length > 0) {
+      const voyageDates = voyageEvents.flatMap(event => [event.from, event.to]);
+      allDates.push(...voyageDates);
+    }
+    
+    // Add dates from cost allocation data
+    if (costAllocation.length > 0) {
+      const costDates = costAllocation
+        .map(allocation => allocation.costAllocationDate)
+        .filter((date): date is Date => date !== undefined);
+      allDates.push(...costDates);
+      
+      // Also consider dates created from year/month if costAllocationDate is not available
+      costAllocation.forEach(allocation => {
+        if (!allocation.costAllocationDate && allocation.year && allocation.month) {
+          allDates.push(new Date(allocation.year, allocation.month - 1, 1));
+        }
+      });
+    }
+    
+    if (allDates.length === 0) {
       return { start: null, end: null };
     }
     
-    const dates = voyageEvents.map(event => new Date(event.eventDate || event.from));
     return {
-      start: new Date(Math.min(...dates.map(d => d.getTime()))),
-      end: new Date(Math.max(...dates.map(d => d.getTime())))
+      start: new Date(Math.min(...allDates.map(d => d.getTime()))),
+      end: new Date(Math.max(...allDates.map(d => d.getTime())))
     };
   };
   
@@ -580,22 +604,134 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   };
   
   const emergencyStorageClear = () => {
-    console.log('🚨 EMERGENCY: Clearing all localStorage to free up space...');
     try {
-      // Get storage size before clearing
-      const beforeSize = JSON.stringify(localStorage).length;
-      console.log(`📊 Storage size before clearing: ${(beforeSize / 1024).toFixed(1)}KB`);
+      // Clear all BP Logistics data
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('bp-logistics')) {
+          localStorage.removeItem(key);
+        }
+      });
       
-      // Clear everything
-      localStorage.clear();
+      // Reset all state
+      clearAllData();
+      setProcessingState('idle');
+      setFiles({
+        voyageEvents: null,
+        vesselManifests: null,
+        costAllocation: null,
+        voyageList: null
+      });
       
-      console.log('✅ Emergency storage clear completed');
-      console.log('🔄 You can now upload your data again');
-      
-      addLog('🚨 Emergency storage clear completed - you can now upload data again', 'success');
+      addLog('🧹 Emergency storage cleared - all data removed', 'success');
+      addLog('💡 You can now try uploading your files again', 'info');
     } catch (error) {
-      console.error('❌ Emergency storage clear failed:', error);
-      addLog('❌ Emergency storage clear failed - please clear browser data manually', 'error');
+      addLog(`❌ Error during emergency clear: ${error}`, 'error');
+    }
+  };
+  
+  const debugLocalStorage = () => {
+    console.log('🔍 Debug: Manual localStorage check...');
+    addLog('🔍 Debug button clicked - checking localStorage...', 'info');
+    
+    try {
+      const rawData = localStorage.getItem('bp-logistics-data');
+      if (rawData) {
+        const parsed = JSON.parse(rawData);
+        const voyageCount = (parsed.voyageEvents || []).length;
+        const manifestCount = (parsed.vesselManifests || []).length;
+        
+        console.log('💾 Found data:', {
+          voyageEventsCount: voyageCount,
+          vesselManifestsCount: manifestCount,
+          costAllocationCount: (parsed.costAllocation || []).length,
+          hasMetadata: !!parsed.metadata,
+          totalRecords: parsed.metadata?.totalRecords || 0
+        });
+        
+        addLog(`💾 Found localStorage data: ${voyageCount} voyage events, ${manifestCount} manifests`, 'success');
+        
+        // If we have data but React state is empty, force reload
+        if (voyageCount > 0 && voyageEvents.length === 0) {
+          console.log('🚨 DATA MISMATCH DETECTED! LocalStorage has data but React state is empty.');
+          console.log('🔄 Forcing data reload...');
+          
+          addLog('🚨 DATA MISMATCH DETECTED! Fixing now...', 'warning');
+      
+          // Force update the React state
+          setVoyageEvents(parsed.voyageEvents || []);
+          setVesselManifests(parsed.vesselManifests || []);
+          setMasterFacilities(parsed.masterFacilities || []);
+          setCostAllocation(parsed.costAllocation || []);
+          setVesselClassifications(parsed.vesselClassifications || []);
+          setVoyageList(parsed.voyageList || []);
+          setBulkActions(parsed.bulkActions || []);
+          setIsDataReady(true);
+      
+          console.log('✅ Force reload complete!');
+          addLog('✅ Data reload COMPLETE! React state now matches localStorage', 'success');
+          
+          // Show success alert
+          setTimeout(() => {
+            alert(`✅ SUCCESS! Fixed data mismatch.\n\nLoaded:\n• ${voyageCount} voyage events\n• ${manifestCount} vessel manifests\n\nYou can now navigate to the dashboard!`);
+          }, 100);
+        } else if (voyageCount > 0 && voyageEvents.length > 0) {
+          console.log('✅ Data state is consistent');
+          addLog('✅ Data state is consistent - no issues found', 'success');
+          alert(`✅ Data state is CONSISTENT!\n\nBoth localStorage and React state have:\n• ${voyageCount} voyage events\n• ${manifestCount} vessel manifests\n\nYou can navigate to the dashboard.`);
+        } else {
+          addLog('❌ No voyage events found in localStorage', 'warning');
+          alert(`❌ No data found in localStorage.\n\nPlease upload your Excel files first.`);
+        }
+      } else {
+        console.log('❌ No data found in localStorage');
+        addLog('❌ No data found in localStorage - upload files first', 'warning');
+        alert('❌ No data found in localStorage.\n\nPlease upload your Excel files first using the file upload section above.');
+      }
+    } catch (error) {
+      console.error('❌ Error checking localStorage:', error);
+      addLog(`❌ Error checking localStorage: ${error}`, 'error');
+      alert(`❌ Error checking localStorage:\n\n${error}\n\nCheck the console for more details.`);
+    }
+  };
+  
+  const manualNavigateToDashboard = () => {
+    console.log('🚀 Manual navigation attempt...');
+    addLog('🚀 Force navigate button clicked', 'info');
+    
+    const currentState = {
+      isDataReady,
+      voyageEventsCount: voyageEvents.length,
+      vesselManifestsCount: vesselManifests.length
+    };
+    
+    console.log('Current state:', currentState);
+    addLog(`📊 Current state: ${voyageEvents.length} events, isDataReady: ${isDataReady}`, 'info');
+    
+    if (voyageEvents.length > 0) {
+      console.log('✅ Data available, setting isDataReady to true and navigating...');
+      addLog('✅ Data found! Setting ready state and navigating...', 'success');
+      
+      setIsDataReady(true);
+      addLog('🚀 Manual navigation to dashboard initiated', 'success');
+      
+      // Show immediate feedback
+      alert(`✅ Navigation initiated!\n\nData found:\n• ${voyageEvents.length} voyage events\n• ${vesselManifests.length} vessel manifests\n\nNavigating to dashboard...`);
+      
+      setTimeout(() => {
+        if (onNavigateHome) {
+          console.log('✅ Calling onNavigateHome...');
+          onNavigateHome();
+        } else {
+          console.log('❌ onNavigateHome callback not available');
+          addLog('❌ Navigation callback not available', 'error');
+          alert('❌ Navigation callback not available.\n\nPlease try refreshing the page.');
+        }
+      }, 100);
+    } else {
+      console.log('❌ No voyage events available for navigation');
+      addLog('❌ No voyage events available - upload data first', 'error');
+      alert('❌ No voyage events available.\n\nPlease upload your data files first.\n\nUse the "Check & Fix Data" button to see if data exists in storage.');
     }
   };
   
@@ -826,44 +962,6 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   };
 
   const DataSummary = () => {
-    // Debug localStorage content
-    const debugLocalStorage = () => {
-      try {
-        console.log('🔍 DEBUG: Current DataContext state:', {
-          voyageEvents: voyageEvents.length,
-          vesselManifests: vesselManifests.length,
-          costAllocation: costAllocation.length,
-          voyageList: voyageList.length,
-          isDataReady,
-          lastUpdated
-        });
-        
-        const savedData = localStorage.getItem('bp-logistics-data');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          console.log('🔍 DEBUG: localStorage content:', parsed);
-          addLog(`🔍 localStorage debug: ${savedData.length} chars, ${Object.keys(parsed).length} keys`, 'info');
-          addLog(`📊 Data found: voyageEvents(${(parsed.voyageEvents || []).length}), manifests(${(parsed.vesselManifests || []).length})`, 'info');
-        } else {
-          console.log('🔍 DEBUG: No data in localStorage');
-          addLog('❌ No data found in localStorage', 'warning');
-        }
-        
-        // Add storage diagnostics
-        const storageInfo = getStorageInfo();
-        addLog(`💾 Storage Info: ${storageInfo.usedMB}MB used, ${storageInfo.status}`, 'info');
-        
-        // Add computed dataStore info
-        const totalRecords = voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length;
-        addLog(`🧮 Computed dataStore: ${totalRecords} total records`, 'info');
-        addLog(`📊 DataStore breakdown: VE(${voyageEvents.length}), VM(${vesselManifests.length}), CA(${costAllocation.length}), VL(${voyageList.length})`, 'info');
-        
-      } catch (error) {
-        console.error('🔍 DEBUG: Error reading localStorage:', error);
-        addLog(`❌ Error reading localStorage: ${error}`, 'error');
-      }
-    };
-
     // Get localStorage usage information
     const getStorageInfo = () => {
       try {
@@ -1247,7 +1345,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
           setIsDataReady(true);
           
           // Calculate date range for logging
-          const dateRange = calculateDateRange(newData.voyageEvents);
+          const dateRange = calculateDateRange(newData.voyageEvents, newData.costAllocation);
           
           console.log('✅ Data processing completed successfully!', { totalRecords, isDataReady: true });
           
@@ -1366,6 +1464,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       onNavigateToProduction={onNavigateToProduction}
       onNavigateToComparison={onNavigateToComparison}
       onNavigateToVoyage={onNavigateToVoyage}
+      onNavigateToCost={onNavigateToCost}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
@@ -1573,6 +1672,66 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DataSummary />
         <ProcessingLog />
+      </div>
+      
+      {/* Debug Section - Only show if there are issues */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h3 className="text-lg font-semibold text-yellow-800 mb-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5" />
+          Debug Tools
+        </h3>
+        <p className="text-yellow-700 text-sm mb-4">
+          If you're having issues with data loading or navigation, use these debug tools:
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <button
+            onClick={debugLocalStorage}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Check & Fix Data
+          </button>
+          
+          <button
+            onClick={manualNavigateToDashboard}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          >
+            <Database className="h-4 w-4" />
+            Force Navigate
+          </button>
+          
+          <button
+            onClick={() => {
+              forceRefreshFromStorage();
+              addLog('🔄 DataContext refresh triggered', 'info');
+            }}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Context
+          </button>
+        </div>
+        
+        {/* Test button to verify clicks are working */}
+        <div className="mt-2">
+          <button
+            onClick={() => {
+              addLog('🧪 TEST: Button click detected!', 'success');
+              alert('✅ Button clicks are working!\n\nIf you see this alert, the debug buttons should work too.');
+              console.log('🧪 TEST: Debug button functionality verified');
+            }}
+            className="flex items-center justify-center gap-2 px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+          >
+            🧪 Test Button (Click to verify functionality)
+          </button>
+        </div>
+        
+        <div className="mt-3 text-xs text-yellow-600">
+          <p><strong>Check & Fix Data:</strong> Diagnoses localStorage vs React state mismatch</p>
+          <p><strong>Force Navigate:</strong> Manually navigate to dashboard if data exists</p>
+          <p><strong>Refresh Context:</strong> Force DataContext to reload from localStorage</p>
+        </div>
       </div>
       </div>
     </DataManagementLayout>

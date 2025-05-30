@@ -3,13 +3,14 @@ import { useData } from '../../context/DataContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
-  currentView?: 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage';
+  currentView?: 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost';
   onNavigateHome?: () => void;
   onNavigateToDashboard?: () => void;
   onNavigateToDrilling?: () => void;
   onNavigateToProduction?: () => void;
   onNavigateToComparison?: () => void;
   onNavigateToVoyage?: () => void;
+  onNavigateToCost?: () => void;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
@@ -20,7 +21,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onNavigateToDrilling, 
   onNavigateToProduction, 
   onNavigateToComparison,
-  onNavigateToVoyage 
+  onNavigateToVoyage,
+  onNavigateToCost
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { clearAllData, lastUpdated } = useData();
@@ -108,6 +110,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   Voyage Analytics
                 </button>
                 <button 
+                  onClick={onNavigateToCost}
+                  className={`transition-colors font-medium pb-1 ${
+                    currentView === 'cost' 
+                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
+                      : 'text-gray-700 hover:text-green-600'
+                  }`}
+                >
+                  Cost Allocation
+                </button>
+                <button 
                   onClick={onNavigateToDashboard}
                   className={`transition-colors font-medium pb-1 ${
                     currentView === 'dashboard' 
@@ -163,6 +175,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   {currentView === 'production' && 'Production Dashboard'}
                   {currentView === 'comparison' && 'Comparison Dashboard'}
                   {currentView === 'voyage' && 'Voyage Analytics Dashboard'}
+                  {currentView === 'cost' && 'Cost Allocation Management'}
                   {currentView === 'dashboard' && 'Data Settings Dashboard'}
                 </span>
               </div>

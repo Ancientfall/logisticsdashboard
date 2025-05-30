@@ -21,6 +21,33 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
   
   const [activeTab, setActiveTab] = useState<'overview' | 'quality' | 'vessels' | 'timeline'>('overview');
 
+  // ENHANCED DEBUGGING: Log the exact state causing loading issues
+  React.useEffect(() => {
+    console.log('🔍 MainDashboard - Current State:', {
+      isDataReady,
+      voyageEventsLength: voyageEvents.length,
+      vesselManifestsLength: vesselManifests.length,
+      costAllocationLength: costAllocation.length,
+      voyageListLength: voyageList.length,
+      shouldShowLoading: (!isDataReady || voyageEvents.length === 0),
+      timestamp: new Date().toISOString()
+    });
+    
+    // If we should be showing content but aren't, log more details
+    if (isDataReady && voyageEvents.length === 0) {
+      console.warn('⚠️ MainDashboard - Data paradox detected:');
+      console.log('  - isDataReady is true but voyageEvents is empty');
+      console.log('  - This suggests a data loading issue in DataContext');
+      console.log('  - Attempting to force refresh...');
+      
+      // Try to force refresh if we detect this state
+      setTimeout(() => {
+        console.log('🔄 MainDashboard - Auto-triggering forceRefreshFromStorage');
+        forceRefreshFromStorage();
+      }, 1000);
+    }
+  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, forceRefreshFromStorage]);
+
   // Comprehensive data analysis
   const dataAnalysis = useMemo(() => {
     // Basic counts
@@ -99,11 +126,54 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
   }, [voyageEvents, vesselManifests, costAllocation, voyageList]);
 
   if (!isDataReady || voyageEvents.length === 0) {
+    const readyButNoVoyageEvents = isDataReady && voyageEvents.length === 0;
+    
     return (
       <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading data processing summary...</p>
+          <p className="text-gray-600 mb-4">
+            {readyButNoVoyageEvents ? 
+              'Data detected but voyage events not loaded...' : 
+              'Loading data processing summary...'}
+          </p>
+          
+          {/* Debug Information */}
+          <div className="text-xs text-gray-500 bg-gray-100 p-3 rounded mb-4">
+            <div>isDataReady: {isDataReady ? '✅' : '❌'}</div>
+            <div>Voyage Events: {voyageEvents.length}</div>
+            <div>Vessel Manifests: {vesselManifests.length}</div>
+            <div>Cost Allocation: {costAllocation.length}</div>
+          </div>
+          
+          {/* Manual Actions */}
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                console.log('🔄 Manual refresh triggered from MainDashboard');
+                forceRefreshFromStorage();
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+            >
+              🔄 Force Refresh Data
+            </button>
+            
+            {readyButNoVoyageEvents && (
+              <div className="mt-2">
+                <button
+                  onClick={() => {
+                    console.log('🚨 Emergency: Manually calling window.debugDataContext()');
+                    if (typeof window !== 'undefined' && (window as any).debugDataContext) {
+                      (window as any).debugDataContext();
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm"
+                >
+                  🚨 Debug Data Context
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );

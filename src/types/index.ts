@@ -57,6 +57,12 @@ export interface VoyageEvent {
   // Additional computed fields
   company?: string;
   standardizedVoyageNumber?: string;
+  
+  // Vessel Cost Information
+  vesselCostTotal?: number;        // Total cost for this event (hourly rate * finalHours)
+  vesselDailyRate?: number;        // Daily rate applied for this event date
+  vesselHourlyRate?: number;       // Hourly rate (dailyRate / 24)
+  vesselCostRateDescription?: string; // Description of rate period used
 }
 
 export interface VesselManifest {
@@ -98,6 +104,12 @@ export interface VesselManifest {
   remarks?: string;
   company?: string;
   vesselType?: string;
+  
+  // PowerBI-Inspired Analytics Fields
+  isIntegratedFacility?: boolean;        // True for Thunder Horse/Mad Dog facilities
+  isDrillingActivity?: boolean;          // True if determined to be drilling-related
+  costCodeMatchFound?: boolean;          // True if cost code was found in CostAllocation
+  originalLocationFromCost?: string;     // Original location from cost allocation lookup
 }
 
 export interface MasterFacility {
@@ -126,16 +138,25 @@ export interface CostAllocation {
   description?: string;
   costElement?: string;
   
+  // Project Information
+  projectType?: 'Drilling' | 'Completions' | 'Production' | 'Maintenance' | 'Operator Sharing';
+  
   // Time Information
   monthYear?: string;
   month?: number;
   year?: number;
+  costAllocationDate?: Date;  // NEW: Date used for vessel rate calculation
   
   // Cost Information
   totalAllocatedDays?: number;
   averageVesselCostPerDay?: number;
   totalCost?: number;
   costPerHour?: number;
+  
+  // Budgeted Vessel Cost Information (NEW)
+  budgetedVesselCost?: number;      // Total allocated days × vessel daily rate
+  vesselDailyRateUsed?: number;     // Daily rate applied for this time period
+  vesselRateDescription?: string;   // Description of rate period (e.g., "Jan 2024 - Mar 2025: $33,000/day")
   
   // Rig Location Information
   rigLocation?: string;
@@ -168,40 +189,40 @@ export interface VesselClassification {
 
 export interface VoyageList {
   // Core Identifiers
-  id: string;
-  uniqueVoyageId: string;
-  standardizedVoyageId: string;
+  id: string;                           // For internal use
+  uniqueVoyageId: string;              // From PowerQuery: Year_Month_Vessel_VoyageNumber
+  standardizedVoyageId: string;        // From PowerQuery: YYYY-MM-Vessel-VVV format
   vessel: string;
   standardizedVesselName: string;
   voyageNumber: number;
   
   // Time Information
   year: number;
-  month: string;
-  monthNumber: number;
+  month: string;                       // jan, feb, mar, etc.
+  monthNumber: number;                 // 1-12
   startDate: Date;
   endDate?: Date;
-  voyageDate: Date;
-  durationHours?: number;
+  voyageDate: Date;                    // Date.From(startDate)
+  durationHours?: number;              // Calculated duration in hours (rounded to 2 decimal places)
   
   // Voyage Details
-  type?: string;
+  edit?: string;                       // Edit column from Excel
+  type?: string;                       // Type column from Excel
   mission: string;
-  routeType?: string;
-  locations: string; // Original string like "Fourchon -> Na Kika -> Thunder Horse PDQ"
-  locationList: string[]; // Parsed array of locations
+  routeType?: string;                  // Route Type column from Excel
+  locations: string;                   // Original locations string like "Fourchon -> Na Kika -> Thunder Horse PDQ"
+  locationList: string[];              // Parsed array of locations split by "->"
   
   // Voyage Analysis
-  stopCount: number;
-  includesProduction: boolean;
-  includesDrilling: boolean;
-  voyagePurpose: 'Production' | 'Drilling' | 'Mixed' | 'Other';
-  originPort?: string;
-  mainDestination?: string;
+  stopCount: number;                   // Count of locations in locationList
+  includesProduction: boolean;         // Based on production platform detection
+  includesDrilling: boolean;           // Based on drilling location detection
+  voyagePurpose: 'Production' | 'Drilling' | 'Mixed' | 'Other'; // Based on includes flags
+  originPort?: string;                 // First location in locationList
+  mainDestination?: string;            // Second location in locationList (main offshore destination)
   
   // Status
-  edit?: string;
-  isActive: boolean;
+  isActive: boolean;                   // For filtering
 }
 
 export interface BulkAction {
@@ -250,31 +271,53 @@ export interface BulkAction {
 
 export interface VoyageSegment {
   // Identifiers
-  uniqueVoyageId: string;
-  standardizedVoyageId: string;
+  uniqueVoyageId: string;              // From parent voyage
+  standardizedVoyageId: string;        // From parent voyage
   vessel: string;
   voyageNumber: number;
   
   // Segment Information
-  segmentNumber: number;
-  origin: string;
-  destination: string;
-  originStandardized: string;
-  destinationStandardized: string;
+  segmentNumber: number;               // 1, 2, 3, etc. for multi-stop voyages
+  origin: string;                      // Origin location for this segment
+  destination: string;                 // Destination location for this segment
+  originStandardized: string;          // Trimmed origin
+  destinationStandardized: string;     // Trimmed destination
   
   // Time Information
   year: number;
-  month: string;
-  monthNumber: number;
-  voyageStartDate: Date;
-  voyageEndDate?: Date;
-  segmentDate: Date;
+  month: string;                       // jan, feb, mar, etc.
+  monthNumber: number;                 // 1-12
+  voyageStartDate: Date;               // Parent voyage start date
+  voyageEndDate?: Date;                // Parent voyage end date
+  segmentDate: Date;                   // Date.From(voyageStartDate)
   
-  // Classification
-  segmentType: 'Outbound' | 'Return' | 'Intermediate';
-  isProductionSegment: boolean;
-  isDrillingSegment: boolean;
-  isOffshoreSegment: boolean;
+  // Classification from PowerQuery
+  segmentType: 'Outbound' | 'Return' | 'Intermediate'; // Based on position in voyage
+  isProductionSegment: boolean;        // Destination is production platform
+  isDrillingSegment: boolean;          // Destination is drilling location
+  isOffshoreSegment: boolean;          // Not Fourchon and not Port location
+  
+  // Fourchon Detection
+  originIsFourchon: boolean;           // Origin = "Fourchon"
+  destinationIsFourchon: boolean;      // Destination = "Fourchon"
+  
+  // Facility Classification
+  isIntegratedFacility: boolean;       // Thunder Horse PDQ, Thunder Horse, Mad Dog
+  
+  // Department Classification (from PowerQuery logic)
+  directDepartment: 'Drilling' | 'Production' | 'Integrated' | 'Other'; // Based on destination analysis
+  isIntegratedDepartment: boolean;     // directDepartment = "Integrated"
+  departmentDestination: string;       // Destination + " - " + directDepartment
+  voyagePurpose: 'Production' | 'Drilling' | 'Integrated' | 'Other'; // Based on segment type
+  finalDepartment: 'Drilling' | 'Production' | 'Integrated' | 'Other'; // Final department assignment
+  
+  // Facility-Specific Flags
+  isThunderHorse: boolean;             // Contains "Thunder Horse" or "Thunder horse"
+  isMadDog: boolean;                   // Contains "Mad Dog"
+  
+  // Voyage Pattern Analysis
+  voyagePattern: 'Outbound' | 'Return' | 'Offshore Transfer' | 'Round Trip'; // Based on Fourchon analysis
+  isStandardPattern: boolean;          // Standard outbound/return pattern with Fourchon
 }
 
 // ==================== COMPUTED/DERIVED TYPES ====================
@@ -310,25 +353,107 @@ export interface KPIMetrics {
   averageTripDuration: number;
   cargoTonnagePerVisit: number;
   
+  // Vessel Cost Metrics
+  totalVesselCost: number;
+  averageVesselCostPerHour: number;
+  averageVesselCostPerDay: number;
+  vesselCostByDepartment: Record<string, { cost: number; hours: number; events: number }>;
+  vesselCostByActivity: Record<string, { cost: number; hours: number; events: number }>;
+  vesselCostRateBreakdown: Record<string, { cost: number; hours: number; events: number }>;
+  
+  // Budget vs Actual Cost Analysis (NEW)
+  budgetVsActualAnalysis?: {
+    totalBudgetedVesselCost: number;
+    totalActualVesselCost: number;
+    totalVariance: number;
+    totalVariancePercentage: number;
+    lcCount: number;
+    lcsOverBudget: number;
+    lcsUnderBudget: number;
+    lcComparison: Record<string, {
+      lcNumber: string;
+      budgetedCost: number;
+      actualCost: number;
+      variance: number;
+      variancePercentage: number;
+      budgetedDays: number;
+      actualDays: number;
+      budgetedRate: number;
+      actualRate: number;
+    }>;
+  };
+  
   // Voyage List Metrics
   voyageListMetrics?: {
+    // Basic Voyage Metrics
     totalVoyages: number;
-    averageVoyageDuration: number;
+    averageVoyageDuration: number;       // In hours
     avgVoyageDurationMoMChange: number;
-    drillingVoyagePercentage: number;
-    mixedVoyageEfficiency: number;
     averageStopsPerVoyage: number;
-    multiStopPercentage: number;
-    routeEfficiencyScore: number;
-    activeVesselsThisMonth: number;
-    voyagesPerVessel: number;
-    routeConcentration: number;
-    onTimeVoyagePercentage: number;
-    averageExecutionEfficiency: number;
-    consolidationBenefit: number;
-    peakSeasonIndicator: string;
+    multiStopPercentage: number;         // Percentage of voyages with >2 stops
+    
+    // Voyage Purpose Distribution
+    productionVoyagePercentage: number;  // % of voyages with production purpose
+    drillingVoyagePercentage: number;    // % of voyages with drilling purpose
+    mixedVoyagePercentage: number;       // % of voyages with mixed purpose
+    otherVoyagePercentage: number;       // % of voyages with other purpose
     voyagePurposeDistribution: Record<string, number>;
-    popularDestinations: Array<{ destination: string; count: number; percentage: number }>;
+    
+    // Pattern Analysis
+    outboundPatternPercentage: number;   // % following standard Fourchon outbound pattern
+    returnPatternPercentage: number;     // % following standard Fourchon return pattern
+    offshoreTransferPercentage: number;  // % of offshore-to-offshore transfers
+    roundTripPercentage: number;         // % of round trips
+    standardPatternPercentage: number;   // % following standard patterns
+    
+    // Facility-Specific Metrics
+    thunderHorseVoyagePercentage: number; // % involving Thunder Horse
+    madDogVoyagePercentage: number;      // % involving Mad Dog
+    integratedFacilityPercentage: number; // % involving integrated facilities
+    
+    // Department Distribution
+    drillingDepartmentPercentage: number;
+    productionDepartmentPercentage: number;
+    integratedDepartmentPercentage: number;
+    otherDepartmentPercentage: number;
+    
+    // Efficiency Metrics
+    mixedVoyageEfficiency: number;       // Efficiency score for mixed voyages
+    routeEfficiencyScore: number;        // Overall route efficiency
+    consolidationBenefit: number;        // Benefit from voyage consolidation
+    
+    // Vessel Utilization
+    activeVesselsThisMonth: number;
+    voyagesPerVessel: number;            // Average voyages per vessel
+    vesselUtilizationRate: number;       // Based on voyage frequency
+    
+    // Popular Destinations
+    popularDestinations: Array<{ 
+      destination: string; 
+      count: number; 
+      percentage: number;
+      departmentDistribution: Record<string, number>;
+    }>;
+    
+    // Temporal Analysis
+    peakSeasonIndicator: string;         // Based on voyage volume
+    monthlyVoyageDistribution: Record<string, number>;
+    
+    // Quality Metrics
+    onTimeVoyagePercentage: number;      // Based on planned vs actual
+    averageExecutionEfficiency: number;  // Execution efficiency score
+    routeConcentration: number;          // Concentration of routes
+    
+    // Advanced Analytics
+    segmentAnalysis: {
+      totalSegments: number;
+      averageSegmentsPerVoyage: number;
+      productionSegmentPercentage: number;
+      drillingSegmentPercentage: number;
+      offshoreSegmentPercentage: number;
+      fourchonOriginPercentage: number;
+      fourchonDestinationPercentage: number;
+    };
   };
   
   // Month-over-Month Changes
@@ -338,6 +463,8 @@ export interface KPIMetrics {
     liftsPerCargoHour: number;
     drillingNPTPercentage: number;
     vesselUtilizationRate: number;
+    totalVesselCost: number;
+    averageVesselCostPerHour: number;
   };
 }
 

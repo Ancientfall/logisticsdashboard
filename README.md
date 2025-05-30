@@ -34,6 +34,14 @@ A comprehensive, modern analytics platform designed specifically for BP's offsho
 - **React 18**: Latest React features with functional components and hooks
 - **Tailwind CSS**: Utility-first styling for rapid development
 - **Modular Architecture**: Clean separation of concerns and reusable components
+- **Refactored Processing Pipeline**: Modular data processing with improved maintainability
+
+### 🏗️ **Architecture**
+- **Layered Design**: Clear separation between presentation, processing, and data layers
+- **Modular Processors**: Specialized processors for different data types (voyage events, manifests, cost allocation)
+- **Pure Functions**: Testable utility functions with minimal side effects
+- **Performance Optimized**: Chunked file reading, lookup maps, and memory-efficient processing
+- **Type Safe**: Comprehensive TypeScript interfaces and data validation
 
 ## 🚀 Quick Start
 

@@ -11,6 +11,10 @@ import {
 } from '../types';
 import { DataStore } from '../types/dataModel';
 
+// Add singleton pattern to prevent race conditions
+let dataContextInstance: any = null;
+let isInitializing = false;
+
 interface DataContextType {
   // Main data arrays
   voyageEvents: VoyageEvent[];
@@ -45,7 +49,7 @@ interface DataContextType {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearAllData: () => void;
-  
+   
   // File upload tracking
   uploadedFiles: {
     voyageEvents: boolean;
@@ -116,13 +120,132 @@ interface DataProviderProps {
 }
 
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
-  // Check for existing data in localStorage on initialization
+  // Generate unique instance ID for debugging
+  const instanceId = React.useRef(Math.random().toString(36).substr(2, 9));
+  
+  // IMMEDIATE DEBUG: Check localStorage right at startup
+  console.log(`🚀 DataProvider[${instanceId.current}] starting - immediate localStorage check...`);
+  
+  // Prevent multiple simultaneous initializations
+  if (isInitializing) {
+    console.log(`⏳ DataProvider[${instanceId.current}] waiting - another instance is initializing...`);
+  } else {
+    isInitializing = true;
+    console.log(`🎯 DataProvider[${instanceId.current}] is the primary initializer`);
+  }
+  
+  try {
+    const immediateCheck = localStorage.getItem('bp-logistics-data');
+    if (immediateCheck) {
+      const parsed = JSON.parse(immediateCheck);
+      console.log(`🎯 IMMEDIATE[${instanceId.current}]: Found data in localStorage:`, {
+        hasMetadata: !!parsed.metadata,
+        voyageEventsCount: (parsed.voyageEvents || []).length,
+        vesselManifestsCount: (parsed.vesselManifests || []).length,
+        totalRecords: parsed.metadata?.totalRecords || 0,
+        dataKeys: Object.keys(parsed)
+      });
+    } else {
+      console.log(`❌ IMMEDIATE[${instanceId.current}]: No bp-logistics-data found in localStorage`);
+      // Check if there are ANY keys
+      const allKeys = Object.keys(localStorage);
+      console.log(`🗂️ IMMEDIATE[${instanceId.current}]: All localStorage keys:`, allKeys.slice(0, 10));
+    }
+  } catch (error) {
+    console.error(`❌ IMMEDIATE[${instanceId.current}]: Error checking localStorage:`, error);
+  }
+
+  // Enhanced data loading with better validation
   const loadStoredData = () => {
+    console.log(`🔍 DataContext[${instanceId.current}] starting - loadStoredData() called - checking localStorage...`);
+    
     try {
+      // First, let's see what's actually in localStorage
+      const allKeys = Object.keys(localStorage).filter(key => key.startsWith('bp-logistics'));
+      console.log(`🗂️ All bp-logistics keys in localStorage[${instanceId.current}]:`, allKeys);
+      
+      if (allKeys.length > 0) {
+        allKeys.forEach(key => {
+          const value = localStorage.getItem(key);
+          if (value) {
+            const sizeKB = Math.round(value.length / 1024);
+            console.log(`📋[${instanceId.current}] ${key}: ${sizeKB}KB`);
+            if (key === 'bp-logistics-data') {
+              try {
+                const parsed = JSON.parse(value);
+                console.log(`📊[${instanceId.current}] Data structure preview:`, {
+                  hasMetadata: !!parsed.metadata,
+                  voyageEventsCount: (parsed.voyageEvents || []).length,
+                  vesselManifestsCount: (parsed.vesselManifests || []).length,
+                  costAllocationCount: (parsed.costAllocation || []).length,
+                  voyageListCount: (parsed.voyageList || []).length,
+                  totalRecords: parsed.metadata?.totalRecords || 0
+                });
+                
+                // More detailed analysis
+                if (parsed.costAllocation && Array.isArray(parsed.costAllocation)) {
+                  const sampleRecord = parsed.costAllocation[0];
+                  console.log(`🔍[${instanceId.current}] First cost allocation record structure:`, sampleRecord);
+                  
+                  // Check for meaningful data
+                  const recordsWithValues = parsed.costAllocation.filter((record: any) => 
+                    (record.totalAllocatedDays && record.totalAllocatedDays > 0) ||
+                    (record.budgetedVesselCost && record.budgetedVesselCost > 0) ||
+                    (record.totalCost && record.totalCost > 0)
+                  );
+                  console.log(`💰[${instanceId.current}] Records with meaningful cost data: ${recordsWithValues.length}/${parsed.costAllocation.length}`);
+                  
+                  // Check date distribution
+                  const uniqueDates = [...new Set(parsed.costAllocation.map((r: any) => r.monthYear).filter(Boolean))];
+                  console.log(`📅[${instanceId.current}] Date distribution:`, uniqueDates.slice(0, 10));
+                  
+                  // Check year distribution
+                  const uniqueYears = [...new Set(parsed.costAllocation.map((r: any) => r.year).filter(Boolean))];
+                  console.log(`📆[${instanceId.current}] Year distribution:`, uniqueYears);
+                } else {
+                  console.error(`❌[${instanceId.current}] NO COST ALLOCATION DATA FOUND!`);
+                }
+                
+                // EMERGENCY DEBUG: Log the actual structure keys
+                console.log(`🚨[${instanceId.current}] EMERGENCY - Raw localStorage structure:`, {
+                  allKeys: Object.keys(parsed),
+                  voyageEventsType: typeof parsed.voyageEvents,
+                  voyageEventsArray: Array.isArray(parsed.voyageEvents),
+                  firstVoyageEvent: parsed.voyageEvents?.[0],
+                  actualStringLength: value.length,
+                  actualSizeBytes: new Blob([value]).size
+                });
+                
+                // CRITICAL FIX: Validate that voyage events actually contain data
+                if (parsed.voyageEvents && Array.isArray(parsed.voyageEvents) && parsed.voyageEvents.length > 0) {
+                  const firstEvent = parsed.voyageEvents[0];
+                  console.log(`✅[${instanceId.current}] First voyage event validation:`, {
+                    hasId: !!firstEvent.id,
+                    hasVessel: !!firstEvent.vessel,
+                    hasEventDate: !!firstEvent.eventDate,
+                    sample: firstEvent
+                  });
+                  
+                  if (!firstEvent.vessel || !firstEvent.eventDate) {
+                    console.warn(`⚠️[${instanceId.current}] Voyage events exist but appear corrupted - missing vessel or date`);
+                  }
+                } else {
+                  console.warn(`❌[${instanceId.current}] No valid voyage events array found in stored data`);
+                }
+              } catch (e) {
+                console.warn(`❌[${instanceId.current}] Failed to parse bp-logistics-data:`, e);
+              }
+            }
+          }
+        });
+      } else {
+        console.log(`❌[${instanceId.current}] No bp-logistics keys found in localStorage`);
+      }
+      
       // Check for emergency data first (critical storage failure case)
       const emergencyData = localStorage.getItem('bp-logistics-data-emergency');
       if (emergencyData) {
-        console.error('🚨 Loading emergency data - storage was critically full');
+        console.error(`🚨 Loading emergency data - storage was critically full`);
         const parsed = JSON.parse(emergencyData);
         
         // Try to load any chunked data that was successfully saved
@@ -150,14 +273,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
                 voyageList: chunkedResult.voyageList || [],
                 bulkActions: chunkedResult.bulkActions || []
               };
-              console.log('✅ Recovered partial data from chunks:', {
+              console.log(`✅[${instanceId.current}] Recovered partial data from chunks:`, {
                 voyageEvents: partialData.voyageEvents.length,
                 vesselManifests: partialData.vesselManifests.length,
                 voyageList: partialData.voyageList.length
               });
             }
           } catch (chunkError) {
-            console.warn('Failed to load partial chunked data:', chunkError);
+            console.warn(`Failed to load partial chunked data:`, chunkError);
           }
         }
         
@@ -175,7 +298,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // Check for minimal data (fallback case)
       const minimalData = localStorage.getItem('bp-logistics-data-minimal');
       if (minimalData && !localStorage.getItem('bp-logistics-data')) {
-        console.warn('⚠️ Loading minimal data due to storage constraints');
+        console.warn(`⚠️ Loading minimal data due to storage constraints`);
         const parsed = JSON.parse(minimalData);
         return {
           hasData: true,
@@ -195,7 +318,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // Check if data is chunked
       const isChunked = localStorage.getItem('bp-logistics-data-chunked') === 'true';
       if (isChunked) {
-        console.log('📦 Loading chunked data from localStorage...');
+        console.log(`📦 Loading chunked data from localStorage...`);
         return loadChunkedData();
       }
       
@@ -206,7 +329,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (storedData) {
         const parsed = JSON.parse(storedData);
         
-        console.log('📁 Loading stored data from localStorage:', {
+        console.log(`📁[${instanceId.current}] Loading stored data from localStorage:`, {
           format: parsed.metadata ? 'FileUploadPage' : 'DataContext',
           isCompressed,
           isChunked,
@@ -217,27 +340,56 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           voyageListCount: (parsed.voyageList || []).length
         });
         
-        // Handle both FileUploadPage format (with metadata) and DataContext format
-        // Check multiple ways to determine if we have data:
-        // 1. Direct hasData flag
-        // 2. Metadata with totalRecords > 0
-        // 3. Actually have voyage events (most reliable)
-        const hasValidVoyageEvents = (parsed.voyageEvents || []).length > 0;
+        // ENHANCED VALIDATION: Multiple checks to ensure data integrity
+        const voyageEventsArray = parsed.voyageEvents || [];
+        const hasValidVoyageEvents = voyageEventsArray.length > 0;
         const hasMetadataRecords = parsed.metadata && parsed.metadata.totalRecords > 0;
         const hasDirectFlag = parsed.hasData === true;
+        const hasAnyData = voyageEventsArray.length > 0 || 
+                          (parsed.vesselManifests || []).length > 0 || 
+                          (parsed.costAllocation || []).length > 0 || 
+                          (parsed.voyageList || []).length > 0;
         
-        const hasData = hasValidVoyageEvents || hasMetadataRecords || hasDirectFlag;
+        // Additional data structure validation
+        let isDataStructureValid = false;
+        if (hasValidVoyageEvents) {
+          const firstEvent = voyageEventsArray[0];
+          isDataStructureValid = !!(firstEvent && firstEvent.vessel && firstEvent.eventDate);
+        }
+        
+        const hasData = hasValidVoyageEvents && isDataStructureValid;
         const lastUpdated = parsed.lastUpdated ? new Date(parsed.lastUpdated) : 
                            (parsed.metadata && parsed.metadata.lastUpdated ? new Date(parsed.metadata.lastUpdated) : null);
         
-        console.log('🔍 Data validation checks:', {
+        console.log(`🔍[${instanceId.current}] Data validation checks:`, {
           hasValidVoyageEvents,
           hasMetadataRecords,
           hasDirectFlag,
+          hasAnyData,
+          isDataStructureValid,
           finalHasData: hasData,
-          voyageEventsCount: (parsed.voyageEvents || []).length,
+          voyageEventsCount: voyageEventsArray.length,
+          vesselManifestsCount: (parsed.vesselManifests || []).length,
+          costAllocationCount: (parsed.costAllocation || []).length,
+          voyageListCount: (parsed.voyageList || []).length,
           metadataTotalRecords: parsed.metadata?.totalRecords || 0
         });
+        
+        // If we have data, store this instance as the authoritative one
+        if (hasData) {
+          dataContextInstance = {
+            hasData,
+            lastUpdated,
+            voyageEvents: parsed.voyageEvents || [],
+            vesselManifests: parsed.vesselManifests || [],
+            masterFacilities: parsed.masterFacilities || [],
+            costAllocation: parsed.costAllocation || [],
+            vesselClassifications: parsed.vesselClassifications || [],
+            voyageList: parsed.voyageList || [],
+            bulkActions: parsed.bulkActions || []
+          };
+          console.log(`✅[${instanceId.current}] Stored authoritative data instance`);
+        }
         
         return {
           hasData,
@@ -252,8 +404,18 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         };
       }
     } catch (error) {
-      console.warn('Failed to load stored data:', error);
+      console.warn(`[${instanceId.current}] Failed to load stored data:`, error);
     }
+    
+    // If no local data found but we have an authoritative instance, use that
+    if (dataContextInstance && dataContextInstance.hasData) {
+      console.log(`🔄[${instanceId.current}] Using authoritative data instance:`, {
+        voyageEventsCount: dataContextInstance.voyageEvents.length,
+        hasData: dataContextInstance.hasData
+      });
+      return dataContextInstance;
+    }
+    
     return null;
   };
   
@@ -304,7 +466,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const hasData = reconstructedData.metadata && reconstructedData.metadata.totalRecords > 0;
       const lastUpdated = reconstructedData.metadata?.lastUpdated ? new Date(reconstructedData.metadata.lastUpdated) : null;
       
-      console.log('✅ Successfully loaded chunked data:', {
+      console.log(`✅ Successfully loaded chunked data:`, {
         totalRecords: reconstructedData.metadata?.totalRecords || 0,
         voyageEventsCount: reconstructedData.voyageEvents?.length || 0,
         vesselManifestsCount: reconstructedData.vesselManifests?.length || 0
@@ -322,7 +484,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         bulkActions: reconstructedData.bulkActions || []
       };
     } catch (error) {
-      console.error('❌ Failed to load chunked data:', error);
+      console.error(`❌ Failed to load chunked data:`, error);
       return null;
     }
   };
@@ -348,7 +510,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(storedData?.lastUpdated || null);
   
   // Debug initial state
-  console.log('🔧 DataContext initialized with:', {
+  console.log(`🔧 DataContext[${instanceId.current}] initialized with:`, {
     hasStoredData: !!storedData,
     isDataReady: storedData?.hasData || false,
     voyageEventsCount: storedData?.voyageEvents?.length || 0,
@@ -360,43 +522,100 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     isMinimal: (storedData as any)?.isMinimal || false
   });
   
-  // Additional debugging - check if we have actual data
-  if (storedData && storedData.voyageEvents && storedData.voyageEvents.length > 0) {
-    console.log('✅ DataContext: Found valid data in localStorage');
-    console.log('📊 Sample voyage event:', storedData.voyageEvents[0]);
-    console.log('🚢 Unique vessels:', [...new Set(storedData.voyageEvents.map((e: any) => e.vessel))].slice(0, 5));
-  } else {
-    console.log('❌ DataContext: No valid voyage events found in localStorage');
-  }
+  // Enhanced validation logic - check for any valid data, not just voyage events
+  const hasVoyageEvents = storedData && storedData.voyageEvents && storedData.voyageEvents.length > 0;
+  const hasCostAllocation = storedData && storedData.costAllocation && storedData.costAllocation.length > 0;
+  const hasVesselManifests = storedData && storedData.vesselManifests && storedData.vesselManifests.length > 0;
+  const hasAnyValidData = hasVoyageEvents || hasCostAllocation || hasVesselManifests;
   
-  // Auto-set isDataReady when we have voyage events
-  React.useEffect(() => {
-    const hasData = voyageEvents.length > 0;
-    console.log('🎯 Auto-checking data readiness:', { 
-      hasData, 
-      voyageEventsCount: voyageEvents.length,
-      currentIsDataReady: isDataReady,
-      shouldUpdate: hasData !== isDataReady 
+  if (hasAnyValidData) {
+    console.log(`✅ DataContext[${instanceId.current}]: Found valid data in localStorage`, {
+      voyageEvents: storedData?.voyageEvents?.length || 0,
+      costAllocation: storedData?.costAllocation?.length || 0,
+      vesselManifests: storedData?.vesselManifests?.length || 0,
+      voyageList: storedData?.voyageList?.length || 0
     });
     
-    if (hasData !== isDataReady) {
-      console.log('🔄 Updating isDataReady from', isDataReady, 'to', hasData);
-      setIsDataReadyState(hasData);
+    // Only log sample data if we have voyage events
+    if (hasVoyageEvents) {
+      console.log(`📊[${instanceId.current}] Sample voyage event:`, storedData.voyageEvents[0]);
+      console.log(`🚢[${instanceId.current}] Unique vessels:`, [...new Set(storedData.voyageEvents.map((e: any) => e.vessel))].slice(0, 5));
     }
-  }, [voyageEvents.length, isDataReady]);
+  } else {
+    console.log(`❌ DataContext[${instanceId.current}]: No valid data found in localStorage (checked voyage events, cost allocation, and manifests)`);
+  }
+  
+  // Mark initialization as complete
+  React.useEffect(() => {
+    isInitializing = false;
+    console.log(`🏁 DataContext[${instanceId.current}] initialization completed`);
+  }, []);
+  
+  // ENHANCED Auto-set isDataReady when we have voyage events - but only if not conflicting
+  React.useEffect(() => {
+    const hasVoyageEvents = voyageEvents.length > 0;
+    const hasCostAllocation = costAllocation.length > 0;
+    const hasAnyData = hasVoyageEvents || hasCostAllocation || vesselManifests.length > 0;
+    
+    console.log(`🎯[${instanceId.current}] Auto-checking data readiness:`, { 
+      hasVoyageEvents, 
+      hasCostAllocation,
+      hasAnyData,
+      voyageEventsCount: voyageEvents.length,
+      costAllocationCount: costAllocation.length,
+      currentIsDataReady: isDataReady,
+      shouldUpdate: hasAnyData !== isDataReady,
+      isLoading
+    });
+    
+    // CRITICAL FIX: Only update isDataReady if this instance actually has data and we're confident about it
+    if (hasAnyData && !isDataReady) {
+      // Additional validation: ensure the data looks legitimate
+      if (hasVoyageEvents) {
+        const firstEvent = voyageEvents[0];
+        if (firstEvent && firstEvent.vessel && firstEvent.eventDate) {
+          console.log(`🔄[${instanceId.current}] Updating isDataReady from false to true (valid voyage events detected)`);
+          setIsDataReadyState(true);
+        } else {
+          console.warn(`⚠️[${instanceId.current}] Voyage events exist but appear invalid - not setting isDataReady`);
+        }
+      } else if (hasCostAllocation) {
+        const firstCost = costAllocation[0];
+        if (firstCost && firstCost.lcNumber) {
+          console.log(`🔄[${instanceId.current}] Updating isDataReady from false to true (valid cost allocation detected)`);
+          setIsDataReadyState(true);
+        } else {
+          console.warn(`⚠️[${instanceId.current}] Cost allocation exists but appears invalid - not setting isDataReady`);
+        }
+      }
+    } else if (!hasAnyData && isDataReady && !isLoading) {
+      // Only set to false if we're absolutely sure there's no data and we're the authoritative instance
+      if (!dataContextInstance || !dataContextInstance.hasData) {
+        console.log(`🔄[${instanceId.current}] Updating isDataReady from true to false (confirmed no data)`);
+        setIsDataReadyState(false);
+      } else {
+        console.log(`⏸️[${instanceId.current}] Not setting isDataReady to false - authoritative instance has data`);
+      }
+    }
+  }, [voyageEvents, costAllocation, vesselManifests.length, isDataReady, isLoading]);
   
   // Auto-save data whenever main arrays change (DISABLED temporarily due to quota errors)
   React.useEffect(() => {
     if (voyageEvents.length > 0) {
-      console.log('💾 Data changed (auto-save disabled due to storage quota):', {
-        voyageEvents: voyageEvents.length,
-        vesselManifests: vesselManifests.length,
-        costAllocation: costAllocation.length
-      });
+      // Reduced logging to minimize storage impact
+      if (voyageEvents.length < 100) { // Only log for small datasets
+        console.log(`💾 Data changed (auto-save disabled due to storage quota):`, {
+          voyageEvents: voyageEvents.length,
+          vesselManifests: vesselManifests.length,
+          costAllocation: costAllocation.length
+        });
+      }
       
       // EMERGENCY: Disable auto-save to prevent QuotaExceededError
       // User needs to clear storage first
-      console.warn('⚠️ Auto-save disabled - storage quota exceeded. Please clear storage.');
+      if (voyageEvents.length < 100) { // Only warn for small datasets to avoid spam
+        console.warn(`⚠️ Auto-save disabled - storage quota exceeded. Please clear storage.`);
+      }
     }
   }, [voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length]);
   
@@ -413,6 +632,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // Save data to localStorage with size management and chunking
   const saveDataToStorage = (data: any) => {
+    const timestamp = new Date().toISOString();
+    console.log(`💾[${instanceId.current}] saveDataToStorage called at ${timestamp}:`, {
+      hasVoyageEvents: !!(data.voyageEvents && data.voyageEvents.length > 0),
+      voyageEventsCount: data.voyageEvents?.length || 0,
+      vesselManifestsCount: data.vesselManifests?.length || 0,
+      costAllocationCount: data.costAllocation?.length || 0,
+      voyageListCount: data.voyageList?.length || 0,
+      stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n')
+    });
+    
     try {
       const totalRecords = Object.values(data).reduce((sum: number, arr) => sum + ((arr as any[])?.length || 0), 0);
       
@@ -434,7 +663,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const dataString = JSON.stringify(dataWithMetadata);
       const dataSizeMB = (new Blob([dataString]).size / 1024 / 1024).toFixed(2);
       
-      console.log('💾 Attempting to save to localStorage:', {
+      console.log(`💾[${instanceId.current}] Attempting to save to localStorage:`, {
         totalRecords,
         hasMetadata: true,
         voyageEventsCount: data.voyageEvents?.length || 0,
@@ -444,14 +673,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       
       // Check if data is too large for localStorage (typical limit is 5-10MB)
       if (dataString.length > 4 * 1024 * 1024) { // 4MB threshold
-        console.warn('⚠️ Data size is large, implementing storage strategy...', { dataSizeMB });
+        console.warn(`⚠️[${instanceId.current}] Data size is large, implementing storage strategy...`, { dataSizeMB });
         
         // Try to save with compressed format first
         const compressedData = compressDataForStorage(dataWithMetadata);
         const compressedString = JSON.stringify(compressedData);
         const compressedSizeMB = (new Blob([compressedString]).size / 1024 / 1024).toFixed(2);
         
-        console.log('🗜️ Compressed data size:', { 
+        console.log(`🗜️[${instanceId.current}] Compressed data size:`, { 
           originalMB: dataSizeMB, 
           compressedMB: compressedSizeMB,
           compressionRatio: `${((1 - compressedString.length / dataString.length) * 100).toFixed(1)}%`
@@ -460,11 +689,41 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         if (compressedString.length < 4.5 * 1024 * 1024) { // Still within reasonable limits
           localStorage.setItem('bp-logistics-data', compressedString);
           localStorage.setItem('bp-logistics-data-compressed', 'true');
-          console.log('✅ Saved compressed data to localStorage');
+          console.log(`✅[${instanceId.current}] Saved compressed data to localStorage`);
+          
+          // VERIFICATION: Immediately check if data was actually saved
+          setTimeout(() => {
+            const verification = localStorage.getItem('bp-logistics-data');
+            if (verification) {
+              const verifySize = Math.round(verification.length / 1024);
+              console.log(`🔍[${instanceId.current}] VERIFICATION: Data persisted in localStorage, size: ${verifySize}KB`);
+              try {
+                const verifyParsed = JSON.parse(verification);
+                console.log(`✅[${instanceId.current}] VERIFICATION: Data is parseable, voyage events: ${(verifyParsed.voyageEvents || []).length}`);
+              } catch (e) {
+                console.error(`❌[${instanceId.current}] VERIFICATION: Data exists but not parseable:`, e);
+              }
+            } else {
+              console.error(`🚨[${instanceId.current}] VERIFICATION FAILED: Data was not saved to localStorage!`);
+            }
+          }, 100);
+          
+          // Update the authoritative instance
+          dataContextInstance = {
+            hasData: true,
+            lastUpdated: new Date(),
+            voyageEvents: data.voyageEvents || [],
+            vesselManifests: data.vesselManifests || [],
+            masterFacilities: data.masterFacilities || [],
+            costAllocation: data.costAllocation || [],
+            vesselClassifications: data.vesselClassifications || [],
+            voyageList: data.voyageList || [],
+            bulkActions: data.bulkActions || []
+          };
           return;
         } else {
           // If still too large, implement chunked storage
-          console.warn('📦 Data still too large, implementing chunked storage...');
+          console.warn(`📦[${instanceId.current}] Data still too large, implementing chunked storage...`);
           saveDataInChunks(dataWithMetadata);
           return;
         }
@@ -474,14 +733,44 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       localStorage.setItem('bp-logistics-data', dataString);
       localStorage.removeItem('bp-logistics-data-compressed'); // Remove compression flag if it exists
       localStorage.removeItem('bp-logistics-data-chunked'); // Remove chunked flag if it exists
-      console.log('✅ Saved data to localStorage normally');
+      console.log(`✅[${instanceId.current}] Saved data to localStorage normally`);
+      
+      // VERIFICATION: Immediately check if data was actually saved
+      setTimeout(() => {
+        const verification = localStorage.getItem('bp-logistics-data');
+        if (verification) {
+          const verifySize = Math.round(verification.length / 1024);
+          console.log(`🔍[${instanceId.current}] VERIFICATION: Data persisted in localStorage, size: ${verifySize}KB`);
+          try {
+            const verifyParsed = JSON.parse(verification);
+            console.log(`✅[${instanceId.current}] VERIFICATION: Data is parseable, voyage events: ${(verifyParsed.voyageEvents || []).length}`);
+          } catch (e) {
+            console.error(`❌[${instanceId.current}] VERIFICATION: Data exists but not parseable:`, e);
+          }
+        } else {
+          console.error(`🚨[${instanceId.current}] VERIFICATION FAILED: Data was not saved to localStorage!`);
+        }
+      }, 100);
+      
+      // Update the authoritative instance
+      dataContextInstance = {
+        hasData: true,
+        lastUpdated: new Date(),
+        voyageEvents: data.voyageEvents || [],
+        vesselManifests: data.vesselManifests || [],
+        masterFacilities: data.masterFacilities || [],
+        costAllocation: data.costAllocation || [],
+        vesselClassifications: data.vesselClassifications || [],
+        voyageList: data.voyageList || [],
+        bulkActions: data.bulkActions || []
+      };
       
     } catch (error) {
       if (error instanceof Error && error.name === 'QuotaExceededError') {
-        console.error('💥 localStorage quota exceeded! Implementing fallback strategy...', error);
+        console.error(`💥[${instanceId.current}] localStorage quota exceeded! Implementing fallback strategy...`, error);
         handleQuotaExceeded(data);
       } else {
-        console.warn('Failed to save data to localStorage:', error);
+        console.warn(`[${instanceId.current}] Failed to save data to localStorage:`, error);
       }
     }
   };
@@ -816,14 +1105,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
   
   const setIsDataReady = (ready: boolean) => {
-    console.log('📊 DataContext: setIsDataReady called with:', ready, {
+    console.log(`📊[${instanceId.current}] DataContext: setIsDataReady called with:`, ready, {
       voyageEventsCount: voyageEvents.length,
       vesselManifestsCount: vesselManifests.length,
       costAllocationCount: costAllocation.length
     });
     setIsDataReadyState(ready);
     if (ready) {
-      console.log('💾 Saving data to localStorage...', {
+      console.log(`💾[${instanceId.current}] Saving data to localStorage...`, {
         voyageEvents: voyageEvents.length,
         vesselManifests: vesselManifests.length,
         costAllocation: costAllocation.length
@@ -902,11 +1191,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   
   // Force refresh data from localStorage (for debugging)
   const forceRefreshFromStorage = () => {
-    console.log('🔄 Force refreshing data from localStorage...');
+    console.log(`🔄[${instanceId.current}] Force refreshing data from localStorage...`);
     const freshStoredData = loadStoredData();
     
     if (freshStoredData) {
-      console.log('✅ Fresh data loaded:', {
+      console.log(`✅[${instanceId.current}] Fresh data loaded:`, {
         hasData: freshStoredData.hasData,
         voyageEventsCount: freshStoredData.voyageEvents?.length || 0,
         vesselManifestsCount: freshStoredData.vesselManifests?.length || 0
@@ -923,12 +1212,104 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setIsDataReadyState(freshStoredData.hasData || false);
       setLastUpdated(freshStoredData.lastUpdated || null);
       
-      console.log('🎯 Force refresh completed, isDataReady set to:', freshStoredData.hasData);
+      console.log(`🎯[${instanceId.current}] Force refresh completed, isDataReady set to:`, freshStoredData.hasData);
     } else {
-      console.log('❌ No fresh data found in localStorage');
+      console.log(`❌[${instanceId.current}] No fresh data found in localStorage`);
       setIsDataReadyState(false);
     }
   };
+  
+  // EMERGENCY DEBUG: Add a manual override function that can be called from console
+  const manualDataCheck = React.useCallback(() => {
+    console.log(`🔍[${instanceId.current}] MANUAL DEBUG: Checking data state...`);
+    console.log(`📊[${instanceId.current}] Current state:`, {
+      voyageEventsCount: voyageEvents.length,
+      vesselManifestsCount: vesselManifests.length,
+      isDataReady,
+      isLoading
+    });
+    
+    // ENHANCED: Direct localStorage inspection
+    console.log(`🚨[${instanceId.current}] DIRECT localStorage inspection:`);
+    const allKeys = Object.keys(localStorage);
+    console.log(`🗂️[${instanceId.current}] All localStorage keys:`, allKeys);
+    
+    const bpKeys = allKeys.filter(key => key.startsWith('bp-logistics'));
+    console.log(`📋[${instanceId.current}] BP logistics keys:`, bpKeys);
+    
+    bpKeys.forEach(key => {
+      const value = localStorage.getItem(key);
+      if (value) {
+        const sizeKB = Math.round(value.length / 1024);
+        const sizeMB = (value.length / 1024 / 1024).toFixed(2);
+        console.log(`📊[${instanceId.current}] ${key}:`, {
+          sizeKB: `${sizeKB}KB`,
+          sizeMB: `${sizeMB}MB`,
+          stringLength: value.length,
+          blobSize: new Blob([value]).size,
+          firstChars: value.substring(0, 100),
+          lastChars: value.substring(value.length - 100)
+        });
+        
+        if (key === 'bp-logistics-data') {
+          try {
+            const parsed = JSON.parse(value);
+            console.log(`🔬[${instanceId.current}] Parsed data detailed analysis:`, {
+              topLevelKeys: Object.keys(parsed),
+              voyageEvents: {
+                exists: !!parsed.voyageEvents,
+                isArray: Array.isArray(parsed.voyageEvents),
+                length: parsed.voyageEvents?.length || 0,
+                firstElement: parsed.voyageEvents?.[0],
+                sample: parsed.voyageEvents?.slice(0, 3)
+              },
+              vesselManifests: {
+                exists: !!parsed.vesselManifests,
+                isArray: Array.isArray(parsed.vesselManifests),
+                length: parsed.vesselManifests?.length || 0
+              },
+              metadata: {
+                exists: !!parsed.metadata,
+                content: parsed.metadata
+              }
+            });
+            
+            // Test if we can manually set the data
+            if (parsed.voyageEvents && Array.isArray(parsed.voyageEvents) && parsed.voyageEvents.length > 0) {
+              console.log(`🚨[${instanceId.current}] Data exists but React state is empty - attempting manual fix!`);
+              console.log(`🔧[${instanceId.current}] Manually updating React state...`);
+              
+              // Force update the React state with the parsed data
+              setVoyageEventsState(parsed.voyageEvents || []);
+              setVesselManifestsState(parsed.vesselManifests || []);
+              setMasterFacilitiesState(parsed.masterFacilities || []);
+              setCostAllocationState(parsed.costAllocation || []);
+              setVesselClassificationsState(parsed.vesselClassifications || []);
+              setVoyageListState(parsed.voyageList || []);
+              setBulkActionsState(parsed.bulkActions || []);
+              setIsDataReadyState(true);
+              setLastUpdated(parsed.metadata?.lastUpdated ? new Date(parsed.metadata.lastUpdated) : new Date());
+              
+              console.log(`✅[${instanceId.current}] Manual state update completed!`);
+              return true;
+            }
+          } catch (e) {
+            console.error(`❌[${instanceId.current}] Failed to parse stored data:`, e);
+          }
+        }
+      }
+    });
+    
+    return false;
+  }, [voyageEvents.length, vesselManifests.length, isDataReady, isLoading]);
+  
+  // Make manualDataCheck available globally for debugging
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).debugDataContext = manualDataCheck;
+      console.log(`🛠️[${instanceId.current}] Debug function available: window.debugDataContext()`);
+    }
+  }, [isDataReady, manualDataCheck]);
   
   return (
     <DataContext.Provider value={{
