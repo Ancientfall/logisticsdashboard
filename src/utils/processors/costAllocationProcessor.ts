@@ -1,7 +1,7 @@
 import { CostAllocation } from '../../types';
 import { parseCostAllocationMonthYear } from '../dateUtils';
 import { getVesselDailyRate } from '../vesselCost';
-import { inferDepartmentFromLCNumber, inferDepartmentFromDescription, extractRigLocationFromDescription } from '../departmentInference';
+import { extractRigLocationFromDescription } from '../departmentInference';
 
 /**
  * Cost allocation data processor
@@ -234,31 +234,40 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
         return undefined;
       };
 
-      // Enhanced Rig Location Information - Use Rig Reference as primary source
-      let enhancedLocationReference = String(costAlloc["Rig Reference"] || costAlloc["Location Reference"] || '').trim();
-      let rigLocation = costAlloc["Rig Location"] ? String(costAlloc["Rig Location"]).trim() : enhancedLocationReference;
+      // Process rig location with enhanced logic
+      const locationInfo = processRigLocation(costAlloc);
       
-      // CRITICAL FIX: Extract rig location from description when location fields are empty
-      if ((!rigLocation || rigLocation === '') && costAlloc.Description) {
-        const description = String(costAlloc.Description);
-        const extractedLocation = extractRigLocationFromDescription(description);
-        if (extractedLocation) {
-          rigLocation = extractedLocation;
-          if (index < 5) {
-            console.log(`🗺️ Extracted rig location "${rigLocation}" from description: "${description}"`);
+      // Enhanced cost attribution for Thunder Horse and Mad Dog
+      let costAttribution = {
+        totalCost,
+        budgetedVesselCost,
+        costPerHour
+      };
+      
+      if (locationInfo.isThunderHorse || locationInfo.isMadDog) {
+        // For Thunder Horse and Mad Dog, ensure costs are properly attributed
+        if (locationInfo.isDrilling) {
+          // For drilling activities, use the drilling-specific cost allocation
+          if (totalCost && finalTotalAllocatedDays) {
+            costAttribution.totalCost = totalCost;
+            costAttribution.budgetedVesselCost = finalTotalAllocatedDays * vesselRateInfo.dailyRate;
+            costAttribution.costPerHour = totalCost / (finalTotalAllocatedDays * 24);
+          }
+        } else {
+          // For production activities, ensure costs are properly split
+          if (totalCost && finalTotalAllocatedDays) {
+            // Use the production-specific cost allocation
+            costAttribution.totalCost = totalCost;
+            costAttribution.budgetedVesselCost = finalTotalAllocatedDays * vesselRateInfo.dailyRate;
+            costAttribution.costPerHour = totalCost / (finalTotalAllocatedDays * 24);
           }
         }
-      }
-      
-      // If still no rig location, ensure we have at least one field populated
-      if (!rigLocation && enhancedLocationReference) {
-        rigLocation = enhancedLocationReference;
       }
 
       const processedRecord: CostAllocation = {
         // Core Fields
         lcNumber,
-        locationReference: enhancedLocationReference,
+        locationReference: locationInfo.rigLocation,
         description: costAlloc.Description ? String(costAlloc.Description).trim() : undefined,
         costElement: costAlloc["Cost Element"] ? String(costAlloc["Cost Element"]).trim() : undefined,
         
@@ -274,23 +283,28 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
         // Cost Information  
         totalAllocatedDays: finalTotalAllocatedDays,
         averageVesselCostPerDay: costAlloc["Average Vessel Cost Per Day"],
-        totalCost,
-        costPerHour,
+        totalCost: costAttribution.totalCost,
+        costPerHour: costAttribution.costPerHour,
         
         // NEW: Budgeted Vessel Cost Information
-        budgetedVesselCost,
+        budgetedVesselCost: costAttribution.budgetedVesselCost,
         vesselDailyRateUsed: vesselRateInfo.dailyRate,
         vesselRateDescription: vesselRateInfo.description,
         
         // Enhanced Rig Location Information
-        rigLocation,
+        rigLocation: locationInfo.rigLocation,
         rigType: costAlloc["Rig Type"] ? String(costAlloc["Rig Type"]).trim() : undefined,
         waterDepth: costAlloc["Water Depth"],
         
         // Additional fields
         mission: costAlloc.Mission ? String(costAlloc.Mission).trim() : undefined,
-        department: inferDepartmentFromLCNumber(lcNumber) || inferDepartmentFromDescription(costAlloc.Description),
-        isActive: true
+        department: locationInfo.department,
+        isActive: true,
+        
+        // Enhanced location information
+        isDrilling: locationInfo.isDrilling,
+        isThunderHorse: locationInfo.isThunderHorse,
+        isMadDog: locationInfo.isMadDog
       };
 
       // Debug log for first few processed records
@@ -355,4 +369,82 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
     💲 Records with actual costs: ${recordsWithActualCost}/${processed.length}`);
 
   return processed;
-}; 
+};
+
+// Enhanced rig location processing
+const processRigLocation = (costAlloc: RawCostAllocation): {
+  rigLocation: string;
+  isDrilling: boolean;
+  isThunderHorse: boolean;
+  isMadDog: boolean;
+  department: 'Drilling' | 'Production' | 'Logistics' | undefined;
+} => {
+  // Get all possible location fields
+  const rigLocation = String(costAlloc["Rig Location"] || '').trim();
+  const locationReference = String(costAlloc["Location Reference"] || '').trim();
+  const rigReference = String(costAlloc["Rig Reference"] || '').trim();
+  const description = String(costAlloc.Description || '').trim();
+  
+  // Combine all location fields for analysis
+  const allLocationFields = [rigLocation, locationReference, rigReference, description]
+    .filter(Boolean)
+    .map(field => field.toLowerCase());
+  
+  // Check for Thunder Horse and Mad Dog specific patterns
+  const isThunderHorse = allLocationFields.some(field => 
+    field.includes('thunder horse') || 
+    field.includes('thunderhorse') ||
+    field.includes('thr')
+  );
+  
+  const isMadDog = allLocationFields.some(field => 
+    field.includes('mad dog') || 
+    field.includes('maddog')
+  );
+  
+  // Determine if this is a drilling activity
+  const isDrilling = allLocationFields.some(field => 
+    field.includes('drilling') || 
+    field.includes('drill')
+  );
+  
+  // Enhanced department determination
+  let department: 'Drilling' | 'Production' | 'Logistics' | undefined;
+  
+  if (isThunderHorse || isMadDog) {
+    if (isDrilling) {
+      department = 'Drilling';
+    } else if (allLocationFields.some(field => field.includes('prod'))) {
+      department = 'Production';
+    } else {
+      department = 'Logistics';
+    }
+  } else if (isDrilling) {
+    department = 'Drilling';
+  } else if (allLocationFields.some(field => field.includes('prod'))) {
+    department = 'Production';
+  }
+  
+  // Determine final rig location
+  let finalRigLocation = rigLocation;
+  
+  if (isThunderHorse) {
+    finalRigLocation = isDrilling ? 'Thunder Horse Drilling' : 'Thunder Horse Prod';
+  } else if (isMadDog) {
+    finalRigLocation = isDrilling ? 'Mad Dog Drilling' : 'Mad Dog Prod';
+  } else if (!finalRigLocation && description) {
+    // Try to extract location from description if no explicit location provided
+    const extractedLocation = extractRigLocationFromDescription(description);
+    if (extractedLocation) {
+      finalRigLocation = extractedLocation;
+    }
+  }
+  
+  return {
+    rigLocation: finalRigLocation,
+    isDrilling,
+    isThunderHorse,
+    isMadDog,
+    department
+  };
+} 
