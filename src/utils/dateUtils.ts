@@ -10,39 +10,46 @@
  * - Vessel Manifests: 'Manifest Date' in YYYY-MM-DD HH:MM format
  * - Cost Allocation: handled separately with MM-YY format
  * 
- * Data Range: January 1, 2024 to April 30, 2025
+ * Data Range: January 1, 2024 to May 31, 2025
  */
 export const parseDate = (dateStr: string | null | undefined): Date => {
-  if (!dateStr) return new Date();
+  // Default to January 1, 2024 for missing dates (start of data range)
+  const defaultDate = new Date(2024, 0, 1);
+  
+  if (!dateStr) {
+    console.warn(`⚠️ Empty date value provided, using default date: ${defaultDate.toISOString()}`);
+    return defaultDate;
+  }
   
   try {
     // Handle YYYY-MM-DD HH:MM format (standard for most sheets)
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
-      // Validate the date is in expected range (Jan 1, 2024 - Apr 30, 2025)
+      // Validate the date is in expected range (Jan 1, 2024 - May 31, 2025)
       const minDate = new Date(2024, 0, 1);  // January 1, 2024
-      const maxDate = new Date(2025, 3, 30); // April 30, 2025
+      const maxDate = new Date(2025, 4, 31); // May 31, 2025
       
       if (date >= minDate && date <= maxDate) {
         return date;
       } else {
-        console.warn(`⚠️ Parsed date ${date.toISOString()} from "${dateStr}" is outside expected data range (Jan 1, 2024 - Apr 30, 2025). This may indicate a data quality issue.`);
+        console.warn(`⚠️ Parsed date ${date.toISOString()} from "${dateStr}" is outside expected data range (Jan 1, 2024 - May 31, 2025). This may indicate a data quality issue.`);
         // Return the parsed date anyway but log the warning
         return date;
       }
     }
     
-    console.warn(`⚠️ Could not parse date: "${dateStr}", using current date`);
-    return new Date();
+    console.warn(`⚠️ Could not parse date: "${dateStr}", using default date: ${defaultDate.toISOString()}`);
+    return defaultDate;
   } catch (error) {
     console.warn(`⚠️ Error parsing date: ${dateStr}`, error);
-    return new Date();
+    return defaultDate;
   }
 };
 
 /**
  * Enhanced Date Parser for Cost Allocation Month-Year column
  * Handles multiple formats including:
+ * - M/D/YY format: "1/1/24" -> January 2024
  * - MM-YY format: "01-24" -> January 2024
  * - YYYY-MM-DD format: "2019-12-31" -> December 2019  
  * - YYYY-MM format: "2019-12" -> December 2019
@@ -89,10 +96,10 @@ export const parseCostAllocationMonthYear = (monthYearStr: string | number | Dat
       
       // Validate the converted date is within our data range
       const minDate = new Date(2024, 0, 1);   // January 1, 2024
-      const maxDate = new Date(2025, 3, 30);  // April 30, 2025
+      const maxDate = new Date(2025, 4, 31);  // May 31, 2025
       
       if (date < minDate || date > maxDate) {
-        console.warn(`⚠️ Excel serial date ${monthYearStr} converts to ${date.toISOString()} which is outside data range (Jan 2024 - Apr 2025). This may indicate incorrect data.`);
+        console.warn(`⚠️ Excel serial date ${monthYearStr} converts to ${date.toISOString()} which is outside data range (Jan 2024 - May 2025). This may indicate incorrect data.`);
       }
       
       console.log(`📅 Excel serial date converted: ${monthYearStr} -> ${date.toISOString()} -> ${monthYear}`);
@@ -109,6 +116,27 @@ export const parseCostAllocationMonthYear = (monthYearStr: string | number | Dat
   // Handle string formats
   if (typeof monthYearStr === 'string') {
     const trimmed = monthYearStr.trim();
+    
+    // Handle M/D/YY format first (e.g., 1/1/24, 12/31/24)
+    const mdyyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (mdyyMatch) {
+      const [, month, day, yearShort] = mdyyMatch;
+      const fullYear = 2000 + parseInt(yearShort);
+      const parsedDate = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+      
+      if (!isNaN(parsedDate.getTime())) {
+        const year = parsedDate.getFullYear();
+        const month = parsedDate.getMonth() + 1;
+        const monthYear = `${String(month).padStart(2, '0')}-${String(year).slice(-2)}`;
+        
+        return {
+          year,
+          month,
+          monthYear,
+          costAllocationDate: new Date(year, month - 1, 15)
+        };
+      }
+    }
     
     // Handle full date formats (YYYY-MM-DD, YYYY-MM-DD HH:MM, etc.)
     if (trimmed.includes('-') && trimmed.length > 7) {
@@ -172,15 +200,8 @@ export const parseCostAllocationMonthYear = (monthYearStr: string | number | Dat
       let fullYear: number;
       
       if (yearNum >= 0 && yearNum <= 99) {
-        // Smart year conversion for 2024-2025 data range:
-        // 24-25 = 2024-2025, 00-23 = 2000-2023 (legacy data), 26-99 = 1926-1999 (very old data)
-        if (yearNum >= 24 && yearNum <= 25) {
-          fullYear = 2000 + yearNum; // 24 -> 2024, 25 -> 2025
-        } else if (yearNum >= 0 && yearNum <= 23) {
-          fullYear = 2000 + yearNum; // 00-23 -> 2000-2023 (for any legacy data)
-        } else {
-          fullYear = 1900 + yearNum; // 26-99 -> 1926-1999 (very old data, unlikely)
-        }
+        // Convert 2-digit year to 4-digit year (24 -> 2024, 25 -> 2025)
+        fullYear = 2000 + yearNum;
       } else {
         console.warn(`⚠️ Invalid 2-digit year: ${yearNum} from "${trimmed}". Defaulting to 2024.`);
         fullYear = 2024;

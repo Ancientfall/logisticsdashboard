@@ -41,115 +41,110 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Background Pattern */}
-      <div className="fixed inset-0 bg-gradient-to-br from-gray-100 to-gray-50 opacity-5 pointer-events-none" />
-      
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
       {/* Header */}
-      <header className="bg-white shadow-lg relative z-20">
-        <div className="border-b-4 border-green-600">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              {/* Left Section - Logo */}
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-14 h-14 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center shadow-md">
-                    <span className="text-white font-bold text-2xl">bp</span>
-                  </div>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    Logistics Analytics
-                  </h1>
-                  <p className="text-sm text-gray-600">
-                    Offshore Vessel Operations
-                  </p>
+      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 relative z-20">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Left Section - Logo */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-xl">bp</span>
                 </div>
               </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">
+                  Logistics Analytics
+                </h1>
+                <p className="text-sm text-gray-600">
+                  Offshore Vessel Operations
+                </p>
+              </div>
+            </div>
 
-              {/* Center Section - Navigation */}
-              <nav className="hidden md:flex items-center gap-8">
-                <button 
-                  onClick={onNavigateToDrilling}
-                  className={`transition-colors font-medium pb-1 ${
-                    currentView === 'drilling' 
-                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
-                      : 'text-gray-700 hover:text-green-600'
-                  }`}
-                >
-                  Drilling
-                </button>
-                <button 
-                  onClick={onNavigateToProduction}
-                  className={`transition-colors font-medium pb-1 ${
-                    currentView === 'production' 
-                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
-                      : 'text-gray-700 hover:text-green-600'
-                  }`}
-                >
-                  Production
-                </button>
-                <button 
-                  onClick={onNavigateToComparison}
-                  className={`transition-colors font-medium pb-1 ${
-                    currentView === 'comparison' 
-                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
-                      : 'text-gray-700 hover:text-green-600'
-                  }`}
-                >
-                  Comparison
-                </button>
-                <button 
-                  onClick={onNavigateToVoyage}
-                  className={`transition-colors font-medium pb-1 ${
-                    currentView === 'voyage' 
-                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
-                      : 'text-gray-700 hover:text-green-600'
-                  }`}
-                >
-                  Voyage Analytics
-                </button>
-                <button 
-                  onClick={onNavigateToCost}
-                  className={`transition-colors font-medium pb-1 ${
-                    currentView === 'cost' 
-                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
-                      : 'text-gray-700 hover:text-green-600'
-                  }`}
-                >
-                  Cost Allocation
-                </button>
-                <button 
-                  onClick={onNavigateToDashboard}
-                  className={`transition-colors font-medium pb-1 ${
-                    currentView === 'dashboard' 
-                      ? 'text-green-600 font-semibold border-b-2 border-green-600' 
-                      : 'text-gray-700 hover:text-green-600'
-                  }`}
-                >
-                  Data Settings
-                </button>
-              </nav>
+            {/* Center Section - Navigation */}
+            <nav className="hidden md:flex items-center gap-1">
+              <button 
+                onClick={onNavigateToDrilling}
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === 'drilling' 
+                    ? 'bg-green-100 text-green-700 shadow-sm' 
+                    : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Drilling
+              </button>
+              <button 
+                onClick={onNavigateToProduction}
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === 'production' 
+                    ? 'bg-green-100 text-green-700 shadow-sm' 
+                    : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Production
+              </button>
+              <button 
+                onClick={onNavigateToComparison}
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === 'comparison' 
+                    ? 'bg-green-100 text-green-700 shadow-sm' 
+                    : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Comparison
+              </button>
+              <button 
+                onClick={onNavigateToVoyage}
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === 'voyage' 
+                    ? 'bg-green-100 text-green-700 shadow-sm' 
+                    : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Voyage Analytics
+              </button>
+              <button 
+                onClick={onNavigateToCost}
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === 'cost' 
+                    ? 'bg-green-100 text-green-700 shadow-sm' 
+                    : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Cost Allocation
+              </button>
+              <button 
+                onClick={onNavigateToDashboard}
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === 'dashboard' 
+                    ? 'bg-green-100 text-green-700 shadow-sm' 
+                    : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
+                }`}
+              >
+                Data Settings
+              </button>
+            </nav>
 
-              {/* Right Section - User Info */}
-              <div className="flex items-center gap-6">
-                <div className="text-right hidden lg:block">
-                  <p className="text-sm font-medium text-gray-900">
-                    {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button className="p-2 hover:bg-gray-100 rounded-md transition-colors">
-                    <svg className="w-5 h-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                    </svg>
-                  </button>
-                  <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center text-white font-semibold">
-                    <span>JD</span>
-                  </div>
+            {/* Right Section - User Info */}
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden lg:block">
+                <p className="text-sm font-medium text-gray-700">
+                  {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button className="p-2 hover:bg-gray-100/50 rounded-lg transition-all duration-200 backdrop-blur-sm">
+                  <svg className="w-5 h-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                  </svg>
+                </button>
+                <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
+                  <span>JD</span>
                 </div>
               </div>
             </div>
@@ -157,13 +152,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </div>
 
         {/* Sub-header with breadcrumb */}
-        <div className="bg-gray-50 border-b border-gray-200">
+        <div className="bg-green-50/50 border-t border-green-100">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <button 
                   onClick={onNavigateHome}
-                  className="text-gray-500 hover:text-green-600 transition-colors cursor-pointer"
+                  className="text-gray-500 hover:text-green-600 transition-all duration-200 cursor-pointer px-2 py-1 rounded-md hover:bg-white/50"
                 >
                   Home
                 </button>
@@ -187,7 +182,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                     Data updated: {lastUpdated.toLocaleDateString()}
                   </span>
                 )}
-                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm hover:bg-gray-50 transition-colors">
+                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl text-sm hover:bg-white shadow-sm transition-all duration-200">
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
@@ -195,7 +190,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 </button>
                 <button 
                   onClick={handleResetData}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm shadow-sm transition-all duration-200"
                   title="Reset data and return to upload mode"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -203,7 +198,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   </svg>
                   Reset Data
                 </button>
-                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors">
+                <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-sm shadow-sm hover:shadow-md transition-all duration-200">
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
                   </svg>
@@ -216,28 +211,24 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       </header>
       
       {/* Main Content */}
-      <main className="relative z-10">
+      <main className="flex-1">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Main Content Area */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            {children}
-          </div>
+          {children}
         </div>
       </main>
       
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-auto">
+      <footer className="bg-white/60 backdrop-blur-sm border-t border-gray-200/50 mt-auto">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between text-sm text-gray-600">
             <div className="flex items-center gap-6">
               <span>© 2024 BP p.l.c.</span>
-              <button className="hover:text-green-600 transition-colors">Privacy</button>
-              <button className="hover:text-green-600 transition-colors">Terms</button>
-              <button className="hover:text-green-600 transition-colors">Support</button>
+              <span className="text-gray-400">•</span>
+              <span>Offshore Logistics Dashboard</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-              <span>All systems operational</span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>System operational</span>
             </div>
           </div>
         </div>

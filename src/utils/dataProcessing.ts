@@ -438,10 +438,10 @@ const getDateRange = (voyageEvents: VoyageEvent[], costAllocation: CostAllocatio
     .sort((a, b) => a.getTime() - b.getTime());
   
   if (validDates.length === 0) {
-    console.warn('⚠️ No valid dates found, using confirmed data range: Jan 1, 2024 - Apr 30, 2025');
+    console.warn('⚠️ No valid dates found, using confirmed data range: Jan 1, 2024 - May 31, 2025');
     return {
       startDate: new Date(2024, 0, 1),  // January 1, 2024
-      endDate: new Date(2025, 3, 30)    // April 30, 2025
+      endDate: new Date(2025, 4, 31)    // May 31, 2025
     };
   }
   
@@ -456,11 +456,11 @@ const getDateRange = (voyageEvents: VoyageEvent[], costAllocation: CostAllocatio
 };
 
 const getDefaultFilters = (): DashboardFilters => {
-  const now = new Date();
+  // Default to January 2024 for consistency with data range
   return {
     selectedDepartment: 'Drilling',
-    selectedMonth: now.toISOString().slice(0, 7), // Current month in YYYY-MM format
-    selectedYear: now.getFullYear()
+    selectedMonth: '2024-01', // January 2024 in YYYY-MM format
+    selectedYear: 2024
   };
 };
 

@@ -234,24 +234,25 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
         return undefined;
       };
 
-      // Enhanced Rig Location Information - extract from description if location fields are empty
-      let rigLocation = costAlloc["Rig Location"] ? String(costAlloc["Rig Location"]).trim() : undefined;
+      // Enhanced Rig Location Information - Use Rig Reference as primary source
       let enhancedLocationReference = String(costAlloc["Rig Reference"] || costAlloc["Location Reference"] || '').trim();
+      let rigLocation = costAlloc["Rig Location"] ? String(costAlloc["Rig Location"]).trim() : enhancedLocationReference;
       
       // CRITICAL FIX: Extract rig location from description when location fields are empty
       if ((!rigLocation || rigLocation === '') && costAlloc.Description) {
         const description = String(costAlloc.Description);
-        rigLocation = extractRigLocationFromDescription(description);
-        if (rigLocation && index < 5) {
-          console.log(`🗺️ Extracted rig location "${rigLocation}" from description: "${description}"`);
+        const extractedLocation = extractRigLocationFromDescription(description);
+        if (extractedLocation) {
+          rigLocation = extractedLocation;
+          if (index < 5) {
+            console.log(`🗺️ Extracted rig location "${rigLocation}" from description: "${description}"`);
+          }
         }
       }
       
-      // If still no rig location, try location reference
-      if ((!rigLocation || rigLocation === '') && (!enhancedLocationReference || enhancedLocationReference === '')) {
-        if (costAlloc.Description) {
-          enhancedLocationReference = extractRigLocationFromDescription(String(costAlloc.Description)) || '';
-        }
+      // If still no rig location, ensure we have at least one field populated
+      if (!rigLocation && enhancedLocationReference) {
+        rigLocation = enhancedLocationReference;
       }
 
       const processedRecord: CostAllocation = {

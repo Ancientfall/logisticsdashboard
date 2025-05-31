@@ -176,7 +176,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
     unit?: string;
     subtitle?: string;
   }> = ({ title, value, trend, isPositive, unit, subtitle }) => (
-    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+    <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-gray-200/50 transition-all duration-200 hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{title}</p>
@@ -194,7 +194,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                   </svg>
                 )}
                 <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                  {Math.abs(trend).toFixed(1)}%
+                  {Math.abs(trend).toFixed(2)}%
                 </span>
               </div>
             )}
@@ -210,32 +210,35 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">VOYAGE ANALYTICS</h2>
-          <p className="text-lg text-gray-600 font-medium">STRATEGIC ROUTE PLANNING & EXECUTION</p>
-        </div>
-        <button
-          onClick={onNavigateToUpload}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-        >
+      <div className="bg-white/80 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">VOYAGE ANALYTICS</h2>
+            <p className="text-lg text-gray-600 font-medium">STRATEGIC ROUTE PLANNING & EXECUTION</p>
+          </div>
+          <button
+            onClick={onNavigateToUpload}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-lg text-gray-700 hover:bg-gray-50/80 transition-all duration-200"
+          >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
           </svg>
           Back to Upload
         </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">MONTH</label>
-            <select 
-              className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent min-w-[120px]"
-              value={filters.selectedMonth}
-              onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
-            >
+      <div className="bg-white/80 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">MONTH</label>
+              <select 
+                className="px-3 py-2 bg-white/80 border border-gray-200/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px] transition-all duration-200"
+                value={filters.selectedMonth}
+                onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
+              >
               {filterOptions.months.map(month => (
                 <option key={month} value={month}>{month}</option>
               ))}
@@ -243,12 +246,12 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">PURPOSE</label>
-            <select 
-              className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent min-w-[120px]"
-              value={filters.selectedVoyagePurpose}
-              onChange={(e) => setFilters(prev => ({ ...prev, selectedVoyagePurpose: e.target.value }))}
-            >
+              <label className="text-sm font-medium text-gray-700">PURPOSE</label>
+              <select 
+                className="px-3 py-2 bg-white/80 border border-gray-200/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px] transition-all duration-200"
+                value={filters.selectedVoyagePurpose}
+                onChange={(e) => setFilters(prev => ({ ...prev, selectedVoyagePurpose: e.target.value }))}
+              >
               {filterOptions.purposes.map(purpose => (
                 <option key={purpose} value={purpose}>{purpose}</option>
               ))}
@@ -256,8 +259,9 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
           </div>
         </div>
         
-        <div className="text-sm text-gray-500">
-          {voyageAnalytics.peakSeasonIndicator}
+          <div className="text-sm text-gray-500">
+            {voyageAnalytics.peakSeasonIndicator}
+          </div>
         </div>
       </div>
 
@@ -270,7 +274,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         />
         <KPICard 
           title="Avg Duration" 
-          value={voyageAnalytics.averageVoyageDuration.toFixed(1)}
+          value={voyageAnalytics.averageVoyageDuration.toFixed(2)}
           unit="hours"
           trend={voyageAnalytics.avgVoyageDurationMoMChange}
           isPositive={voyageAnalytics.avgVoyageDurationMoMChange < 0} // Shorter is better
@@ -282,18 +286,18 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         />
         <KPICard 
           title="Voyages/Vessel" 
-          value={voyageAnalytics.voyagesPerVessel.toFixed(1)}
+          value={voyageAnalytics.voyagesPerVessel.toFixed(2)}
           subtitle="Utilization rate"
         />
         <KPICard 
           title="Multi-Stop %" 
-          value={voyageAnalytics.multiStopPercentage.toFixed(1)}
+          value={voyageAnalytics.multiStopPercentage.toFixed(2)}
           unit="%"
           subtitle="≥3 stops"
         />
         <KPICard 
           title="On-Time %" 
-          value={voyageAnalytics.onTimeVoyagePercentage.toFixed(1)}
+          value={voyageAnalytics.onTimeVoyagePercentage.toFixed(2)}
           unit="%"
           subtitle="±2 hours"
         />
@@ -308,19 +312,19 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         />
         <KPICard 
           title="Drilling Voyages" 
-          value={voyageAnalytics.drillingVoyagePercentage.toFixed(1)}
+          value={voyageAnalytics.drillingVoyagePercentage.toFixed(2)}
           unit="%"
           subtitle="Purpose distribution"
         />
         <KPICard 
           title="Mixed Efficiency" 
-          value={voyageAnalytics.mixedVoyageEfficiency.toFixed(1)}
+          value={voyageAnalytics.mixedVoyageEfficiency.toFixed(2)}
           unit="%"
           subtitle="Multi-purpose trips"
         />
         <KPICard 
           title="Fourchon Routes" 
-          value={voyageAnalytics.routeConcentration.toFixed(1)}
+          value={voyageAnalytics.routeConcentration.toFixed(2)}
           unit="%"
           subtitle="Origin concentration"
         />
@@ -334,7 +338,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Voyage Purpose Distribution */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
+        <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 shadow-sm border border-gray-200/50">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Voyage Purpose Distribution</h3>
             <div className="text-sm text-gray-500">OPERATIONAL FOCUS</div>
@@ -348,11 +352,11 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                     <div key={item.name}>
                       <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                         <span>{item.name}</span>
-                        <span>{item.value} voyages ({item.percentage.toFixed(1)}%)</span>
+                        <span>{item.value} voyages ({item.percentage.toFixed(2)}%)</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-6">
+                      <div className="w-full bg-gray-200/50 rounded-full h-6">
                         <div 
-                          className={`${colors[index % colors.length]} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium`}
+                          className={`${colors[index % colors.length]} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium transition-all duration-500`}
                           style={{ width: `${Math.max(10, item.percentage)}%` }}
                         >
                           {item.value}
@@ -371,7 +375,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         </div>
 
         {/* Route Complexity Analysis */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
+        <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 shadow-sm border border-gray-200/50">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Route Complexity</h3>
             <div className="text-sm text-gray-500">STOP COUNT ANALYSIS</div>
@@ -384,9 +388,9 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                     <span>{item.name}</span>
                     <span>{item.value} voyages</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-6">
+                  <div className="w-full bg-gray-200/50 rounded-full h-6">
                     <div 
-                      className={`${item.color} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium`}
+                      className={`${item.color} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium transition-all duration-500`}
                       style={{ width: `${Math.max(10, (item.value / voyageAnalytics.totalVoyages) * 100)}%` }}
                     >
                       {item.value}
@@ -399,7 +403,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         </div>
 
         {/* Popular Destinations */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
+        <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 shadow-sm border border-gray-200/50">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Popular Destinations</h3>
             <div className="text-sm text-gray-500">TOP 5 ROUTES</div>
@@ -419,7 +423,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-bold text-gray-900">{destination.count}</div>
-                      <div className="text-xs text-gray-500">{destination.percentage.toFixed(1)}%</div>
+                      <div className="text-xs text-gray-500">{destination.percentage.toFixed(2)}%</div>
                     </div>
                   </div>
                 ))}
@@ -433,7 +437,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         </div>
 
         {/* Voyage Duration Distribution */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
+        <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 shadow-sm border border-gray-200/50">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Duration Distribution</h3>
             <div className="text-sm text-gray-500">TRIP LENGTH ANALYSIS</div>
@@ -446,9 +450,9 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                     <span>{item.name}</span>
                     <span>{item.value} voyages</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-5">
+                  <div className="w-full bg-gray-200/50 rounded-full h-5">
                     <div 
-                      className={`${item.color} h-5 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium`}
+                      className={`${item.color} h-5 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium transition-all duration-500`}
                       style={{ width: `${Math.max(8, (item.value / voyageAnalytics.totalVoyages) * 100)}%` }}
                     >
                       {item.value > 0 ? item.value : ''}
@@ -462,42 +466,42 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       </div>
 
       {/* Execution Performance Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+      <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 backdrop-blur-md rounded-xl p-6 border border-blue-200/50 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Voyage Execution Performance</h3>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+            <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
             <span className="text-sm text-gray-600">
               Planning vs Execution Analysis
             </span>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-          <div className="bg-white rounded-lg p-3 shadow-sm">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 shadow-sm border border-gray-200/50">
             <div className="text-gray-600">Execution Efficiency</div>
             <div className="text-2xl font-bold text-blue-600">
-              {(voyageAnalytics.averageExecutionEfficiency * 100).toFixed(1)}%
+              {(voyageAnalytics.averageExecutionEfficiency * 100).toFixed(2)}%
             </div>
             <div className="text-xs text-gray-500">Planned vs Actual</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 shadow-sm border border-gray-200/50">
             <div className="text-gray-600">Average Stops</div>
             <div className="text-2xl font-bold text-green-600">
-              {voyageAnalytics.averageStopsPerVoyage.toFixed(1)}
+              {voyageAnalytics.averageStopsPerVoyage.toFixed(2)}
             </div>
             <div className="text-xs text-gray-500">Stops per voyage</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 shadow-sm border border-gray-200/50">
             <div className="text-gray-600">Route Efficiency</div>
             <div className="text-2xl font-bold text-purple-600">
               {voyageAnalytics.routeEfficiencyScore.toFixed(2)}
             </div>
             <div className="text-xs text-gray-500">Stops per day</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 shadow-sm border border-gray-200/50">
             <div className="text-gray-600">On-Time Performance</div>
             <div className="text-2xl font-bold text-orange-600">
-              {voyageAnalytics.onTimeVoyagePercentage.toFixed(1)}%
+              {voyageAnalytics.onTimeVoyagePercentage.toFixed(2)}%
             </div>
             <div className="text-xs text-gray-500">Within 2 hours</div>
           </div>
@@ -507,4 +511,4 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
   );
 };
 
-export default VoyageAnalyticsDashboard; 
+export default VoyageAnalyticsDashboard;

@@ -88,7 +88,7 @@ export const processVoyageEvents = (
       // Create an event for each LC allocation
       lcAllocations.forEach((allocation, allocIndex) => {
         const finalHours = hours * (allocation.percentage / 100);
-        const eventDate = from || new Date();
+        const eventDate = from || new Date(2024, 0, 1); // Default to Jan 1, 2024
         
         // Track department assignments
         const assignedDepartment = allocation.department || 'Unknown';

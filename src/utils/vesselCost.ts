@@ -7,7 +7,7 @@ import { VoyageEvent } from '../types';
 
 /**
  * Vessel cost rates by date range
- * Updated to match confirmed data range: Jan 1, 2024 - Apr 30, 2025
+ * Updated to match confirmed data range: Jan 1, 2024 - May 31, 2025
  */
 const VESSEL_COST_RATES = [
   {
@@ -18,9 +18,9 @@ const VESSEL_COST_RATES = [
   },
   {
     startDate: new Date('2025-04-01'),    // April 1, 2025
-    endDate: new Date('2025-04-30'),      // April 30, 2025 (end of data range)
+    endDate: new Date('2025-05-31'),      // May 31, 2025 (end of data range)
     dailyRate: 37800, // $37,800 per day
-    description: 'Apr 2025 Rate'
+    description: 'Apr-May 2025 Rate'
   }
 ];
 

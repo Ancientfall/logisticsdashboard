@@ -71,7 +71,10 @@ export const validateCostAllocationData = (costAllocations: CostAllocation[]): {
 
   // Track potential duplicates by creating a unique key
   costAllocations.forEach((record, index) => {
-    const recordKey = `${record.lcNumber}_${record.monthYear}_${record.rigLocation}_${ensureNumber(record.totalAllocatedDays)}`;
+    // Create a more specific key for duplicate detection
+    // LC + Month + Rig + Days combination should be unique
+    const rigRef = record.rigLocation || record.locationReference || 'Unknown';
+    const recordKey = `${record.lcNumber}_${record.monthYear}_${rigRef}_${ensureNumber(record.totalAllocatedDays)}`;
     
     // Validate allocated days
     const days = ensureNumber(record.totalAllocatedDays);
@@ -85,17 +88,18 @@ export const validateCostAllocationData = (costAllocations: CostAllocation[]): {
       issues.push(`Record ${index + 1} (LC: ${record.lcNumber}): Excessive allocated days (${days}) - possible data entry error`);
     }
 
-    // Check for potential duplicates
+    // Check for exact duplicates (same LC, month, rig, and days)
     if (seenRecords.has(recordKey)) {
       duplicates.push(record);
-      issues.push(`Record ${index + 1} (LC: ${record.lcNumber}): Potential duplicate detected`);
+      issues.push(`Record ${index + 1} (LC: ${record.lcNumber}): Exact duplicate detected (same LC, month, rig, and days)`);
     } else {
       seenRecords.add(recordKey);
       validRecords.push(record);
     }
 
-    // Validate rig location
-    if (!record.rigLocation || record.rigLocation.trim() === '') {
+    // Validate rig location - check both rigLocation and locationReference
+    if ((!record.rigLocation || record.rigLocation.trim() === '') && 
+        (!record.locationReference || record.locationReference.trim() === '')) {
       issues.push(`Record ${index + 1} (LC: ${record.lcNumber}): Missing rig location`);
     }
 
@@ -140,18 +144,8 @@ export const processMonthlyRigCosts = (costAllocations: CostAllocation[]): Month
     const year = firstRecord.year!;
     const month = firstRecord.month!;
 
-    // CRITICAL: Prevent double counting by ensuring we don't sum duplicate LCs
-    const uniqueLCs = new Map<string, CostAllocation>();
-    records.forEach(record => {
-      const lcKey = record.lcNumber;
-      if (!uniqueLCs.has(lcKey)) {
-        uniqueLCs.set(lcKey, record);
-      } else {
-        console.warn(`⚠️ Skipping duplicate LC ${lcKey} in ${rigLocation} for ${monthYear}`);
-      }
-    });
-
-    const uniqueRecords = Array.from(uniqueLCs.values());
+    // All records are valid - multiple LCs per rig/month represent different allocations
+    const uniqueRecords = records;
 
     // Calculate aggregated values
     const totalCost = uniqueRecords.reduce((sum, r) => sum + ensureNumber(r.totalCost), 0);

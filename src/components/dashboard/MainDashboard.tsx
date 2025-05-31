@@ -100,12 +100,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       const monthLabel = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
       
       if (!acc[monthKey]) {
-        acc[monthKey] = { label: monthLabel, events: 0, hours: 0 };
+        acc[monthKey] = { key: monthKey, label: monthLabel, events: 0, hours: 0 };
       }
       acc[monthKey].events += 1;
       acc[monthKey].hours += event.finalHours;
       return acc;
-    }, {} as Record<string, { label: string; events: number; hours: number }>);
+    }, {} as Record<string, { key: string; label: string; events: number; hours: number }>);
     
     return {
       totalRecords,
@@ -121,7 +121,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       uniqueLocations: uniqueLocations.size,
       locationsList: Array.from(uniqueLocations).sort(),
       dataQuality,
-      monthlyData: Object.values(monthlyData).sort((a, b) => a.label.localeCompare(b.label))
+      monthlyData: Object.values(monthlyData).sort((a, b) => a.key.localeCompare(b.key))
     };
   }, [voyageEvents, vesselManifests, costAllocation, voyageList]);
 
@@ -130,8 +130,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     
     return (
       <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-center max-w-md bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-8">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 mb-4">
             {readyButNoVoyageEvents ? 
               'Data detected but voyage events not loaded...' : 
@@ -139,7 +139,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
           </p>
           
           {/* Debug Information */}
-          <div className="text-xs text-gray-500 bg-gray-100 p-3 rounded mb-4">
+          <div className="text-xs text-gray-500 bg-gray-50/50 p-3 rounded-lg border border-gray-100/50 mb-4">
             <div>isDataReady: {isDataReady ? '✅' : '❌'}</div>
             <div>Voyage Events: {voyageEvents.length}</div>
             <div>Vessel Manifests: {vesselManifests.length}</div>
@@ -153,7 +153,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                 console.log('🔄 Manual refresh triggered from MainDashboard');
                 forceRefreshFromStorage();
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md text-sm"
             >
               🔄 Force Refresh Data
             </button>
@@ -167,7 +167,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                       (window as any).debugDataContext();
                     }
                   }}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm"
+                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md text-sm"
                 >
                   🚨 Debug Data Context
                 </button>
@@ -182,34 +182,36 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
   return (
     <div className="space-y-6">
       {/* Header with Data Processing Summary */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Data Processing Summary</h2>
-          <p className="text-gray-600">
-            Comprehensive overview of your uploaded data and processing insights
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => forceRefreshFromStorage()}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-          >
-            <RefreshCw size={16} />
-            Refresh Data
-          </button>
-          <button
-            onClick={onNavigateToUpload}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Settings size={16} />
-            Manage Data
-          </button>
+      <div className="bg-white/80 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Data Processing Summary</h2>
+            <p className="text-gray-600">
+              Comprehensive overview of your uploaded data and processing insights
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => forceRefreshFromStorage()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md"
+            >
+              <RefreshCw size={16} />
+              Refresh Data
+            </button>
+            <button
+              onClick={onNavigateToUpload}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-lg text-gray-700 hover:bg-gray-50/80 transition-all duration-200"
+            >
+              <Settings size={16} />
+              Manage Data
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+      <div className="bg-white/80 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-2">
+        <nav className="flex space-x-1">
           {[
             { id: 'overview', label: 'Data Overview', icon: <Database size={16} /> },
             { id: 'quality', label: 'Data Quality', icon: <CheckCircle size={16} /> },
@@ -219,10 +221,10 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-lg font-medium text-sm transition-all duration-200 ${
                 activeTab === tab.id
-                  ? 'border-green-500 text-green-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-green-100 text-green-700'
+                  : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
               }`}
             >
               {tab.icon}
@@ -236,31 +238,31 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Data Source Breakdown */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Source Breakdown</h3>
             <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-green-50/50 rounded-lg border border-green-100/50">
                 <div className="flex items-center gap-3">
                   <FileText size={20} className="text-green-600" />
                   <span className="font-medium">Voyage Events</span>
                 </div>
                 <span className="text-lg font-bold text-green-700">{voyageEvents.length.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
                 <div className="flex items-center gap-3">
                   <FileText size={20} className="text-blue-600" />
                   <span className="font-medium">Vessel Manifests</span>
                 </div>
                 <span className="text-lg font-bold text-blue-700">{vesselManifests.length.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-purple-50/50 rounded-lg border border-purple-100/50">
                 <div className="flex items-center gap-3">
                   <FileText size={20} className="text-purple-600" />
                   <span className="font-medium">Cost Allocations</span>
                 </div>
                 <span className="text-lg font-bold text-purple-700">{costAllocation.length.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-orange-50/50 rounded-lg border border-orange-100/50">
                 <div className="flex items-center gap-3">
                   <FileText size={20} className="text-orange-600" />
                   <span className="font-medium">Voyage Lists</span>
@@ -271,20 +273,20 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
           </div>
 
           {/* Department Distribution */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Distribution</h3>
             <div className="space-y-3">
               {Object.entries(dataAnalysis.departmentBreakdown)
                 .sort(([,a], [,b]) => b - a)
                 .map(([dept, count]) => {
-                  const percentage = ((count / voyageEvents.length) * 100).toFixed(1);
+                  const percentage = ((count / voyageEvents.length) * 100).toFixed(2);
                   return (
                     <div key={dept} className="flex items-center justify-between">
                       <span className="font-medium text-gray-700">{dept}</span>
                       <div className="flex items-center gap-3">
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div className="w-24 bg-gray-200/50 rounded-full h-2">
                           <div 
-                            className="bg-green-500 h-2 rounded-full" 
+                            className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" 
                             style={{ width: `${percentage}%` }}
                           ></div>
                         </div>
@@ -303,7 +305,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       {activeTab === 'quality' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Data Quality Issues */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Quality Assessment</h3>
             <div className="space-y-4">
               {[
@@ -313,10 +315,10 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                 { label: 'Events with zero hours', count: dataAnalysis.dataQuality.eventsWithZeroHours, severity: 'low' },
                 { label: 'Duplicate event IDs', count: dataAnalysis.dataQuality.duplicateEventIds, severity: 'high' }
               ].map((issue) => (
-                <div key={issue.label} className={`flex items-center justify-between p-3 rounded-lg ${
-                  issue.count === 0 ? 'bg-green-50' : 
-                  issue.severity === 'high' ? 'bg-red-50' :
-                  issue.severity === 'medium' ? 'bg-yellow-50' : 'bg-orange-50'
+                <div key={issue.label} className={`flex items-center justify-between p-3 rounded-lg border ${
+                  issue.count === 0 ? 'bg-green-50/50 border-green-100/50' : 
+                  issue.severity === 'high' ? 'bg-red-50/50 border-red-100/50' :
+                  issue.severity === 'medium' ? 'bg-yellow-50/50 border-yellow-100/50' : 'bg-orange-50/50 border-orange-100/50'
                 }`}>
                   <div className="flex items-center gap-3">
                     {issue.count === 0 ? (
@@ -342,7 +344,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
           </div>
 
           {/* Data Completeness */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Completeness Score</h3>
             <div className="space-y-4">
               {[
@@ -360,13 +362,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                 <div key={item.source} className="space-y-2">
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-700">{item.source}</span>
-                    <span className="text-sm text-gray-600">{item.completeness.toFixed(1)}%</span>
+                    <span className="text-sm text-gray-600">{item.completeness.toFixed(2)}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div className="w-full bg-gray-200/50 rounded-full h-3">
                     <div 
                       className={`h-3 rounded-full ${
-                        item.completeness >= 95 ? 'bg-green-500' :
-                        item.completeness >= 80 ? 'bg-yellow-500' : 'bg-red-500'
+                        item.completeness >= 95 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                        item.completeness >= 80 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' : 'bg-gradient-to-r from-red-500 to-red-600'
                       }`}
                       style={{ width: `${item.completeness}%` }}
                     ></div>
@@ -382,22 +384,22 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       {activeTab === 'vessels' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Vessel Source Analysis */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Vessel Data Sources</h3>
             <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
                 <span className="font-medium">From Voyage Events</span>
                 <span className="text-lg font-bold text-blue-700">{dataAnalysis.uniqueVessels.fromEvents}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-green-50/50 rounded-lg border border-green-100/50">
                 <span className="font-medium">From Manifests</span>
                 <span className="text-lg font-bold text-green-700">{dataAnalysis.uniqueVessels.fromManifests}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-purple-50/50 rounded-lg border border-purple-100/50">
                 <span className="font-medium">From Voyage Lists</span>
                 <span className="text-lg font-bold text-purple-700">{dataAnalysis.uniqueVessels.fromVoyageList}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+              <div className="flex justify-between items-center p-3 bg-gray-50/50 rounded-lg border-2 border-gray-200/50">
                 <span className="font-bold">Total Unique Vessels</span>
                 <span className="text-xl font-bold text-gray-900">{dataAnalysis.uniqueVessels.total}</span>
               </div>
@@ -405,7 +407,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
           </div>
 
           {/* Vessel Type Classification */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Vessel Type Classification</h3>
             <div className="space-y-3">
               {(() => {
@@ -413,26 +415,26 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                 return Object.entries(vesselStats.vesselsByType)
                   .sort(([,a], [,b]) => b - a)
                   .map(([type, count]) => {
-                    const percentage = ((count / vesselStats.totalVessels) * 100).toFixed(1);
+                    const percentage = ((count / vesselStats.totalVessels) * 100).toFixed(2);
                     const colors = {
-                      'OSV': 'bg-blue-500',
-                      'FSV': 'bg-green-500', 
-                      'Support': 'bg-purple-500',
-                      'Specialty': 'bg-orange-500',
-                      'AHTS': 'bg-red-500',
-                      'MSV': 'bg-yellow-500',
-                      'PSV': 'bg-indigo-500'
+                      'OSV': 'bg-gradient-to-r from-blue-500 to-blue-600',
+                      'FSV': 'bg-gradient-to-r from-green-500 to-green-600', 
+                      'Support': 'bg-gradient-to-r from-purple-500 to-purple-600',
+                      'Specialty': 'bg-gradient-to-r from-orange-500 to-orange-600',
+                      'AHTS': 'bg-gradient-to-r from-red-500 to-red-600',
+                      'MSV': 'bg-gradient-to-r from-yellow-500 to-yellow-600',
+                      'PSV': 'bg-gradient-to-r from-indigo-500 to-indigo-600'
                     };
                     return (
                       <div key={type} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${colors[type as keyof typeof colors] || 'bg-gray-500'}`}></div>
+                          <div className={`w-3 h-3 rounded-full ${colors[type as keyof typeof colors] || 'bg-gradient-to-r from-gray-500 to-gray-600'}`}></div>
                           <span className="font-medium text-gray-700">{type}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                          <div className="w-20 bg-gray-200/50 rounded-full h-2">
                             <div 
-                              className={`h-2 rounded-full ${colors[type as keyof typeof colors] || 'bg-gray-500'}`}
+                              className={`h-2 rounded-full ${colors[type as keyof typeof colors] || 'bg-gradient-to-r from-gray-500 to-gray-600'}`}
                               style={{ width: `${percentage}%` }}
                             ></div>
                           </div>
@@ -448,7 +450,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
           </div>
 
           {/* Vessel List with Classification */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Vessel Details ({dataAnalysis.uniqueVessels.total})</h3>
             <div className="max-h-64 overflow-y-auto space-y-1">
               {dataAnalysis.uniqueVessels.list.map((vessel, index) => {
@@ -486,11 +488,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       )}
 
       {activeTab === 'timeline' && (
-        <div className="bg-white rounded-lg p-6 shadow-md">
+        <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Activity Timeline</h3>
           <div className="space-y-3">
             {dataAnalysis.monthlyData.map((month) => (
-              <div key={month.label} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={month.label} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg border border-gray-100/50">
                 <span className="font-medium text-gray-700">{month.label}</span>
                 <div className="flex items-center gap-6 text-sm">
                   <span className="text-blue-600">
@@ -507,42 +509,44 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       )}
 
       {/* Action Buttons */}
-      <div className="flex justify-center gap-4 pt-6 border-t border-gray-200">
-        <button
-          onClick={() => {
-            const dataBlob = new Blob([JSON.stringify({
-              voyageEvents,
-              vesselManifests,
-              costAllocation,
-              voyageList,
-              analysis: dataAnalysis,
-              exportedAt: new Date().toISOString()
-            }, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `data-summary-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          <Download size={16} />
-          Export Summary Report
-        </button>
-        <button
-          onClick={() => {
-            if (window.confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
-              clearAllData();
-            }
-          }}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-        >
-          <AlertTriangle size={16} />
-          Clear All Data
-        </button>
+      <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={() => {
+              const dataBlob = new Blob([JSON.stringify({
+                voyageEvents,
+                vesselManifests,
+                costAllocation,
+                voyageList,
+                analysis: dataAnalysis,
+                exportedAt: new Date().toISOString()
+              }, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(dataBlob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `data-summary-${new Date().toISOString().split('T')[0]}.json`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md"
+          >
+            <Download size={16} />
+            Export Summary Report
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+                clearAllData();
+              }
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md"
+          >
+            <AlertTriangle size={16} />
+            Clear All Data
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -601,7 +601,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-12 text-center">
+        <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-12 text-center">
           <div className="max-w-md mx-auto">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <FileSpreadsheet size={32} className="text-gray-400" />
@@ -617,7 +617,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
               <div className="space-y-4">
                 <button
                   onClick={onNavigateToUpload}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md"
                 >
                   <Upload size={20} />
                   Upload Cost Allocation Data
@@ -628,7 +628,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     localStorage.clear();
                     window.location.reload();
                   }}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all duration-200 shadow-md"
                 >
                   <AlertCircle size={20} />
                   Clear Cache & Reload
@@ -680,7 +680,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
       </div>
 
       {/* Enhanced Filters */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+      <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Cost Analysis Filters</h3>
           <div className="text-sm text-gray-500">
@@ -694,7 +694,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
             <select 
               value={selectedMonth} 
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-200/50 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/80 backdrop-blur-sm transition-all duration-200"
             >
               <option value="all">All Months</option>
               {filterOptions.months.map(month => (
@@ -708,7 +708,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
             <select 
               value={selectedLocation} 
               onChange={(e) => setSelectedLocation(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-3 py-2 border border-gray-200/50 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/80 backdrop-blur-sm transition-all duration-200"
             >
               <option value="all">All Rig Locations</option>
               {filterOptions.locations.map(location => (
@@ -722,7 +722,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
             <select 
               value={selectedProjectType} 
               onChange={(e) => setSelectedProjectType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-3 py-2 border border-gray-200/50 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/80 backdrop-blur-sm transition-all duration-200"
             >
               <option value="all">All Project Types</option>
               {filterOptions.projectTypes.map(type => (
@@ -739,7 +739,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   setSelectedLocation('all');
                   setSelectedProjectType('all');
                 }}
-                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                className="w-full px-4 py-2 bg-gray-100/80 text-gray-700 rounded-lg hover:bg-gray-200/80 transition-all duration-200 text-sm backdrop-blur-sm"
               >
                 Clear All Filters
               </button>
@@ -749,8 +749,8 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
       </div>
 
       {/* Navigation Tabs */}
-      <div className="bg-white rounded-lg shadow-sm">
-        <div className="border-b border-gray-200">
+      <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50">
+        <div className="border-b border-gray-200/50">
           <nav className="flex space-x-8 px-6">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -763,9 +763,9 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 py-4 px-2 border-b-2 font-medium text-sm ${
+                className={`flex items-center gap-2 py-4 px-2 border-b-2 font-medium text-sm transition-all duration-200 ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-green-500 text-green-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -786,7 +786,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   const { validRecords, duplicates, issues } = validateCostAllocationData(filteredCostAllocation);
                   if (issues.length > 0) {
                     return (
-                      <div className="bg-gradient-to-r from-yellow-50 to-red-50 border border-yellow-200 rounded-xl p-6">
+                      <div className="bg-gradient-to-r from-yellow-50/50 to-red-50/50 backdrop-blur-md border border-yellow-200/50 rounded-xl p-6 shadow-sm">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="bg-yellow-200 rounded-lg p-2">
                             <AlertCircle className="text-yellow-700" size={24} />
@@ -828,7 +828,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
 
               {/* Executive Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                <div className="bg-gradient-to-br from-blue-50/50 to-blue-100/50 backdrop-blur-md rounded-xl p-6 border border-blue-200/50 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-blue-700 text-sm font-semibold uppercase tracking-wide">Total Projects</p>
@@ -845,7 +845,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                <div className="bg-gradient-to-br from-green-50/50 to-green-100/50 backdrop-blur-md rounded-xl p-6 border border-green-200/50 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-green-700 text-sm font-semibold uppercase tracking-wide">Total Vessel Cost</p>
@@ -862,7 +862,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+                <div className="bg-gradient-to-br from-purple-50/50 to-purple-100/50 backdrop-blur-md rounded-xl p-6 border border-purple-200/50 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-purple-700 text-sm font-semibold uppercase tracking-wide">Allocated Days</p>
@@ -879,7 +879,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
+                <div className="bg-gradient-to-br from-orange-50/50 to-orange-100/50 backdrop-blur-md rounded-xl p-6 border border-orange-200/50 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-orange-700 text-sm font-semibold uppercase tracking-wide">Daily Rate</p>
@@ -899,7 +899,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
 
               {/* Project Type Analysis */}
               {Object.keys(costAnalysis.projectTypeBreakdown).length > 0 && (
-                <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
                   <h3 className="text-xl font-bold text-gray-900 mb-6">Project Type Cost Analysis</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(costAnalysis.projectTypeBreakdown)
@@ -948,7 +948,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
 
               {/* Cost Efficiency Dashboard */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Cost Efficiency</h4>
                   <div className="space-y-4">
                     <div>
@@ -966,30 +966,64 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     <div>
                       <p className="text-sm text-gray-600">Utilization Rate</p>
                       <p className="text-lg font-semibold text-blue-600">
-                        {costAnalysis.costEfficiencyMetrics.utilizationRate.toFixed(1)}%
+                        {costAnalysis.costEfficiencyMetrics.utilizationRate.toFixed(2)}%
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                <div className="lg:col-span-2 bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Monthly Cost Trends</h4>
                   <div className="space-y-3">
                     {Object.entries(costAnalysis.monthlyTrends)
-                      .sort(([a], [b]) => a.localeCompare(b))
+                      .sort(([a], [b]) => {
+                        // Parse MM-YY format for proper chronological sorting
+                        const parseMonthYear = (monthYear: string) => {
+                          if (monthYear === 'Unknown') return new Date(2024, 0, 1);
+                          const parts = monthYear.split('-');
+                          if (parts.length === 2) {
+                            const month = parseInt(parts[0], 10);
+                            const yearNum = parseInt(parts[1], 10);
+                            // Convert 2-digit year to full year (24 -> 2024, 25 -> 2025)
+                            const fullYear = 2000 + yearNum;
+                            return new Date(fullYear, month - 1, 1);
+                          }
+                          return new Date(2024, 0, 1);
+                        };
+                        const dateA = parseMonthYear(a);
+                        const dateB = parseMonthYear(b);
+                        return dateA.getTime() - dateB.getTime();
+                      })
                       .slice(-6) // Show last 6 months
-                      .map(([month, data]: [string, any]) => (
-                      <div key={month} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900">{month}</p>
-                          <p className="text-sm text-gray-600">{data.count} projects • {data.days} days</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900">{formatLargeCurrency(data.cost)}</p>
-                          <p className="text-sm text-gray-600">${data.avgRate.toLocaleString()}/day</p>
-                        </div>
-                      </div>
-                    ))}
+                      .map(([month, data]: [string, any]) => {
+                        // Format the month for display
+                        const formatMonth = (monthYear: string) => {
+                          if (monthYear === 'Unknown') return 'Unknown';
+                          const parts = monthYear.split('-');
+                          if (parts.length === 2) {
+                            const monthNum = parseInt(parts[0], 10);
+                            const yearNum = parseInt(parts[1], 10);
+                            // Convert 2-digit year to full year (24 -> 2024, 25 -> 2025)
+                            const fullYear = 2000 + yearNum;
+                            const date = new Date(fullYear, monthNum - 1, 1);
+                            return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                          }
+                          return monthYear;
+                        };
+                        
+                        return (
+                          <div key={month} className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-lg border border-gray-100/50">
+                            <div>
+                              <p className="font-medium text-gray-900">{formatMonth(month)}</p>
+                              <p className="text-sm text-gray-600">{data.count} projects • {data.days} days</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900">{formatLargeCurrency(data.cost)}</p>
+                              <p className="text-sm text-gray-600">${data.avgRate.toLocaleString()}/day</p>
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               </div>
@@ -999,7 +1033,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
           {/* Rigs Tab */}
           {activeTab === 'rigs' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+              <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
                 <h3 className="text-xl font-bold text-gray-900 mb-6">Rig Performance & Cost Analysis</h3>
                 
                 {Object.keys(costAnalysis.rigLocationBreakdown).length > 0 ? (
@@ -1007,7 +1041,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     {Object.entries(costAnalysis.rigLocationBreakdown)
                       .sort(([,a], [,b]) => b.cost - a.cost)
                       .map(([rig, data]: [string, any]) => (
-                      <div key={rig} className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                      <div key={rig} className="bg-gradient-to-r from-gray-50/50 to-blue-50/50 backdrop-blur-md rounded-xl p-6 border border-gray-200/50 hover:shadow-md transition-all duration-200">
                         <div className="flex items-start justify-between mb-4">
                           <div>
                             <h4 className="text-xl font-bold text-gray-900">{rig}</h4>
@@ -1029,19 +1063,19 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="bg-white rounded-lg p-3 border">
+                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
                             <p className="text-sm text-gray-600">Allocated Days</p>
                             <p className="text-lg font-bold text-gray-900">{data.days.toLocaleString()}</p>
                           </div>
-                          <div className="bg-white rounded-lg p-3 border">
+                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
                             <p className="text-sm text-gray-600">Daily Rate</p>
                             <p className="text-lg font-bold text-gray-900">${data.avgDailyRate.toLocaleString()}</p>
                           </div>
-                          <div className="bg-white rounded-lg p-3 border">
+                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
                             <p className="text-sm text-gray-600">Projects</p>
                             <p className="text-lg font-bold text-gray-900">{data.count}</p>
                           </div>
-                          <div className="bg-white rounded-lg p-3 border">
+                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
                             <p className="text-sm text-gray-600">Cost/Day</p>
                             <p className="text-lg font-bold text-gray-900">
                               {data.days > 0 ? formatCurrency(data.cost / data.days) : '$0'}
@@ -1117,7 +1151,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               </div>
                               <div className="text-right">
                                 <p className="text-3xl font-bold text-gray-900">{formatLargeCurrency(data.cost)}</p>
-                                <p className="text-sm text-gray-600">{costPercentage.toFixed(1)}% of total cost</p>
+                                <p className="text-sm text-gray-600">{costPercentage.toFixed(2)}% of total cost</p>
                               </div>
                             </div>
 
@@ -1162,7 +1196,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                                 </div>
                                 <div>
                                   <p className="text-blue-800">
-                                    • {costPercentage.toFixed(1)}% of total portfolio cost
+                                    • {costPercentage.toFixed(2)}% of total portfolio cost
                                   </p>
                                   <p className="text-blue-800">
                                     • {data.count} active projects

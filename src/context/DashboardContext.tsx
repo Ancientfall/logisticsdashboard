@@ -42,7 +42,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Current applied filters
   const [filters, setFilters] = useState<DashboardFilters>({
     selectedDepartment: 'Drilling',
-    selectedMonth: new Date().toISOString().slice(0, 7) // Current month in YYYY-MM format
+    selectedMonth: '2024-01' // Default to January 2024
   });
   
   // Pending filters (not yet applied)

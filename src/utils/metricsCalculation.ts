@@ -237,7 +237,7 @@ export const calculateBudgetVsActualCosts = (
   console.log(`💰 BUDGET VS ACTUAL VESSEL COST ANALYSIS:`);
   console.log(`   📊 Total Budgeted: $${totalBudgetedVesselCost.toLocaleString()}`);
   console.log(`   📊 Total Actual: $${totalActualVesselCost.toLocaleString()}`);
-  console.log(`   📊 Total Variance: $${totalVariance.toLocaleString()} (${totalVariancePercentage.toFixed(1)}%)`);
+  console.log(`   📊 Total Variance: $${totalVariance.toLocaleString()} (${totalVariancePercentage.toFixed(2)}%)`);
   console.log(`   📈 LCs Analyzed: ${lcCount}`);
   console.log(`   🔴 Over Budget: ${lcsOverBudget} LCs`);
   console.log(`   🟢 Under Budget: ${lcsUnderBudget} LCs`);
@@ -418,19 +418,19 @@ export const calculateMetrics = (
   console.log('📊 KPI Calculations Summary:', {
     waitingTimeOffshore: `${waitingTimeOffshore}h`,
     totalOffshoreTime: `${totalOffshoreTime}h`,
-    waitingTimePercentage: `${waitingTimePercentage.toFixed(1)}%`,
+    waitingTimePercentage: `${waitingTimePercentage.toFixed(2)}%`,
     cargoOpsHours: `${cargoOpsHours}h`,
     drillingHours: `${drillingHours}h`,
-    vesselUtilizationRate: `${vesselUtilizationRate.toFixed(1)}%`,
+    vesselUtilizationRate: `${vesselUtilizationRate.toFixed(2)}%`,
     // Vessel cost metrics
     totalVesselCost: `$${vesselCostMetrics.totalVesselCost.toLocaleString()}`,
     averageVesselCostPerHour: `$${vesselCostMetrics.averageVesselCostPerHour.toFixed(2)}/hr`,
     averageVesselCostPerDay: `$${vesselCostMetrics.averageVesselCostPerDay.toFixed(2)}/day`,
     // Manifest metrics
-    cargoTonnagePerVisit: `${cargoTonnagePerVisit.toFixed(1)} tons`,
+    cargoTonnagePerVisit: `${cargoTonnagePerVisit.toFixed(2)} tons`,
     totalManifests: manifestMetrics.totalManifests,
-    rtPercentage: `${manifestMetrics.rtPercentage.toFixed(1)}%`,
-    totalWetBulk: `${manifestMetrics.totalWetBulkNormalized.toFixed(1)} bbls`,
+    rtPercentage: `${manifestMetrics.rtPercentage.toFixed(2)}%`,
+    totalWetBulk: `${manifestMetrics.totalWetBulkNormalized.toFixed(2)} bbls`,
     fsvVsOsvRatio: manifestMetrics.fsvVsOsvRatio.toFixed(2)
   });
 

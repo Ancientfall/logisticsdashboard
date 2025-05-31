@@ -47,26 +47,99 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
              ));
     };
 
-    // Apply filters to data
-    const filteredVoyageEvents = voyageEvents.filter(event => 
-      event.department === 'Drilling' &&
-      filterByDate(event.eventDate) &&
-      filterByLocation(event.location)
-    );
+    // Debug: Check what departments we have in the data
+    const uniqueDepartments = [...new Set(voyageEvents.map(e => e.department))].filter(Boolean);
+    const uniqueManifestDepartments = [...new Set(vesselManifests.map(m => m.finalDepartment))].filter(Boolean);
+    
+    console.log('🔍 Available Departments:', {
+      voyageEventDepartments: uniqueDepartments,
+      vesselManifestDepartments: uniqueManifestDepartments
+    });
 
-    const filteredVesselManifests = vesselManifests.filter(manifest => 
-      manifest.finalDepartment === 'Drilling' &&
-      filterByDate(manifest.manifestDate) &&
-      filterByLocation(manifest.mappedLocation)
-    );
+    // Get all production LC numbers to exclude from drilling cost allocations
+    const getAllProductionLCs = () => {
+      const drillingFacilities = getAllDrillingCapableLocations();
+      const allProductionLCs = new Set<string>();
+      
+      drillingFacilities.forEach(facility => {
+        if (facility.productionLCs) {
+          facility.productionLCs.split(',').forEach(lc => {
+            allProductionLCs.add(lc.trim());
+          });
+        }
+      });
+      
+      console.log('🏭 Production LC Numbers to exclude from drilling:', Array.from(allProductionLCs));
+      return allProductionLCs;
+    };
 
-    console.log('🔧 Drilling Dashboard Filtered Data:', {
-      totalVoyageEvents: voyageEvents.length,
-      filteredVoyageEvents: filteredVoyageEvents.length,
-      totalManifests: vesselManifests.length,
-      filteredManifests: filteredVesselManifests.length,
-      selectedMonth: filters.selectedMonth,
-      selectedLocation: filters.selectedLocation
+    const productionLCs = getAllProductionLCs();
+
+    // Helper function to apply cost allocation percentage for drilling locations
+    const applyCostAllocationPercentage = (event: any, hours: number) => {
+      if (filters.selectedLocation !== 'all' && 
+          filters.selectedLocation !== 'All Locations' &&
+          event.costDedicatedTo && 
+          (filters.selectedLocation.toLowerCase().includes('drilling') || 
+           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
+           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
+        
+        const costDedicatedTo = event.costDedicatedTo.toString();
+        const percentageMatch = costDedicatedTo.match(/(\d+(?:\.\d+)?)%/);
+        
+        if (percentageMatch) {
+          const percentage = parseFloat(percentageMatch[1]) / 100;
+          return hours * percentage;
+        }
+      }
+      return hours;
+    };
+
+    // Apply filters to data - Enhanced logic for drilling locations
+    const filteredVoyageEvents = voyageEvents.filter(event => {
+      // For drilling locations, use location + time filtering primarily
+      if (filters.selectedLocation !== 'all' && 
+          filters.selectedLocation !== 'All Locations' &&
+          (filters.selectedLocation.toLowerCase().includes('drilling') || 
+           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
+           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
+        
+        // For drilling locations: Include ALL events at that location during the time period
+        // This captures drilling activities regardless of department classification
+        return filterByDate(event.eventDate) && filterByLocation(event.location);
+      }
+      
+      // For non-drilling locations, use the original logic
+      const isDrillingRelated = event.department === 'Drilling' || 
+                               event.department === 'Production' ||
+                               !event.department; // Include events without department classification
+      
+      return isDrillingRelated &&
+             filterByDate(event.eventDate) &&
+             filterByLocation(event.location);
+    });
+
+    const filteredVesselManifests = vesselManifests.filter(manifest => {
+      // For drilling locations, use location + time filtering primarily
+      if (filters.selectedLocation !== 'all' && 
+          filters.selectedLocation !== 'All Locations' &&
+          (filters.selectedLocation.toLowerCase().includes('drilling') || 
+           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
+           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
+        
+        // For drilling locations: Include ALL manifests at that location during the time period
+        // This captures drilling activities regardless of department classification
+        return filterByDate(manifest.manifestDate) && filterByLocation(manifest.mappedLocation);
+      }
+      
+      // For non-drilling locations, use the original logic
+      const isDrillingRelated = manifest.finalDepartment === 'Drilling' ||
+                               manifest.finalDepartment === 'Production' ||
+                               !manifest.finalDepartment; // Include manifests without department classification
+      
+      return isDrillingRelated &&
+             filterByDate(manifest.manifestDate) &&
+             filterByLocation(manifest.mappedLocation);
     });
 
     // Calculate KPIs based on filtered data using exact PowerBI DAX logic
@@ -79,7 +152,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     // 2. Lifts/Hr - Efficiency metric using actual cargo operations hours
     const totalLifts = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.lifts || 0), 0);
     
-    // More precise cargo operations filtering
+    // More precise cargo operations filtering with cost allocation
     const cargoOpsEvents = filteredVoyageEvents.filter(event => 
       event.parentEvent === 'Cargo Ops' ||
       (event.parentEvent === 'Installation Productive Time' && 
@@ -89,16 +162,45 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         event.event?.toLowerCase().includes('discharge'))) ||
       event.event?.toLowerCase().includes('simops')
     );
-    const cargoOpsHours = cargoOpsEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const cargoOpsHours = cargoOpsEvents.reduce((sum, event) => {
+      const hours = event.finalHours || 0;
+      return sum + applyCostAllocationPercentage(event, hours);
+    }, 0);
     const liftsPerHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
     
-    // 3. OSV Productive Hours - Using activity category classification
+    // 3. OSV Productive Hours - Using activity category classification with cost allocation
     const productiveEvents = filteredVoyageEvents.filter(event => 
       event.activityCategory === 'Productive'
     );
-    const osvProductiveHours = productiveEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
     
-    // 4. Waiting Time Offshore - Specific offshore waiting events
+    // Enhanced calculation for drilling locations - use cost allocation percentages
+    const osvProductiveHours = productiveEvents.reduce((sum, event) => {
+      let hours = event.finalHours || 0;
+      
+      // For drilling locations, check if we need to apply cost allocation percentage
+      if (filters.selectedLocation !== 'all' && 
+          filters.selectedLocation !== 'All Locations' &&
+          event.costDedicatedTo && 
+          (filters.selectedLocation.toLowerCase().includes('drilling') || 
+           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
+           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
+        
+        // Parse cost allocation percentage if available
+        // Format might be like "LC12345 - 50%" or just "50%"
+        const costDedicatedTo = event.costDedicatedTo.toString();
+        const percentageMatch = costDedicatedTo.match(/(\d+(?:\.\d+)?)%/);
+        
+        if (percentageMatch) {
+          const percentage = parseFloat(percentageMatch[1]) / 100;
+          hours = hours * percentage;
+          console.log(`⚖️ Applied ${percentageMatch[1]}% allocation to ${event.vessel} event: ${event.finalHours}h → ${hours}h`);
+        }
+      }
+      
+      return sum + hours;
+    }, 0);
+    
+    // 4. Waiting Time Offshore - Specific offshore waiting events with cost allocation
     const waitingEvents = filteredVoyageEvents.filter(event => 
       event.portType === 'rig' && (
         event.parentEvent === 'Waiting on Installation' ||
@@ -108,29 +210,50 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           event.event?.toLowerCase().includes('standby')))
       )
     );
-    const waitingTimeOffshore = waitingEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    
+    const waitingTimeOffshore = waitingEvents.reduce((sum, event) => {
+      const hours = event.finalHours || 0;
+      return sum + applyCostAllocationPercentage(event, hours);
+    }, 0);
     
     // 5. Fluid Movement - Wet bulk cargo (bbls + gals converted to bbls)
     const wetBulkBbls = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkBbls || 0), 0);
     const wetBulkGals = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkGals || 0), 0);
     const fluidMovement = wetBulkBbls + (wetBulkGals / 42); // Convert gallons to barrels
     
-    // 6. Vessel Utilization - Productive hours vs total offshore time
+    // 6. Vessel Utilization - Productive hours vs total offshore time with cost allocation
     const totalOffshoreHours = filteredVoyageEvents
       .filter(event => event.portType === 'rig')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
+      .reduce((sum, event) => {
+        const hours = event.finalHours || 0;
+        return sum + applyCostAllocationPercentage(event, hours);
+      }, 0);
     const vesselUtilization = totalOffshoreHours > 0 ? (osvProductiveHours / totalOffshoreHours) * 100 : 0;
     
-    // 7. Voyage Efficiency - Using voyage list data for better accuracy
-    const drillingVoyages = voyageList.filter(voyage => 
-      voyage.voyagePurpose === 'Drilling' || voyage.voyagePurpose === 'Mixed'
-    );
+    // 7. Voyage Efficiency - Using voyage list data for better accuracy with filtering
+    const drillingVoyages = voyageList.filter(voyage => {
+      const isDrilling = voyage.voyagePurpose === 'Drilling' || voyage.voyagePurpose === 'Mixed';
+      
+      // Apply location filter if not "All Locations"
+      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+        const locationMatch = filterByLocation(voyage.mainDestination || voyage.originPort || voyage.locations || '');
+        if (!locationMatch) return false;
+      }
+      
+      // Apply date filter if not "All Months"
+      if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
+        const dateMatch = filterByDate(voyage.startDate || voyage.voyageDate || new Date());
+        if (!dateMatch) return false;
+      }
+      
+      return isDrilling;
+    });
     const fsvRuns = drillingVoyages.length;
     
     // 8. Vessel Visits - Unique manifest entries (actual visits)
     const vesselVisits = filteredVesselManifests.length;
     
-    // 9. Maneuvering Hours - Setup and positioning activities
+    // 9. Maneuvering Hours - Setup and positioning activities with cost allocation
     const maneuveringEvents = filteredVoyageEvents.filter(event => 
       event.parentEvent === 'Maneuvering' ||
       event.event?.toLowerCase().includes('maneuvering') ||
@@ -138,31 +261,68 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       event.event?.toLowerCase().includes('setup') ||
       event.event?.toLowerCase().includes('shifting')
     );
-    const maneuveringHours = maneuveringEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const maneuveringHours = maneuveringEvents.reduce((sum, event) => {
+      const hours = event.finalHours || 0;
+      return sum + applyCostAllocationPercentage(event, hours);
+    }, 0);
     
-    // 10. Non-Productive Time Analysis
+    // 10. Non-Productive Time Analysis with cost allocation
     const nonProductiveEvents = filteredVoyageEvents.filter(event => 
       event.activityCategory === 'Non-Productive'
     );
-    const nonProductiveHours = nonProductiveEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const totalHours = filteredVoyageEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const nonProductiveHours = nonProductiveEvents.reduce((sum, event) => {
+      const hours = event.finalHours || 0;
+      return sum + applyCostAllocationPercentage(event, hours);
+    }, 0);
+    const totalHours = filteredVoyageEvents.reduce((sum, event) => {
+      const hours = event.finalHours || 0;
+      return sum + applyCostAllocationPercentage(event, hours);
+    }, 0);
     const nptPercentage = totalHours > 0 ? (nonProductiveHours / totalHours) * 100 : 0;
     
-    // 11. Weather Impact Analysis
+    // 11. Weather Impact Analysis with cost allocation
     const weatherEvents = filteredVoyageEvents.filter(event => 
       event.parentEvent === 'Waiting on Weather'
     );
-    const weatherWaitingHours = weatherEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    const weatherWaitingHours = weatherEvents.reduce((sum, event) => {
+      const hours = event.finalHours || 0;
+      return sum + applyCostAllocationPercentage(event, hours);
+    }, 0);
     const weatherImpactPercentage = totalOffshoreHours > 0 ? (weatherWaitingHours / totalOffshoreHours) * 100 : 0;
+
+    // Debug log after basic KPI calculations
+    console.log('🔧 Drilling Dashboard Filtered Data:', {
+      totalVoyageEvents: voyageEvents.length,
+      filteredVoyageEvents: filteredVoyageEvents.length,
+      totalManifests: vesselManifests.length,
+      filteredManifests: filteredVesselManifests.length,
+      selectedMonth: filters.selectedMonth,
+      selectedLocation: filters.selectedLocation,
+      cargoTons: deckTons + rtTons,
+      productiveHours: osvProductiveHours,
+      waitingTimeOffshore: waitingTimeOffshore,
+      maneuveringHours: maneuveringHours,
+      drillingVoyageCount: fsvRuns
+    });
 
     // NEW ENHANCED COST ALLOCATION INTEGRATION
     
-    // Filter cost allocation data for drilling operations
-    const drillingCostAllocation = costAllocation.filter(cost => 
-      cost.department === 'Drilling' ||
-      cost.projectType === 'Drilling' ||
-      cost.projectType === 'Completions'
-    );
+    // Filter cost allocation data for drilling operations - exclude production LCs
+    const drillingCostAllocation = costAllocation.filter(cost => {
+      // Exclude known production LC numbers
+      const lcNumber = String(cost.lcNumber || '').trim();
+      if (productionLCs.has(lcNumber)) {
+        console.log(`🚫 Excluding production LC: ${lcNumber}`);
+        return false;
+      }
+      
+      // Include drilling and completions
+      return cost.department === 'Drilling' ||
+             cost.projectType === 'Drilling' ||
+             cost.projectType === 'Completions';
+    });
+    
+    console.log(`💰 Drilling Cost Allocations: ${drillingCostAllocation.length} (excluded ${costAllocation.length - drillingCostAllocation.length} production LCs)`);
     
     // Apply location filter to cost allocation
     const filteredDrillingCosts = drillingCostAllocation.filter(cost => {
@@ -546,6 +706,161 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         return activities.sort((a, b) => b.hours - a.hours);
       })(),
       
+      // Vessel by Location Analysis - Only for selected location
+      vesselLocationData: (() => {
+        // Only show vessels if a specific location is selected (not "All Locations")
+        if (filters.selectedLocation === 'all' || filters.selectedLocation === 'All Locations') {
+          return null; // Don't show the section when "All Locations" is selected
+        }
+        
+        console.log(`🚢 VESSEL LOCATION ANALYSIS for "${filters.selectedLocation}"`);
+        
+        // Get vessels that visited the selected location during the selected time period
+        const selectedLocationVessels = new Set<string>();
+        
+        // Strategy 1: Get vessels from filtered voyage events at this location
+        filteredVoyageEvents.forEach(event => {
+          const eventLocation = event.mappedLocation || event.location || 'Unknown';
+          const isAtSelectedLocation = filterByLocation(eventLocation);
+          
+          if (isAtSelectedLocation) {
+            selectedLocationVessels.add(event.vessel);
+            console.log(`📍 Found vessel ${event.vessel} at ${eventLocation} via voyage events`);
+          }
+        });
+        
+        // Strategy 2: Get vessels from filtered manifests at this location  
+        filteredVesselManifests.forEach(manifest => {
+          const manifestLocation = manifest.mappedLocation || 'Unknown';
+          const isAtSelectedLocation = filterByLocation(manifestLocation);
+          
+          if (isAtSelectedLocation) {
+            selectedLocationVessels.add(manifest.transporter);
+            console.log(`📍 Found vessel ${manifest.transporter} at ${manifestLocation} via manifests`);
+          }
+        });
+        
+        // Strategy 3: For drilling locations (Mad Dog, Thunder Horse), also include vessels 
+        // that have cost allocations for drilling LCs at those locations
+        if (filters.selectedLocation.toLowerCase().includes('drilling') || 
+            filters.selectedLocation.toLowerCase().includes('mad dog') ||
+            filters.selectedLocation.toLowerCase().includes('thunder horse')) {
+          
+          console.log(`🔍 DRILLING LOCATION DETECTED: ${filters.selectedLocation} - Using cost allocation strategy`);
+          
+          // Get drilling cost allocations for this location
+          const locationDrillingCosts = dateFilteredDrillingCosts.filter(cost => {
+            const costLocation = cost.rigLocation || cost.locationReference || '';
+            return filterByLocation(costLocation);
+          });
+          
+          console.log(`💰 Found ${locationDrillingCosts.length} cost allocations for drilling at ${filters.selectedLocation}`);
+          
+          // Get all voyage events for the time period (broader search for drilling activities)
+          const allTimeFilteredEvents = voyageEvents.filter(event => 
+            filterByDate(event.eventDate)
+          );
+          
+          // Get all manifests for the time period
+          const allTimeFilteredManifests = vesselManifests.filter(manifest => 
+            filterByDate(manifest.manifestDate)
+          );
+          
+          // Look for vessels that went to this location during the time period
+          // even if not explicitly marked as drilling
+          allTimeFilteredEvents.forEach(event => {
+            const eventLocation = event.mappedLocation || event.location || 'Unknown';
+            const isAtLocation = filterByLocation(eventLocation);
+            
+            if (isAtLocation) {
+              selectedLocationVessels.add(event.vessel);
+              console.log(`🎯 BROADER SEARCH: Found vessel ${event.vessel} at ${eventLocation}`);
+            }
+          });
+          
+          allTimeFilteredManifests.forEach(manifest => {
+            const manifestLocation = manifest.mappedLocation || 'Unknown';
+            const isAtLocation = filterByLocation(manifestLocation);
+            
+            if (isAtLocation) {
+              selectedLocationVessels.add(manifest.transporter);
+              console.log(`🎯 BROADER SEARCH: Found vessel ${manifest.transporter} at ${manifestLocation}`);
+            }
+          });
+        }
+        
+        console.log(`🚢 Total unique vessels found for ${filters.selectedLocation}: ${selectedLocationVessels.size}`);
+        
+        // Create vessel details for the selected location
+        const vesselList = Array.from(selectedLocationVessels).map(vesselName => {
+          // Get vessel type and company from vessel classification
+          const vesselType = getVesselTypeFromName(vesselName);
+          
+          // Extract company name (usually first part of vessel name)
+          const company = vesselName.split(' ')[0] || 'Unknown';
+          
+          // Get vessel events count for this specific location during the time period
+          // Use broader search for drilling locations
+          let vesselEvents;
+          if (filters.selectedLocation.toLowerCase().includes('drilling')) {
+            vesselEvents = voyageEvents.filter(e => {
+              const eventLocation = e.mappedLocation || e.location || 'Unknown';
+              return e.vessel === vesselName && 
+                     filterByLocation(eventLocation) && 
+                     filterByDate(e.eventDate);
+            });
+          } else {
+            vesselEvents = filteredVoyageEvents.filter(e => {
+              const eventLocation = e.mappedLocation || e.location || 'Unknown';
+              return e.vessel === vesselName && filterByLocation(eventLocation);
+            });
+          }
+          
+          // Get manifests for this vessel at this location during the time period
+          let vesselManifestsAtLocation;
+          if (filters.selectedLocation.toLowerCase().includes('drilling')) {
+            vesselManifestsAtLocation = vesselManifests.filter(m => {
+              const manifestLocation = m.mappedLocation || 'Unknown';
+              return m.transporter === vesselName && 
+                     filterByLocation(manifestLocation) && 
+                     filterByDate(m.manifestDate);
+            });
+          } else {
+            vesselManifestsAtLocation = filteredVesselManifests.filter(m => {
+              const manifestLocation = m.mappedLocation || 'Unknown';
+              return m.transporter === vesselName && filterByLocation(manifestLocation);
+            });
+          }
+          
+          return {
+            name: vesselName,
+            company,
+            type: vesselType,
+            eventsCount: vesselEvents.length,
+            manifestsCount: vesselManifestsAtLocation.length,
+            totalHours: vesselEvents.reduce((sum, e) => sum + (e.finalHours || 0), 0),
+            cargoTons: vesselManifestsAtLocation.reduce((sum, m) => sum + (m.deckTons || 0) + (m.rtTons || 0), 0),
+            lifts: vesselManifestsAtLocation.reduce((sum, m) => sum + (m.lifts || 0), 0)
+          };
+        }).sort((a, b) => b.totalHours - a.totalHours); // Sort by total hours descending
+        
+        console.log(`📊 Vessel details computed for ${vesselList.length} vessels at ${filters.selectedLocation}`);
+        
+        if (vesselList.length === 0) {
+          console.log(`❌ No vessels found for location: ${filters.selectedLocation}`);
+          return null; // No vessels found for this location/time period
+        }
+        
+        return {
+          location: filters.selectedLocation,
+          vesselCount: vesselList.length,
+          vessels: vesselList,
+          totalHours: vesselList.reduce((sum, v) => sum + v.totalHours, 0),
+          totalCargoTons: vesselList.reduce((sum, v) => sum + v.cargoTons, 0),
+          totalLifts: vesselList.reduce((sum, v) => sum + v.lifts, 0)
+        };
+      })(),
+      
       // NEW: Rate Period Cost Analysis
       ratePeriodAnalysis,
       
@@ -560,82 +875,53 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
   // Get filter options
   const filterOptions = useMemo(() => {
-    // Create month options with proper chronological sorting from BOTH voyage events AND cost allocation
+    // Create month options with proper chronological sorting from actual data
     const monthMap = new Map<string, string>();
     
-    // Debug: Log the data we're working with
     console.log('🔍 DrillingDashboard filterOptions debug:', {
       voyageEventsCount: voyageEvents.length,
+      vesselManifestsCount: vesselManifests.length,
       costAllocationCount: costAllocation.length,
-      firstVoyageEvent: voyageEvents[0],
-      firstCostAllocation: costAllocation[0]
+      voyageListCount: voyageList.length
     });
     
-    // Add months from voyage events (using both eventDate and from/to dates)
+    // Add months from voyage events - using eventDate as primary source
     voyageEvents.forEach(event => {
-      const dates = [event.eventDate, event.from, event.to].filter(date => date);
-      dates.forEach(date => {
-        if (date) {
-          const eventDate = new Date(date);
-          if (!isNaN(eventDate.getTime())) {
-            const monthKey = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}`;
-            const monthName = eventDate.toLocaleString('default', { month: 'long' });
-            const label = `${monthName} ${eventDate.getFullYear()}`;
-            monthMap.set(monthKey, label);
-          }
-        }
-      });
-    });
-    
-    // Add months from cost allocation data (using costAllocationDate, year/month, and parsed month-year)
-    costAllocation.forEach(cost => {
-      const dates: Date[] = [];
-      
-      // Use costAllocationDate if available
-      if (cost.costAllocationDate) {
-        dates.push(cost.costAllocationDate);
-      }
-      
-      // Use year/month combination if available
-      if (cost.year && cost.month) {
-        dates.push(new Date(cost.year, cost.month - 1, 1));
-      }
-      
-      // Parse month-year string if available
-      if (cost.monthYear) {
-        const monthYearStr = String(cost.monthYear).trim();
-        if (monthYearStr.includes('-')) {
-          const parts = monthYearStr.split('-');
-          if (parts.length === 2) {
-            // Handle "Jan-24" format
-            if (isNaN(parseInt(parts[0]))) {
-              const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
-                               'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-              const monthIndex = monthNames.findIndex(m => 
-                m === parts[0].toLowerCase().substring(0, 3)
-              );
-              
-              if (monthIndex !== -1) {
-                let year = parseInt(parts[1]);
-                if (year < 100) {
-                  year += year < 50 ? 2000 : 1900; // 24 -> 2024
-                }
-                dates.push(new Date(year, monthIndex, 1));
-              }
-            }
-          }
-        }
-      }
-      
-      // Add all valid dates to the month map
-      dates.forEach(date => {
-        if (date && !isNaN(date.getTime())) {
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          const monthName = date.toLocaleString('default', { month: 'long' });
-          const label = `${monthName} ${date.getFullYear()}`;
+      if (event.eventDate) {
+        const eventDate = new Date(event.eventDate);
+        if (!isNaN(eventDate.getTime())) {
+          const monthKey = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = eventDate.toLocaleString('default', { month: 'long' });
+          const label = `${monthName} ${eventDate.getFullYear()}`;
           monthMap.set(monthKey, label);
         }
-      });
+      }
+    });
+    
+    // Add months from vessel manifests - using manifestDate 
+    vesselManifests.forEach(manifest => {
+      if (manifest.manifestDate) {
+        const manifestDate = new Date(manifest.manifestDate);
+        if (!isNaN(manifestDate.getTime())) {
+          const monthKey = `${manifestDate.getFullYear()}-${String(manifestDate.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = manifestDate.toLocaleString('default', { month: 'long' });
+          const label = `${monthName} ${manifestDate.getFullYear()}`;
+          monthMap.set(monthKey, label);
+        }
+      }
+    });
+    
+    // Add months from voyage list - using startDate
+    voyageList.forEach(voyage => {
+      if (voyage.startDate) {
+        const voyageDate = new Date(voyage.startDate);
+        if (!isNaN(voyageDate.getTime())) {
+          const monthKey = `${voyageDate.getFullYear()}-${String(voyageDate.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = voyageDate.toLocaleString('default', { month: 'long' });
+          const label = `${monthName} ${voyageDate.getFullYear()}`;
+          monthMap.set(monthKey, label);
+        }
+      }
     });
     
     // Convert to sorted array and log results
@@ -645,10 +931,15 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
     const months = ['All Months', ...sortedMonths.map(item => item.label)];
     
-    console.log('📅 Generated month filters:', {
+    console.log('📅 Generated month filters from actual data:', {
       totalMonthsFound: monthMap.size,
       monthRange: sortedMonths.length > 0 ? `${sortedMonths[0].label} to ${sortedMonths[sortedMonths.length - 1].label}` : 'None',
-      allMonths: months
+      allMonths: months,
+      sampleDates: {
+        firstVoyageEvent: voyageEvents[0]?.eventDate,
+        firstManifest: vesselManifests[0]?.manifestDate,
+        firstVoyage: voyageList[0]?.startDate
+      }
     });
     
     // Get drilling locations from master facilities data
@@ -656,7 +947,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const locations = ['All Locations', ...drillingFacilities.map(facility => facility.displayName)];
 
     return { months, locations };
-  }, [voyageEvents, costAllocation]); // Add costAllocation as dependency
+  }, [voyageEvents, vesselManifests, voyageList, costAllocation.length]); // Focus on primary data sources
 
   if (!isDataReady || voyageEvents.length === 0) {
     return (
@@ -838,7 +1129,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
             <span className="text-sm text-gray-600">
-              {drillingMetrics.totalEvents} events | {drillingMetrics.totalManifests} manifests
+              {drillingMetrics.totalEvents.toLocaleString()} events | {drillingMetrics.totalManifests.toLocaleString()} manifests | {drillingMetrics.fsvRuns.value.toLocaleString()} voyages
             </span>
           </div>
         </div>
@@ -898,14 +1189,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               <div>
                 <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                   <span>Productive Hours</span>
-                  <span>{drillingMetrics.osvProductiveHours.value} hrs ({((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                  <span>{Math.round(drillingMetrics.osvProductiveHours.value).toLocaleString()} hrs ({((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-8">
                   <div 
                     className="bg-green-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
                     style={{ width: `${Math.max(5, (drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100)}%` }}
                   >
-                    {drillingMetrics.osvProductiveHours.value}h
+                    {Math.round(drillingMetrics.osvProductiveHours.value).toLocaleString()}h
                   </div>
                 </div>
               </div>
@@ -913,14 +1204,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               <div>
                 <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                   <span>Non-Productive Hours</span>
-                  <span>{drillingMetrics.nonProductiveHours} hrs ({((drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                  <span>{Math.round(drillingMetrics.nonProductiveHours).toLocaleString()} hrs ({((drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-8">
                   <div 
                     className="bg-red-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
                     style={{ width: `${Math.max(5, (drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100)}%` }}
                   >
-                    {drillingMetrics.nonProductiveHours}h
+                    {Math.round(drillingMetrics.nonProductiveHours).toLocaleString()}h
                   </div>
                 </div>
               </div>
@@ -928,14 +1219,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               <div>
                 <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                   <span>Cargo Operations</span>
-                  <span>{drillingMetrics.cargoOpsHours} hrs ({((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                  <span>{Math.round(drillingMetrics.cargoOpsHours).toLocaleString()} hrs ({((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-8">
                   <div 
                     className="bg-blue-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
                     style={{ width: `${Math.max(5, (drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100)}%` }}
                   >
-                    {drillingMetrics.cargoOpsHours}h
+                    {Math.round(drillingMetrics.cargoOpsHours).toLocaleString()}h
                   </div>
                 </div>
               </div>
@@ -943,14 +1234,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               <div>
                 <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                   <span>Waiting Time</span>
-                  <span>{drillingMetrics.waitingTime.value} hrs ({((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
+                  <span>{Math.round(drillingMetrics.waitingTime.value).toLocaleString()} hrs ({((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}%)</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-8">
                   <div 
                     className="bg-orange-500 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium" 
                     style={{ width: `${Math.max(5, (drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100)}%` }}
                   >
-                    {drillingMetrics.waitingTime.value}h
+                    {Math.round(drillingMetrics.waitingTime.value).toLocaleString()}h
                   </div>
                 </div>
               </div>
@@ -976,11 +1267,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     <div key={item.type}>
                       <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                         <span>{item.type}</span>
-                        <span>{item.count} vessels ({item.percentage.toFixed(1)}%)</span>
+                        <span>{item.count} vessels ({item.percentage.toFixed(0)}%)</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-6">
+                      <div className="w-full bg-gray-200 rounded-full h-4">
                         <div 
-                          className={`${colors[index % colors.length]} h-6 rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium`}
+                          className={`${colors[index % colors.length]} h-4 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium`}
                           style={{ width: `${Math.max(10, item.percentage)}%` }}
                         >
                           {item.count}
@@ -1017,14 +1308,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   <div key={activity.name}>
                     <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                       <span>{activity.name}</span>
-                      <span>{activity.hours.toFixed(1)} hrs</span>
+                      <span>{Math.round(activity.hours).toLocaleString()} hrs</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-4">
                       <div 
                         className={`${activity.color} h-4 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium`}
                         style={{ width: `${Math.max(5, (activity.hours / drillingMetrics.totalHours) * 100)}%` }}
                       >
-                        {activity.hours > 10 ? activity.hours.toFixed(0) : ''}
+                        {activity.hours > 10 ? Math.round(activity.hours).toLocaleString() : ''}
                       </div>
                     </div>
                   </div>
@@ -1043,6 +1334,126 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           </div>
         </div>
       </div>
+
+      {/* Vessels by Location Section - Only shown when specific location is selected */}
+      {drillingMetrics.vesselLocationData && (
+        <div className="bg-white rounded-lg p-6 shadow-md">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">VESSELS AT {drillingMetrics.vesselLocationData.location.toUpperCase()}</h3>
+            <div className="text-sm text-gray-500">
+              {filters.selectedMonth !== 'All Months' ? `${filters.selectedMonth} • ` : ''}
+              {drillingMetrics.vesselLocationData.vesselCount} vessels
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {drillingMetrics.vesselLocationData.vessels.map((vessel, index) => {
+              const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500'];
+              const vesselColor = colors[index % colors.length];
+              
+              return (
+                <div key={vessel.name} className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900 text-sm truncate mb-1" title={vessel.name}>
+                        {vessel.name}
+                      </div>
+                      <div className="text-xs font-medium text-blue-600 mb-1">
+                        {vessel.company}
+                      </div>
+                      <div className="text-xs text-gray-600 bg-white px-2 py-1 rounded-full inline-block">
+                        {vessel.type}
+                      </div>
+                    </div>
+                    <div className={`w-3 h-3 rounded-full ${vesselColor} flex-shrink-0 mt-1`}></div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {/* Operational Metrics */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-white rounded p-2 text-center">
+                        <div className="font-bold text-gray-900">{vessel.eventsCount.toLocaleString()}</div>
+                        <div className="text-gray-600">Events</div>
+                      </div>
+                      <div className="bg-white rounded p-2 text-center">
+                        <div className="font-bold text-gray-900">{Math.round(vessel.totalHours).toLocaleString()}h</div>
+                        <div className="text-gray-600">Hours</div>
+                      </div>
+                    </div>
+                    
+                    {/* Cargo Metrics */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-white rounded p-2 text-center">
+                        <div className="font-bold text-gray-900">{vessel.manifestsCount.toLocaleString()}</div>
+                        <div className="text-gray-600">Manifests</div>
+                      </div>
+                      <div className="bg-white rounded p-2 text-center">
+                        <div className="font-bold text-gray-900">{Math.round(vessel.cargoTons).toLocaleString()}</div>
+                        <div className="text-gray-600">Cargo Tons</div>
+                      </div>
+                    </div>
+                    
+                    {vessel.lifts > 0 && (
+                      <div className="bg-white rounded p-2 text-center text-xs">
+                        <div className="font-bold text-gray-900">{vessel.lifts.toLocaleString()}</div>
+                        <div className="text-gray-600">Total Lifts</div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Activity level bar */}
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>Activity Level</span>
+                      <span>{drillingMetrics.vesselLocationData ? ((vessel.totalHours / drillingMetrics.vesselLocationData.totalHours) * 100).toFixed(1) : '0.0'}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`${vesselColor} h-2 rounded-full transition-all duration-500`}
+                        style={{ width: `${Math.max(8, drillingMetrics.vesselLocationData ? (vessel.totalHours / drillingMetrics.vesselLocationData.totalHours) * 100 : 0)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Summary Statistics for Selected Location */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t border-gray-200">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {drillingMetrics.vesselLocationData.vesselCount}
+              </div>
+              <div className="text-sm text-gray-600">Unique Vessels</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {Math.round(drillingMetrics.vesselLocationData.totalHours).toLocaleString()}h
+              </div>
+              <div className="text-sm text-gray-600">Total Hours</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {Math.round(drillingMetrics.vesselLocationData.totalCargoTons).toLocaleString()}
+              </div>
+              <div className="text-sm text-gray-600">Total Cargo (tons)</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {drillingMetrics.vesselLocationData.totalLifts.toLocaleString()}
+              </div>
+              <div className="text-sm text-gray-600">Total Lifts</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">
+                {Math.round(drillingMetrics.vesselLocationData.totalHours / Math.max(1, drillingMetrics.vesselLocationData.vesselCount)).toLocaleString()}h
+              </div>
+              <div className="text-sm text-gray-600">Avg Hours/Vessel</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rig Location Cost Analysis Section */}
       {drillingMetrics.rigLocationAnalysis && Object.keys(drillingMetrics.rigLocationAnalysis).length > 0 && (
@@ -1066,16 +1477,16 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       <div>
                         <span className="font-medium text-gray-900">{location}</span>
                         <div className="text-xs text-gray-500">
-                          {rig.rigType} • {rig.waterDepth > 0 ? `${rig.waterDepth}ft depth` : 'Depth N/A'}
+                          {rig.rigType}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-semibold text-gray-900">
-                        ${(rig.totalCost / 1000000).toFixed(1)}M
+                        ${Math.round(rig.totalCost / 1000000)}M
                       </div>
                       <div className="text-xs text-gray-500">
-                        ${costPerDay.toLocaleString()}/day
+                        ${Math.round(costPerDay).toLocaleString()}/day
                       </div>
                     </div>
                   </div>
@@ -1089,7 +1500,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       </div>
                     </div>
                     <div className="text-xs text-gray-600 min-w-[60px] text-right">
-                      {rig.allocatedDays} days
+                      {Math.round(rig.allocatedDays)} days
                     </div>
                   </div>
                 </div>
@@ -1100,7 +1511,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                ${(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000).toFixed(1)}M
+                ${Math.round(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000)}M
               </div>
               <div className="text-sm text-gray-600">Total Rig Costs</div>
             </div>
@@ -1112,7 +1523,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                ${(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
+                ${Math.round(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
                    Math.max(1, Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0))).toLocaleString()}
               </div>
               <div className="text-sm text-gray-600">Average Cost per Day</div>
@@ -1120,242 +1531,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           </div>
         </div>
       )}
-      
-      {/* NEW: Rate Period Cost Analysis */}
-      {drillingMetrics.ratePeriodAnalysis && Object.keys(drillingMetrics.ratePeriodAnalysis).length > 0 && (
-        <div className="bg-white rounded-lg p-6 shadow-md mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">VESSEL RATE PERIOD ANALYSIS</h3>
-            <div className="text-sm text-gray-500">Cost Impact by Rate Period</div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {Object.entries(drillingMetrics.ratePeriodAnalysis).map(([rateDescription, data]) => (
-              <div key={rateDescription} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-900">{data.rateDescription}</h4>
-                  <div className="text-sm font-semibold text-blue-600">
-                    ${data.dailyRate.toLocaleString()}/day
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Cost:</span>
-                    <span className="font-medium">${data.totalCost.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Allocated Days:</span>
-                    <span className="font-medium">{data.allocatedDays} days</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">LC Numbers:</span>
-                    <span className="font-medium">{data.lcCount} LCs</span>
-                  </div>
-                  <div className="flex justify-between border-t border-gray-100 pt-2">
-                    <span className="text-gray-600">Avg Cost/Day:</span>
-                    <span className="font-semibold text-purple-600">
-                      ${data.allocatedDays > 0 ? (data.totalCost / data.allocatedDays).toLocaleString() : '0'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="font-medium text-blue-900">Rate Period Summary</span>
-            </div>
-            <div className="text-sm text-blue-800">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <span className="font-medium">Total Periods:</span>
-                  <div className="text-lg font-bold">{Object.keys(drillingMetrics.ratePeriodAnalysis).length}</div>
-                </div>
-                <div>
-                  <span className="font-medium">Total Cost:</span>
-                  <div className="text-lg font-bold">
-                    ${Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.totalCost, 0).toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <span className="font-medium">Total Days:</span>
-                  <div className="text-lg font-bold">
-                    {Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.allocatedDays, 0)}
-                  </div>
-                </div>
-                <div>
-                  <span className="font-medium">Weighted Avg Rate:</span>
-                  <div className="text-lg font-bold">
-                    ${(() => {
-                      const totalCost = Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.totalCost, 0);
-                      const totalDays = Object.values(drillingMetrics.ratePeriodAnalysis).reduce((sum: number, rate: any) => sum + rate.allocatedDays, 0);
-                      return totalDays > 0 ? (totalCost / totalDays).toLocaleString() : '0';
-                    })()}/day
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* NEW: Budget vs Actual Analysis */}
-      {drillingMetrics.budgetVsActual && (
-        <div className="bg-white rounded-lg p-6 shadow-md mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">BUDGET vs ACTUAL COST ANALYSIS</h3>
-            <div className={`text-sm font-medium px-3 py-1 rounded-full ${
-              drillingMetrics.budgetVariancePercentage > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-            }`}>
-              {drillingMetrics.budgetVariancePercentage > 0 ? 'Over Budget' : 'Under Budget'}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                ${drillingMetrics.budgetVsActual.totalBudgeted.toLocaleString()}
-              </div>
-              <div className="text-sm text-blue-800 font-medium">Total Budgeted</div>
-            </div>
-            
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                ${drillingMetrics.budgetVsActual.totalActual.toLocaleString()}
-              </div>
-              <div className="text-sm text-green-800 font-medium">Total Actual</div>
-            </div>
-            
-            <div className={`text-center p-4 rounded-lg ${
-              drillingMetrics.budgetVsActual.variance > 0 ? 'bg-red-50' : 'bg-green-50'
-            }`}>
-              <div className={`text-2xl font-bold ${
-                drillingMetrics.budgetVsActual.variance > 0 ? 'text-red-600' : 'text-green-600'
-              }`}>
-                {drillingMetrics.budgetVsActual.variance > 0 ? '+' : ''}${drillingMetrics.budgetVsActual.variance.toLocaleString()}
-              </div>
-              <div className={`text-sm font-medium ${
-                drillingMetrics.budgetVsActual.variance > 0 ? 'text-red-800' : 'text-green-800'
-              }`}>
-                Variance ({drillingMetrics.budgetVariancePercentage.toFixed(1)}%)
-              </div>
-            </div>
-          </div>
-          
-          {/* Visual variance indicator */}
-          <div className="mb-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Budget Performance</span>
-              <span>{Math.abs(drillingMetrics.budgetVariancePercentage).toFixed(1)}% {drillingMetrics.budgetVariancePercentage > 0 ? 'over' : 'under'}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div 
-                className={`h-3 rounded-full transition-all duration-500 ${
-                  drillingMetrics.budgetVsActual.variance > 0 ? 'bg-red-500' : 'bg-green-500'
-                }`}
-                style={{ 
-                  width: `${Math.min(100, Math.abs(drillingMetrics.budgetVariancePercentage) * 2)}%` 
-                }}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="text-sm text-gray-600">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>Budget variance is calculated as (Actual - Budgeted) / Budgeted × 100%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-              <span>Based on {drillingMetrics.totalCostAllocations} drilling cost allocations</span>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Enhanced Cost Allocation Summary */}
-      <div className="bg-white rounded-lg p-6 shadow-md mt-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">COST ALLOCATION INTEGRATION SUMMARY</h3>
-          <div className="text-sm text-gray-500">
-            LC-Based Cost Tracking
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">
-              {drillingMetrics.totalCostAllocations}
-            </div>
-            <div className="text-sm text-blue-800 font-medium">Active LC Numbers</div>
-          </div>
-          
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">
-              {drillingMetrics.allocatedDays.toLocaleString()}
-            </div>
-            <div className="text-sm text-green-800 font-medium">Total Allocated Days</div>
-          </div>
-          
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">
-              ${drillingMetrics.avgCostPerHour.value.toFixed(0)}
-            </div>
-            <div className="text-sm text-purple-800 font-medium">Avg Cost per Hour</div>
-          </div>
-          
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-orange-600">
-              {Object.keys(drillingMetrics.rigLocationAnalysis || {}).length}
-            </div>
-            <div className="text-sm text-orange-800 font-medium">Active Rig Locations</div>
-          </div>
-        </div>
-        
-        {/* Project Type Breakdown */}
-        {drillingMetrics.dateFilteredDrillingCosts && (
-          <div className="border-t border-gray-200 pt-4">
-            <h4 className="font-medium text-gray-900 mb-3">Project Type Distribution</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {(() => {
-                const projectTypeBreakdown = drillingMetrics.dateFilteredDrillingCosts.reduce((acc: any, cost: any) => {
-                  const projectType = cost.projectType || 'Unknown';
-                  if (!acc[projectType]) {
-                    acc[projectType] = { count: 0, totalCost: 0, allocatedDays: 0 };
-                  }
-                  acc[projectType].count += 1;
-                  acc[projectType].totalCost += cost.totalCost || cost.budgetedVesselCost || 0;
-                  acc[projectType].allocatedDays += cost.totalAllocatedDays || 0;
-                  return acc;
-                }, {});
-                
-                return Object.entries(projectTypeBreakdown).map(([projectType, data]: [string, any]) => (
-                  <div key={projectType} className="border border-gray-200 rounded-lg p-3">
-                    <div className="font-medium text-gray-900 mb-1">{projectType}</div>
-                    <div className="text-sm space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">LCs:</span>
-                        <span className="font-medium">{data.count}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Cost:</span>
-                        <span className="font-medium">${data.totalCost.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Days:</span>
-                        <span className="font-medium">{data.allocatedDays}</span>
-                      </div>
-                    </div>
-                  </div>
-                ));
-              })()}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

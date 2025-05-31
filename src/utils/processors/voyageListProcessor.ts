@@ -96,12 +96,12 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
         vessel: voyage.Vessel || 'Unknown',
         standardizedVesselName: voyage.Vessel?.trim() || 'Unknown',
         voyageNumber: voyage["Voyage Number"] || 0,
-        year: voyage.Year || new Date().getFullYear(),
+        year: voyage.Year || 2024, // Default to 2024 for missing year
         month: voyage.Month || 'Unknown',
         monthNumber: voyage.Month ? getMonthNumber(voyage.Month) : 1,
-        startDate: voyage["Start Date"] ? parseDate(voyage["Start Date"]) : new Date(),
+        startDate: voyage["Start Date"] ? parseDate(voyage["Start Date"]) : new Date(2024, 0, 1), // Default to Jan 1, 2024
         endDate: undefined,
-        voyageDate: voyage["Start Date"] ? parseDate(voyage["Start Date"]) : new Date(),
+        voyageDate: voyage["Start Date"] ? parseDate(voyage["Start Date"]) : new Date(2024, 0, 1), // Default to Jan 1, 2024
         durationHours: undefined,
         type: voyage.Type,
         mission: voyage.Mission || 'Unknown',

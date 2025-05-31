@@ -118,6 +118,7 @@ const AppContent: React.FC = () => {
     setCurrentView('cost');
   };
 
+
   return (
     <>
       {currentView === 'landing' && (
