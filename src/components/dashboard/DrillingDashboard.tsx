@@ -56,24 +56,24 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       vesselManifestDepartments: uniqueManifestDepartments
     });
 
-    // Get all production LC numbers to exclude from drilling cost allocations
-    const getAllProductionLCs = () => {
+    // Get all drilling LC numbers to exclude from drilling cost allocations
+    const getAllDrillingLCs = () => {
       const drillingFacilities = getAllDrillingCapableLocations();
-      const allProductionLCs = new Set<string>();
+      const allDrillingLCs = new Set<string>();
       
       drillingFacilities.forEach(facility => {
-        if (facility.productionLCs) {
-          facility.productionLCs.split(',').forEach(lc => {
-            allProductionLCs.add(lc.trim());
+        if (facility.drillingLCs) {
+          facility.drillingLCs.split(',').forEach(lc => {
+            allDrillingLCs.add(lc.trim());
           });
         }
       });
       
-      console.log('🏭 Production LC Numbers to exclude from drilling:', Array.from(allProductionLCs));
-      return allProductionLCs;
+      console.log('🏭 Drilling LC Numbers to include:', Array.from(allDrillingLCs));
+      return allDrillingLCs;
     };
 
-    const productionLCs = getAllProductionLCs();
+    const drillingLCs = getAllDrillingLCs();
 
     // Helper function to apply cost allocation percentage for drilling locations
     const applyCostAllocationPercentage = (event: any, hours: number) => {
@@ -111,7 +111,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
       // For non-drilling locations, use the original logic
       const isDrillingRelated = event.department === 'Drilling' || 
-                               event.department === 'Production' ||
                                !event.department; // Include events without department classification
       
       return isDrillingRelated &&
@@ -134,7 +133,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
       // For non-drilling locations, use the original logic
       const isDrillingRelated = manifest.finalDepartment === 'Drilling' ||
-                               manifest.finalDepartment === 'Production' ||
                                !manifest.finalDepartment; // Include manifests without department classification
       
       return isDrillingRelated &&
@@ -166,7 +164,53 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       const hours = event.finalHours || 0;
       return sum + applyCostAllocationPercentage(event, hours);
     }, 0);
-    const liftsPerHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
+
+    // Enhanced Lifts per Hour calculation
+    let liftsPerHour = 0;
+    if (filters.selectedLocation === 'All Locations' && filters.selectedMonth === 'All Months') {
+      // For all locations and all months, calculate average across all drilling locations
+      const drillingFacilities = getAllDrillingCapableLocations();
+      const drillingLocationLifts = drillingFacilities.map(facility => {
+        const facilityManifests = vesselManifests.filter(m => 
+          m.mappedLocation === facility.locationName || 
+          m.mappedLocation === facility.displayName
+        );
+        const facilityLifts = facilityManifests.reduce((sum, m) => sum + (m.lifts || 0), 0);
+        
+        const facilityEvents = voyageEvents.filter(e => 
+          (e.location === facility.locationName || e.location === facility.displayName) &&
+          (e.parentEvent === 'Cargo Ops' ||
+           (e.parentEvent === 'Installation Productive Time' && 
+            (e.event?.toLowerCase().includes('cargo') || 
+             e.event?.toLowerCase().includes('loading') || 
+             e.event?.toLowerCase().includes('offloading') ||
+             e.event?.toLowerCase().includes('discharge'))) ||
+           e.event?.toLowerCase().includes('simops'))
+        );
+        const facilityHours = facilityEvents.reduce((sum, e) => sum + (e.finalHours || 0), 0);
+        
+        return { lifts: facilityLifts, hours: facilityHours };
+      });
+
+      const totalDrillingLifts = drillingLocationLifts.reduce((sum, loc) => sum + loc.lifts, 0);
+      const totalDrillingHours = drillingLocationLifts.reduce((sum, loc) => sum + loc.hours, 0);
+      
+      liftsPerHour = totalDrillingHours > 0 ? totalDrillingLifts / totalDrillingHours : 0;
+      
+      console.log('🔍 All Locations Lifts/Hour Calculation:', {
+        totalDrillingLifts,
+        totalDrillingHours,
+        liftsPerHour,
+        locationBreakdown: drillingLocationLifts.map((loc, i) => ({
+          location: drillingFacilities[i].displayName,
+          lifts: loc.lifts,
+          hours: loc.hours
+        }))
+      });
+    } else {
+      // For specific location or month, use the filtered data
+      liftsPerHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
+    }
     
     // 3. OSV Productive Hours - Using activity category classification with cost allocation
     const productiveEvents = filteredVoyageEvents.filter(event => 
@@ -309,10 +353,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     
     // Filter cost allocation data for drilling operations - exclude production LCs
     const drillingCostAllocation = costAllocation.filter(cost => {
-      // Exclude known production LC numbers
+      // Include only drilling LCs
       const lcNumber = String(cost.lcNumber || '').trim();
-      if (productionLCs.has(lcNumber)) {
-        console.log(`🚫 Excluding production LC: ${lcNumber}`);
+      if (!drillingLCs.has(lcNumber)) {
+        console.log(`🚫 Excluding non-drilling LC: ${lcNumber}`);
         return false;
       }
       
@@ -585,7 +629,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         isPositive: cargoTons > mockPreviousPeriod.cargoTons 
       },
       liftsPerHour: { 
-        value: Number((Number(liftsPerHour) || 0).toFixed(2)), 
+        value: Math.round(Number(liftsPerHour) || 0), 
         trend: Number(calculateTrend(Number(liftsPerHour) || 0, mockPreviousPeriod.liftsPerHour).toFixed(1)), 
         isPositive: (Number(liftsPerHour) || 0) > mockPreviousPeriod.liftsPerHour 
       },
@@ -600,7 +644,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         isPositive: waitingTimeOffshore < mockPreviousPeriod.waitingTime // Lower waiting time is better
       },
       rtCargoTons: { 
-        value: Number((Number(rtTons) || 0).toFixed(2)), 
+        value: Math.round(Number(rtTons) || 0), 
         trend: Number(calculateTrend(Number(rtTons) || 0, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
         isPositive: (Number(rtTons) || 0) < mockPreviousPeriod.rtCargoTons // Lower RT cargo might be better
       },
@@ -625,7 +669,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         isPositive: vesselVisits > mockPreviousPeriod.vesselVisits 
       },
       maneuveringHours: { 
-        value: Number((Number(maneuveringHours) || 0).toFixed(2)), 
+        value: Math.round(Number(maneuveringHours) || 0), 
         trend: Number(calculateTrend(Number(maneuveringHours) || 0, mockPreviousPeriod.maneuveringHours).toFixed(1)), 
         isPositive: (Number(maneuveringHours) || 0) < mockPreviousPeriod.maneuveringHours // Lower maneuvering time is better
       },
@@ -878,13 +922,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     // Create month options with proper chronological sorting from actual data
     const monthMap = new Map<string, string>();
     
-    console.log('🔍 DrillingDashboard filterOptions debug:', {
-      voyageEventsCount: voyageEvents.length,
-      vesselManifestsCount: vesselManifests.length,
-      costAllocationCount: costAllocation.length,
-      voyageListCount: voyageList.length
-    });
-    
     // Add months from voyage events - using eventDate as primary source
     voyageEvents.forEach(event => {
       if (event.eventDate) {
@@ -931,20 +968,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
     const months = ['All Months', ...sortedMonths.map(item => item.label)];
     
-    console.log('📅 Generated month filters from actual data:', {
-      totalMonthsFound: monthMap.size,
-      monthRange: sortedMonths.length > 0 ? `${sortedMonths[0].label} to ${sortedMonths[sortedMonths.length - 1].label}` : 'None',
-      allMonths: months,
-      sampleDates: {
-        firstVoyageEvent: voyageEvents[0]?.eventDate,
-        firstManifest: vesselManifests[0]?.manifestDate,
-        firstVoyage: voyageList[0]?.startDate
-      }
-    });
-    
     // Get drilling locations from master facilities data
     const drillingFacilities = getAllDrillingCapableLocations();
-    const locations = ['All Locations', ...drillingFacilities.map(facility => facility.displayName)];
+    const locations = ['All Locations', ...drillingFacilities
+      .filter(facility => !facility.displayName.toLowerCase().includes('production'))
+      .map(facility => facility.displayName)];
 
     return { months, locations };
   }, [voyageEvents, vesselManifests, voyageList, costAllocation.length]); // Focus on primary data sources
@@ -1057,28 +1085,28 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         />
         <KPICard 
           title="Lifts per Hour" 
-          value={drillingMetrics.liftsPerHour.value}
+          value={Math.round(drillingMetrics.liftsPerHour.value).toLocaleString()}
           trend={drillingMetrics.liftsPerHour.trend}
           isPositive={drillingMetrics.liftsPerHour.isPositive}
           unit="lifts/hr"
         />
         <KPICard 
           title="Productive Hours" 
-          value={drillingMetrics.osvProductiveHours.value}
+          value={drillingMetrics.osvProductiveHours.value.toLocaleString()}
           trend={drillingMetrics.osvProductiveHours.trend}
           isPositive={drillingMetrics.osvProductiveHours.isPositive}
           unit="hrs"
         />
         <KPICard 
           title="Waiting Time" 
-          value={drillingMetrics.waitingTime.value}
+          value={drillingMetrics.waitingTime.value.toLocaleString()}
           trend={drillingMetrics.waitingTime.trend}
           isPositive={drillingMetrics.waitingTime.isPositive}
           unit="hrs"
         />
         <KPICard 
           title="Vessel Utilization" 
-          value={drillingMetrics.vesselUtilization.value}
+          value={drillingMetrics.vesselUtilization.value.toLocaleString()}
           trend={drillingMetrics.vesselUtilization.trend}
           isPositive={drillingMetrics.vesselUtilization.isPositive}
           unit="%"
@@ -1087,35 +1115,35 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         {/* Second Row - Efficiency & Performance Metrics */}
         <KPICard 
           title="Fluid Movement" 
-          value={drillingMetrics.fluidMovement.value === 'N/A' ? 'N/A' : `${Number(drillingMetrics.fluidMovement.value).toLocaleString()}`}
+          value={drillingMetrics.fluidMovement.value === 'N/A' ? 'N/A' : Math.round(Number(drillingMetrics.fluidMovement.value)).toLocaleString()}
           trend={drillingMetrics.fluidMovement.trend}
           isPositive={drillingMetrics.fluidMovement.isPositive}
           unit={drillingMetrics.fluidMovement.value !== 'N/A' ? "bbls" : undefined}
         />
         <KPICard 
           title="NPT Percentage" 
-          value={drillingMetrics.nptPercentage?.value.toFixed(1) || '0.0'}
+          value={Math.round(drillingMetrics.nptPercentage?.value || 0).toLocaleString()}
           trend={drillingMetrics.nptPercentage?.trend}
           isPositive={drillingMetrics.nptPercentage?.isPositive}
           unit="%"
         />
         <KPICard 
           title="Weather Impact" 
-          value={drillingMetrics.weatherImpact?.value.toFixed(1) || '0.0'}
+          value={Math.round(drillingMetrics.weatherImpact?.value || 0).toLocaleString()}
           trend={drillingMetrics.weatherImpact?.trend}
           isPositive={drillingMetrics.weatherImpact?.isPositive}
           unit="%"
         />
         <KPICard 
           title="Drilling Voyages" 
-          value={drillingMetrics.fsvRuns.value}
+          value={drillingMetrics.fsvRuns.value.toLocaleString()}
           trend={drillingMetrics.fsvRuns.trend}
           isPositive={drillingMetrics.fsvRuns.isPositive}
           unit="voyages"
         />
         <KPICard 
           title="Maneuvering Hours" 
-          value={drillingMetrics.maneuveringHours.value}
+          value={Math.round(drillingMetrics.maneuveringHours.value).toLocaleString()}
           trend={drillingMetrics.maneuveringHours.trend}
           isPositive={drillingMetrics.maneuveringHours.isPositive}
           unit="hrs"

@@ -13,6 +13,7 @@ export interface FacilityClassification {
   isActive: boolean;
   sortOrder: number;
   productionLCs?: string;  // Updated: comma-separated list of Production LC numbers
+  drillingLCs?: string;    // Added: comma-separated list of Drilling LC numbers
   isProductionCapable: boolean;
   isDrillingCapable: boolean;
   category: 'Production Facilities' | 'Drilling Rigs' | 'Integrated Facilities';
@@ -110,6 +111,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 110,
+    drillingLCs: '10101,10102,10103,10104,10105',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -125,6 +127,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 120,
+    drillingLCs: '10106,10107,10108,10109,10110',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -139,6 +142,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 130,
+    drillingLCs: '10111,10112,10113,10114,10115',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -153,6 +157,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 140,
+    drillingLCs: '10116,10117,10118,10119,10120',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -167,6 +172,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 150,
+    drillingLCs: '10121,10122,10123,10124,10125',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -181,6 +187,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 160,
+    drillingLCs: '10126,10127,10128,10129,10130',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -195,6 +202,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 170,
+    drillingLCs: '10131,10132,10133,10134,10135',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -209,6 +217,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 180,
+    drillingLCs: '10136,10137,10138,10139,10140',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -223,6 +232,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 190,
+    drillingLCs: '10141,10142,10143,10144,10145',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -237,6 +247,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 200,
+    drillingLCs: '10146,10147,10148,10149,10150',
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
