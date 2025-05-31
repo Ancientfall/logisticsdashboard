@@ -9,11 +9,12 @@ import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
 import CostAllocationManager from './components/dashboard/CostAllocationManager';
+import ProductionDashboard from './components/dashboard/ProductionDashboard';
 
 // Main application content component
 const AppContent: React.FC = () => {
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'voyage' | 'cost'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'production' | 'voyage' | 'cost'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
@@ -29,7 +30,7 @@ const AppContent: React.FC = () => {
     if (isDataReady && currentView === 'upload') {
       console.log('🎯 App: Data is ready, navigating to dashboard...');
       setCurrentView('dashboard');
-    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'voyage' || currentView === 'cost')) {
+    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'production' || currentView === 'voyage' || currentView === 'cost')) {
       console.log('❌ App: Data not ready, redirecting to upload...');
       setCurrentView('upload');
     }
@@ -88,9 +89,8 @@ const AppContent: React.FC = () => {
   };
 
   const handleNavigateToProduction = () => {
-    // TODO: Implement production dashboard
     if (isDataReady) {
-      setCurrentView('dashboard'); // For now, redirect to main dashboard
+      setCurrentView('production');
     } else {
       setCurrentView('upload');
     }
@@ -117,7 +117,6 @@ const AppContent: React.FC = () => {
     // Cost allocation manager can work with or without data
     setCurrentView('cost');
   };
-
 
   return (
     <>
@@ -164,6 +163,20 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
         >
           <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+        </DashboardLayout>
+      )}
+      {currentView === 'production' && (
+        <DashboardLayout 
+          currentView="production"
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDashboard={handleNavigateToDashboard}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
+        >
+          <ProductionDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'voyage' && (

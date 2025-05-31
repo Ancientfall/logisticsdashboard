@@ -9,7 +9,9 @@ import {
   ArrowRight, 
   Play,
   CheckCircle,
-  DollarSign
+  DollarSign,
+  Drill,
+  Factory
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
@@ -34,60 +36,60 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   const features = [
     {
       icon: Database,
-      title: 'Smart Data Management',
-      description: 'Upload and manage offshore logistics data with intelligent processing and automatic deduplication.',
+      title: 'Cost Allocation Management',
+      description: 'Track and analyze vessel costs across drilling and production operations with intelligent cost attribution.',
       color: 'bg-blue-500'
     },
     {
       icon: BarChart3,
-      title: 'Real-Time Analytics',
-      description: 'Get instant insights into vessel operations, cargo efficiency, and cost optimization.',
+      title: 'Vessel Performance Analytics',
+      description: 'Monitor vessel operations, efficiency metrics, and cost optimization across your fleet.',
       color: 'bg-green-500'
     },
     {
-      icon: Ship,
-      title: 'Vessel Operations',
-      description: 'Track drilling and production vessels with comprehensive voyage and manifest management.',
+      icon: Drill,
+      title: 'Drilling Operations',
+      description: 'Comprehensive tracking of drilling activities, including Thunder Horse and Mad Dog operations.',
       color: 'bg-purple-500'
     },
     {
-      icon: TrendingUp,
-      title: 'Performance Optimization',
-      description: 'Identify trends, optimize routes, and maximize operational efficiency across your fleet.',
+      icon: Factory,
+      title: 'Production Analytics',
+      description: 'Monitor production facilities performance, vessel visits, and operational efficiency.',
       color: 'bg-orange-500'
     },
     {
       icon: Shield,
-      title: 'Enterprise Security',
-      description: 'Bank-grade security with data encryption and compliance with industry standards.',
+      title: 'Data Security',
+      description: 'Enterprise-grade security with local data storage and automatic data validation.',
       color: 'bg-red-500'
     },
     {
       icon: Zap,
-      title: 'Lightning Fast',
-      description: 'Process large datasets instantly with our optimized data processing engine.',
+      title: 'Real-Time Processing',
+      description: 'Instant data processing and validation for immediate insights and analysis.',
       color: 'bg-yellow-500'
     }
   ];
 
   const dashboards = [
     {
-      title: 'Drilling Dashboard',
-      description: 'Monitor drilling operations, rig efficiency, and operational KPIs',
+      title: 'Cost Allocation Dashboard',
+      description: 'Track and analyze vessel costs across drilling and production operations',
+      image: '💰',
+      metrics: ['Daily Rates', 'Cost Attribution', 'Budget Analysis', 'Cost Trends']
+    },
+    {
+      title: 'Vessel Operations',
+      description: 'Monitor vessel performance, efficiency, and operational metrics',
+      image: '🚢',
+      metrics: ['Vessel Utilization', 'Operational Hours', 'Efficiency Metrics', 'Cost Analysis']
+    },
+    {
+      title: 'Drilling & Production',
+      description: 'Comprehensive analytics for Thunder Horse and Mad Dog operations',
       image: '🛢️',
-      metrics: ['Lifts/Hr', 'Productive/Non-Productive Time', 'Cargo Ops Hours', 'Cost Analysis']
-    },
-    {
-      title: 'Production Dashboard',
-      description: 'Track production facilities, output metrics, and performance indicators',
-      image: '⚡',
-      metrics: ['Cost Analysis', 'Productive Hours', 'Waiting Time', 'Vessel Visits']
-    },
-    {
-      title: 'Comparison View',
-      description: 'Compare performance across facilities, time periods, and operational units',
-      image: '📊',
-      metrics: ['Side-by-Side Analysis', 'Trend Comparison', 'Benchmark Analysis', 'Performance Gaps']
+      metrics: ['Drilling Metrics', 'Production Analytics', 'Cost Allocation', 'Performance KPIs']
     }
   ];
 
@@ -175,12 +177,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             {/* Main Headline */}
             <div className={`transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
               <h2 className="text-6xl font-bold text-white mb-6 leading-tight">
-                Transform Your
+                Optimize Your
                 <span className="bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent"> Offshore Operations</span>
               </h2>
               <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
-                Powerful analytics platform for drilling and production operations. Upload your data, 
-                get instant insights, and optimize your offshore logistics with intelligent dashboards.
+                Advanced analytics platform for drilling and production operations. Track vessel costs, 
+                monitor performance, and optimize your offshore logistics with intelligent dashboards.
               </p>
             </div>
 
@@ -190,7 +192,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                 onClick={onGetStarted}
                 className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-3 justify-center"
               >
-                Get Started
+                Upload Data
                 <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
               </button>
               <button 
@@ -198,7 +200,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                 className="group bg-white/10 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/20 transition-all duration-300 border border-white/20 flex items-center gap-3 justify-center"
               >
                 <Play size={20} />
-                {hasData ? 'View Results' : 'Watch Demo'}
+                {hasData ? 'View Analytics' : 'View Demo'}
               </button>
             </div>
             
@@ -237,11 +239,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h3 className="text-4xl font-bold text-gray-900 mb-4">
-              Everything You Need for Offshore Analytics
+              Comprehensive Offshore Analytics
             </h3>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              From data upload to advanced analytics, our platform provides comprehensive tools 
-              for managing and optimizing your offshore operations.
+              From cost allocation to vessel operations, our platform provides detailed insights 
+              for optimizing your offshore operations.
             </p>
           </div>
 
@@ -270,10 +272,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h3 className="text-4xl font-bold text-gray-900 mb-4">
-              Specialized Dashboards for Every Operation
+              Specialized Analytics Dashboards
             </h3>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Purpose-built analytics dashboards tailored for drilling, production, and comparative analysis.
+              Purpose-built analytics for cost allocation, vessel operations, and drilling/production analysis.
             </p>
           </div>
 
@@ -319,8 +321,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-3">1. Upload Your Data</h4>
               <p className="text-gray-600">
-                Upload Excel files for voyage events, cost allocation, and vessel manifests. 
-                Our system handles the rest automatically.
+                Upload your cost allocation, vessel operations, and drilling data. 
+                Our system handles validation and processing automatically.
               </p>
             </div>
 
@@ -330,8 +332,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-3">2. Process & Validate</h4>
               <p className="text-gray-600">
-                Our intelligent processing engine validates, cleans, and organizes your data 
-                for optimal analysis and reporting.
+                Our system validates your data, processes cost allocations, and prepares 
+                it for comprehensive analysis.
               </p>
             </div>
 
@@ -341,8 +343,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-3">3. Analyze & Optimize</h4>
               <p className="text-gray-600">
-                Access powerful dashboards with real-time insights, trends, and optimization 
-                recommendations for your operations.
+                Access detailed analytics for cost allocation, vessel operations, and 
+                drilling/production performance.
               </p>
             </div>
           </div>
@@ -353,24 +355,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       <div className="py-20 bg-gradient-to-r from-green-600 to-blue-600">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h3 className="text-4xl font-bold text-white mb-6">
-            Ready to Transform Your Operations?
+            Ready to Optimize Your Operations?
           </h3>
           <p className="text-xl text-green-100 mb-8">
-            Join the future of offshore logistics analytics. Start optimizing your operations today.
+            Start analyzing your offshore operations data today and gain valuable insights.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
               onClick={onGetStarted}
               className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-3 justify-center"
             >
-              Start Free Trial
+              Upload Data
               <ArrowRight size={20} />
             </button>
             <button 
               onClick={hasData ? onViewDashboard : onGetStarted}
               className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border border-white/30"
             >
-              {hasData ? 'View Results' : 'Schedule Demo'}
+              {hasData ? 'View Analytics' : 'View Demo'}
             </button>
             
             {/* Debug refresh button */}
