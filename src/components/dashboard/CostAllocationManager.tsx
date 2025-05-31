@@ -580,6 +580,14 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     return colorMap[colorClass as keyof typeof colorMap] || colorMap.gray;
   }, []);
 
+  // Update the rig location name correction
+  const correctRigName = (name: string): string => {
+    if (name.toLowerCase().includes('steana icemax')) {
+      return 'Stena IceMAX';
+    }
+    return name;
+  };
+
   // Early return for no data state
   if (!isDataReady || !costAllocation || costAllocation.length === 0) {
     return (
@@ -1040,83 +1048,139 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   <div className="space-y-4">
                     {Object.entries(costAnalysis.rigLocationBreakdown)
                       .sort(([,a], [,b]) => b.cost - a.cost)
-                      .map(([rig, data]: [string, any]) => (
-                      <div key={rig} className="bg-gradient-to-r from-gray-50/50 to-blue-50/50 backdrop-blur-md rounded-xl p-6 border border-gray-200/50 hover:shadow-md transition-all duration-200">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h4 className="text-xl font-bold text-gray-900">{rig}</h4>
-                            <div className="flex items-center gap-3 mt-2">
-                              <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">
-                                {data.rigType}
-                              </span>
-                              {data.waterDepth > 0 && (
-                                <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full font-medium">
-                                  {data.waterDepth.toLocaleString()} ft depth
-                                </span>
-                              )}
+                      .map(([rig, data]: [string, any]) => {
+                        const correctedRigName = correctRigName(rig);
+                        return (
+                          <div key={rig} className="bg-gradient-to-r from-gray-50/50 to-blue-50/50 backdrop-blur-md rounded-xl p-6 border border-gray-200/50 hover:shadow-md transition-all duration-200">
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <h4 className="text-xl font-bold text-gray-900">{correctedRigName}</h4>
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">
+                                    {data.rigType}
+                                  </span>
+                                  {data.waterDepth > 0 && (
+                                    <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full font-medium">
+                                      {data.waterDepth.toLocaleString()} ft depth
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-2xl font-bold text-green-600">{formatLargeCurrency(data.cost)}</p>
+                                <p className="text-sm text-gray-600">Total vessel cost</p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-green-600">{formatLargeCurrency(data.cost)}</p>
-                            <p className="text-sm text-gray-600">Total vessel cost</p>
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
-                            <p className="text-sm text-gray-600">Allocated Days</p>
-                            <p className="text-lg font-bold text-gray-900">{data.days.toLocaleString()}</p>
-                          </div>
-                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
-                            <p className="text-sm text-gray-600">Daily Rate</p>
-                            <p className="text-lg font-bold text-gray-900">${data.avgDailyRate.toLocaleString()}</p>
-                          </div>
-                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
-                            <p className="text-sm text-gray-600">Projects</p>
-                            <p className="text-lg font-bold text-gray-900">{data.count}</p>
-                          </div>
-                          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
-                            <p className="text-sm text-gray-600">Cost/Day</p>
-                            <p className="text-lg font-bold text-gray-900">
-                              {data.days > 0 ? formatCurrency(data.cost / data.days) : '$0'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Project breakdown for this rig */}
-                        {data.projects && Object.keys(data.projects).length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium text-gray-700 mb-2">Project Type Breakdown:</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                              {Object.entries(data.projects).map(([projectType, projectData]: [string, any]) => {
-                                const Icon = getProjectIcon(projectType);
-                                const colorClasses = getProjectColorClasses(projectType);
-                                return (
-                                  <div key={projectType} className={`bg-${colorClasses.bg} border border-${colorClasses.border} rounded-lg p-2`}>
-                                    <div className="flex items-center gap-2">
-                                      <Icon className={`text-${colorClasses.iconText}`} size={16} />
-                                      <span className="text-xs font-medium text-gray-700">{projectType}</span>
-                                    </div>
-                                    <p className="text-sm font-semibold text-gray-900 mt-1">
-                                      {formatLargeCurrency(projectData.cost)}
-                                    </p>
-                                    <p className="text-xs text-gray-600">{projectData.days} days</p>
-                                  </div>
-                                );
-                              })}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
+                                <p className="text-sm text-gray-600">Allocated Days</p>
+                                <p className="text-lg font-bold text-gray-900">{Math.round(data.days).toLocaleString()}</p>
+                              </div>
+                              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
+                                <p className="text-sm text-gray-600">Daily Rate</p>
+                                <p className="text-lg font-bold text-gray-900">${data.avgDailyRate.toLocaleString()}</p>
+                              </div>
+                              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
+                                <p className="text-sm text-gray-600">Projects</p>
+                                <p className="text-lg font-bold text-gray-900">{data.count}</p>
+                              </div>
+                              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
+                                <p className="text-sm text-gray-600">Cost/Day</p>
+                                <p className="text-lg font-bold text-gray-900">
+                                  {data.days > 0 ? formatCurrency(data.cost / data.days) : '$0'}
+                                </p>
+                              </div>
                             </div>
+
+                            {/* Project breakdown for this rig */}
+                            {data.projects && Object.keys(data.projects).length > 0 && (
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 mb-2">Project Type Breakdown:</p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                  {Object.entries(data.projects)
+                                    .filter(([projectType]) => {
+                                      // Filter out Production card for Thunder Horse Drilling and Mad Dog Drilling
+                                      if ((correctedRigName === 'Thunder Horse Drilling' || correctedRigName === 'Mad Dog Drilling') && projectType === 'Production') {
+                                        return false;
+                                      }
+                                      return true;
+                                    })
+                                    .map(([projectType, projectData]: [string, any]) => {
+                                      const Icon = getProjectIcon(projectType);
+                                      const colorClasses = getProjectColorClasses(projectType);
+                                      return (
+                                        <div key={projectType} className={`bg-${colorClasses.bg} border border-${colorClasses.border} rounded-lg p-2`}>
+                                          <div className="flex items-center gap-2">
+                                            <Icon className={`text-${colorClasses.iconText}`} size={16} />
+                                            <span className="text-xs font-medium text-gray-700">{projectType}</span>
+                                          </div>
+                                          <p className="text-sm font-semibold text-gray-900 mt-1">
+                                            {formatLargeCurrency(projectData.cost)}
+                                          </p>
+                                          <p className="text-xs text-gray-600">{Math.round(projectData.days)} days</p>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                        );
+                      })}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <MapPin size={48} className="text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No rig location data available</p>
-                    <p className="text-sm text-gray-500">Check your filters or upload data with rig location information</p>
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No rig performance data available</p>
                   </div>
                 )}
+              </div>
+
+              {/* Monthly Cost Timeline */}
+              <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Monthly Cost Timeline</h3>
+                <div className="space-y-4">
+                  {Object.entries(costAnalysis.monthlyTrends)
+                    .filter(([monthYear]) => {
+                      // Only show 2024-2025 data
+                      if (monthYear === 'Unknown') return false;
+                      const [, year] = monthYear.split('-'); // Removed unused 'month' variable
+                      const yearNum = parseInt(year, 10);
+                      return yearNum >= 24 && yearNum <= 25; // 24 = 2024, 25 = 2025
+                    })
+                    .sort(([a], [b]) => {
+                      // Sort by year and month
+                      const [aMonth, aYear] = a.split('-').map(Number);
+                      const [bMonth, bYear] = b.split('-').map(Number);
+                      if (aYear !== bYear) return aYear - bYear;
+                      return aMonth - bMonth;
+                    })
+                    .map(([monthYear, data]: [string, any]) => {
+                      // Format the month for display
+                      const formatMonth = (monthYear: string) => {
+                        if (monthYear === 'Unknown') return 'Unknown';
+                        const [month, year] = monthYear.split('-');
+                        const monthNum = parseInt(month, 10);
+                        const yearNum = parseInt(year, 10);
+                        const fullYear = 2000 + yearNum;
+                        const date = new Date(fullYear, monthNum - 1, 1);
+                        return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                      };
+                      
+                      return (
+                        <div key={monthYear} className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-lg border border-gray-100/50">
+                          <div>
+                            <p className="font-medium text-gray-900">{formatMonth(monthYear)}</p>
+                            <p className="text-sm text-gray-600">{data.count} projects • {Math.round(data.days)} days</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">{formatLargeCurrency(data.cost)}</p>
+                            <p className="text-sm text-gray-600">${data.avgRate.toLocaleString()}/day</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             </div>
           )}

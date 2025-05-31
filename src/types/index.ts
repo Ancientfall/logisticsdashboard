@@ -167,6 +167,11 @@ export interface CostAllocation {
   mission?: string;
   department?: 'Drilling' | 'Production' | 'Logistics';
   isActive: boolean;
+  
+  // Enhanced Location Information
+  isDrilling?: boolean;           // True if this is a drilling activity
+  isThunderHorse?: boolean;       // True if this is Thunder Horse related
+  isMadDog?: boolean;            // True if this is Mad Dog related
 }
 
 export interface VesselClassification {
