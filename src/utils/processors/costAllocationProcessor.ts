@@ -97,6 +97,7 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
   }
 
   const processed: CostAllocation[] = [];
+  const dataQualityIssues: Array<{ row: number; field: string; value: any; issue: string }> = [];
 
   rawCostAllocation.forEach((costAlloc, index) => {
     try {
@@ -184,16 +185,25 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
           }
           // Check if we're getting a number that might be a year (19-25)
           else if (typeof monthYearValue === 'number' && monthYearValue >= 19 && monthYearValue <= 25) {
-            console.error(`❌ CRITICAL DATA ISSUE: Month-Year value is just "${monthYearValue}" for LC ${lcNumber}`);
-            console.error(`   This indicates Excel date parsing failure.`);
-            console.error(`   The Excel file may need the date column reformatted.`);
+            // This is a critical data quality issue - we should not proceed
+            const errorMsg = `CRITICAL DATA ISSUE: The Month-Year column contains only the year value "${monthYearValue}" for LC ${lcNumber}. ` +
+              `This indicates that Excel is not properly parsing the MM-DD-YY date format. ` +
+              `Please ensure your Excel file has dates in MM-DD-YY format (e.g., "01-15-23" for January 15, 2023) ` +
+              `and that the column is formatted as Text or Date in Excel before importing.`;
             
-            // We can't determine the month, so we'll flag this as a data quality issue
-            year = 2000 + monthYearValue;
-            month = 1; // Default to January - THIS IS THE PROBLEM!
-            monthYear = `01-${String(monthYearValue).padStart(2, '0')}`;
-            costAllocationDate = new Date(year, 0, 15);
-            console.error(`⚠️ DEFAULTING TO JANUARY ${year} - THIS IS INCORRECT!`);
+            console.error(`❌ ${errorMsg}`);
+            
+            // Add to data quality issues so it's visible to the user
+            dataQualityIssues.push({
+              row: index + 2,
+              field: 'Month-Year',
+              value: monthYearValue,
+              issue: errorMsg
+            });
+            
+            // Skip this record entirely - don't process with incorrect date
+            console.error(`⚠️ Skipping cost allocation record for LC ${lcNumber} due to invalid date format`);
+            return; // Use return instead of continue in forEach
           }
           else if (monthYearValue && Object.prototype.toString.call(monthYearValue) === '[object Date]') {
             const dateObj = monthYearValue as unknown as Date;
@@ -492,6 +502,28 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
     💰 Records with budgeted vessel costs: ${recordsWithBudgetedCost}/${processed.length}
     📅 Records with allocated days: ${recordsWithAllocatedDays}/${processed.length}  
     💲 Records with actual costs: ${recordsWithActualCost}/${processed.length}`);
+
+  // Report data quality issues
+  if (dataQualityIssues.length > 0) {
+    console.error(`\n❌ DATA QUALITY ISSUES DETECTED: ${dataQualityIssues.length} records have date parsing errors`);
+    console.error(`⚠️ These records were SKIPPED and not included in the dashboard.`);
+    console.error(`📋 To fix this issue:`);
+    console.error(`   1. Open your Excel file`);
+    console.error(`   2. Format the Month-Year column as Text or Date`);
+    console.error(`   3. Ensure dates are in MM-DD-YY format (e.g., "01-15-23" for January 15, 2023)`);
+    console.error(`   4. Re-import the file`);
+    
+    // Show first few issues as examples
+    const samplesToShow = Math.min(5, dataQualityIssues.length);
+    console.error(`\n📋 First ${samplesToShow} issues:`);
+    dataQualityIssues.slice(0, samplesToShow).forEach(issue => {
+      console.error(`   Row ${issue.row}: ${issue.field} = "${issue.value}"`);
+    });
+    
+    if (dataQualityIssues.length > samplesToShow) {
+      console.error(`   ... and ${dataQualityIssues.length - samplesToShow} more issues`);
+    }
+  }
 
   return processed;
 };
