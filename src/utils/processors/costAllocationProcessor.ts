@@ -40,8 +40,8 @@ interface RawCostAllocation {
  */
 export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): CostAllocation[] => {
   console.log(`🔍 Processing ${rawCostAllocation.length} raw cost allocation records...`);
-  console.log(`📅 CONFIRMED DATA RANGE: January 1, 2024 to April 30, 2025`);
-  console.log(`📋 Expected MM-YY formats: 01-24 through 04-25 (Jan 2024 through Apr 2025)`);
+  console.log(`📅 CONFIRMED DATA RANGE: January 1, 2023 to December 31, 2025`);
+  console.log(`📋 Expected MM-YY formats: 01-23 through 12-25 (Jan 2023 through Dec 2025)`);
   
   if (!rawCostAllocation || rawCostAllocation.length === 0) {
     console.warn('⚠️ No cost allocation data provided');
@@ -80,6 +80,19 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
       const exactMatch = sample.hasOwnProperty(expected);
       const alternativeMatches = alternatives.filter(alt => sample.hasOwnProperty(alt));
       console.log(`  ${expected}: exact=${exactMatch}, alternatives=[${alternativeMatches.join(', ')}]`);
+    });
+    
+    // DEBUG: Check Month-Year values specifically
+    console.log('📅 RAW MONTH-YEAR VALUES FROM EXCEL:');
+    rawCostAllocation.slice(0, 10).forEach((record, idx) => {
+      const monthYear = record["Month-Year"];
+      console.log(`  Record ${idx + 1}: Month-Year =`, {
+        value: monthYear,
+        type: typeof monthYear,
+        stringValue: String(monthYear),
+        isDate: Object.prototype.toString.call(monthYear) === '[object Date]',
+        dateString: monthYear instanceof Date ? monthYear.toISOString() : 'N/A'
+      });
     });
   }
 
@@ -142,7 +155,47 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
         try {
           // Handle Excel Date objects first
           const monthYearValue = costAlloc["Month-Year"];
-          if (monthYearValue && Object.prototype.toString.call(monthYearValue) === '[object Date]') {
+          
+          // Debug log for first few records
+          if (index < 10) {
+            console.log(`🔍 DATE DEBUG for LC ${lcNumber}:`, {
+              value: monthYearValue,
+              type: typeof monthYearValue,
+              isDate: Object.prototype.toString.call(monthYearValue) === '[object Date]',
+              stringValue: String(monthYearValue),
+              rawValue: costAlloc["Month-Year"]
+            });
+          }
+          
+          // CRITICAL: Check for Excel serial dates (numbers > 40000 are likely Excel dates)
+          if (typeof monthYearValue === 'number' && monthYearValue > 40000) {
+            // This is an Excel serial date
+            const excelEpoch = new Date(1899, 11, 30);
+            const dateObj = new Date(excelEpoch.getTime() + monthYearValue * 24 * 60 * 60 * 1000);
+            
+            if (!isNaN(dateObj.getTime())) {
+              year = dateObj.getFullYear();
+              month = dateObj.getMonth() + 1;
+              monthYear = `${String(month).padStart(2, '0')}-${String(year).slice(-2)}`;
+              costAllocationDate = new Date(year, month - 1, 15);
+              
+              console.log(`📅 Excel serial date ${monthYearValue} parsed to: ${month}/${year}`);
+            }
+          }
+          // Check if we're getting a number that might be a year (19-25)
+          else if (typeof monthYearValue === 'number' && monthYearValue >= 19 && monthYearValue <= 25) {
+            console.error(`❌ CRITICAL DATA ISSUE: Month-Year value is just "${monthYearValue}" for LC ${lcNumber}`);
+            console.error(`   This indicates Excel date parsing failure.`);
+            console.error(`   The Excel file may need the date column reformatted.`);
+            
+            // We can't determine the month, so we'll flag this as a data quality issue
+            year = 2000 + monthYearValue;
+            month = 1; // Default to January - THIS IS THE PROBLEM!
+            monthYear = `01-${String(monthYearValue).padStart(2, '0')}`;
+            costAllocationDate = new Date(year, 0, 15);
+            console.error(`⚠️ DEFAULTING TO JANUARY ${year} - THIS IS INCORRECT!`);
+          }
+          else if (monthYearValue && Object.prototype.toString.call(monthYearValue) === '[object Date]') {
             const dateObj = monthYearValue as unknown as Date;
             year = dateObj.getFullYear();
             month = dateObj.getMonth() + 1;
@@ -153,16 +206,45 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
               console.log(`📅 Excel Date parsed: ${dateObj.toISOString()} -> ${monthYear} (Year: ${year}, Month: ${month})`);
             }
           }
-          // Handle string MM-YY format (primary format)
+          // Handle string formats
           else if (typeof monthYearValue === 'string') {
-            const parsed = parseCostAllocationMonthYear(monthYearValue);
-            year = parsed.year;
-            month = parsed.month;
-            monthYear = parsed.monthYear;
-            costAllocationDate = parsed.costAllocationDate;
+            // Check for M/D/YYYY or MM/DD/YYYY format first
+            const fullDateMatch = monthYearValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            // Check for M/D/YY or MM/DD/YY format
+            const shortDateMatch = monthYearValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
             
-            if (index < 5) {
-              console.log(`📅 MM-YY format parsed: "${monthYearValue}" -> Year: ${year}, Month: ${month}, Date: ${costAllocationDate.toISOString()}`);
+            if (fullDateMatch) {
+              month = parseInt(fullDateMatch[1], 10);
+              const day = parseInt(fullDateMatch[2], 10);
+              year = parseInt(fullDateMatch[3], 10);
+              monthYear = `${String(month).padStart(2, '0')}-${String(year).slice(-2)}`;
+              costAllocationDate = new Date(year, month - 1, day);
+              
+              console.log(`📅 M/D/YYYY format parsed: "${monthYearValue}" -> ${monthYear} (Year: ${year}, Month: ${month}, Day: ${day})`);
+            }
+            else if (shortDateMatch) {
+              month = parseInt(shortDateMatch[1], 10);
+              const day = parseInt(shortDateMatch[2], 10);
+              const shortYear = parseInt(shortDateMatch[3], 10);
+              // Convert 2-digit year to 4-digit year
+              // For logistics data context: 23-25 should be 2023-2025, not 1923-1925
+              year = 2000 + shortYear;
+              monthYear = `${String(month).padStart(2, '0')}-${String(shortYear).padStart(2, '0')}`;
+              costAllocationDate = new Date(year, month - 1, day);
+              
+              console.log(`📅 M/D/YY format parsed: "${monthYearValue}" -> ${monthYear} (Year: ${year}, Month: ${month}, Day: ${day})`);
+            }
+            // Fall back to MM-YY format
+            else {
+              const parsed = parseCostAllocationMonthYear(monthYearValue);
+              year = parsed.year;
+              month = parsed.month;
+              monthYear = parsed.monthYear;
+              costAllocationDate = parsed.costAllocationDate;
+              
+              if (index < 5) {
+                console.log(`📅 MM-YY format parsed: "${monthYearValue}" -> Year: ${year}, Month: ${month}, Date: ${costAllocationDate.toISOString()}`);
+              }
             }
           }
           else {
@@ -264,6 +346,11 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
         }
       }
 
+      // CRITICAL: Validate monthYear format before creating record
+      if (monthYear && !/^\d{2}-\d{2}$/.test(monthYear)) {
+        console.warn(`⚠️ Invalid monthYear format for LC ${lcNumber}: "${monthYear}" (expected MM-YY)`);
+      }
+      
       const processedRecord: CostAllocation = {
         // Core Fields
         lcNumber,
@@ -329,6 +416,30 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
 
   console.log(`✅ Successfully processed ${processed.length} cost allocation records from ${rawCostAllocation.length} raw records`);
   
+  // DATE FORMAT VALIDATION
+  const monthYearFormats = processed.reduce((acc, r) => {
+    if (r.monthYear) {
+      const isValidFormat = /^\d{2}-\d{2}$/.test(r.monthYear);
+      acc[isValidFormat ? 'valid' : 'invalid'].push(r.monthYear);
+    } else {
+      acc.missing++;
+    }
+    return acc;
+  }, { valid: [] as string[], invalid: [] as string[], missing: 0 });
+  
+  console.log('📅 MONTHYEAR FORMAT VALIDATION:');
+  console.log(`   ✅ Valid MM-YY format: ${monthYearFormats.valid.length} records`);
+  console.log(`   ❌ Invalid format: ${monthYearFormats.invalid.length} records`);
+  console.log(`   ⚠️ Missing monthYear: ${monthYearFormats.missing} records`);
+  
+  if (monthYearFormats.invalid.length > 0) {
+    console.log(`   🔍 Invalid monthYear samples:`, [...new Set(monthYearFormats.invalid)].slice(0, 5));
+  }
+  
+  if (monthYearFormats.valid.length > 0) {
+    console.log(`   ✅ Valid monthYear samples:`, [...new Set(monthYearFormats.valid)].slice(0, 5));
+  }
+  
   // Summary statistics
   const recordsWithBudgetedCost = processed.filter(r => r.budgetedVesselCost && r.budgetedVesselCost > 0).length;
   const recordsWithAllocatedDays = processed.filter(r => r.totalAllocatedDays && r.totalAllocatedDays > 0).length;
@@ -345,6 +456,13 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
     return acc;
   }, {} as Record<string, number>);
   
+  // Detailed monthYear analysis
+  const monthYearCounts = processed.reduce((acc, r) => {
+    const my = r.monthYear || 'MISSING';
+    acc[my] = (acc[my] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
   if (datesWithValid.length > 0) {
     const sortedDates = datesWithValid.sort((a, b) => a.getTime() - b.getTime());
     const earliestDate = sortedDates[0];
@@ -353,10 +471,17 @@ export const processCostAllocation = (rawCostAllocation: RawCostAllocation[]): C
     console.log(`📅 COST ALLOCATION DATE RANGE ANALYSIS:`);
     console.log(`   📊 Records with valid dates: ${datesWithValid.length}/${processed.length}`);
     console.log(`   🗓️ Date range: ${earliestDate.toISOString().split('T')[0]} to ${latestDate.toISOString().split('T')[0]}`);
-    console.log(`   📋 Unique Month-Year values: ${uniqueMonthYears.length} (${uniqueMonthYears.slice(0, 5).join(', ')}${uniqueMonthYears.length > 5 ? '...' : ''})`);
-    console.log(`   📈 Records per month:`, Object.entries(yearMonthCounts)
+    console.log(`   📋 Unique Month-Year values: ${uniqueMonthYears.length}`);
+    console.log(`   📊 ALL UNIQUE MONTH-YEARS:`, uniqueMonthYears.sort());
+    console.log(`   📈 Records per monthYear (Top 10):`, 
+      Object.entries(monthYearCounts)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([my, count]) => `${my}: ${count} records`)
+        .join(', ')
+    );
+    console.log(`   📈 Records per year-month:`, Object.entries(yearMonthCounts)
       .sort(([a], [b]) => a.localeCompare(b))
-      .slice(0, 6)
       .map(([month, count]) => `${month}: ${count}`)
       .join(', '));
   } else {

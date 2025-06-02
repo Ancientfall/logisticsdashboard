@@ -28,6 +28,8 @@ export interface RigCostTrend {
   yearOverYearComparison: {
     currentYear: number;
     previousYear: number;
+    currentYearLabel: string;
+    previousYearLabel: string;
     variance: number;
     variancePercentage: number;
   };
@@ -83,9 +85,9 @@ export const validateCostAllocationData = (costAllocations: CostAllocation[]): {
       return;
     }
 
-    // Check for excessive allocated days (more than 31 days per month is suspicious)
-    if (days > 31) {
-      issues.push(`Record ${index + 1} (LC: ${record.lcNumber}): Excessive allocated days (${days}) - possible data entry error`);
+    // Check for excessive allocated vessel-days (accounting for multiple vessels)
+    if (days > 310) { // 10 vessels * 31 days = reasonable upper limit
+      issues.push(`Record ${index + 1} (LC: ${record.lcNumber}): Excessive vessel-days (${days}) - possible data entry error`);
     }
 
     // Check for exact duplicates (same LC, month, rig, and days)
@@ -182,7 +184,11 @@ export const processMonthlyRigCosts = (costAllocations: CostAllocation[]): Month
         uniqueRecords: uniqueRecords.length,
         allocatedDays,
         cost: budgetedCost || totalCost,
-        lcNumbers
+        lcNumbers,
+        year,
+        yearType: typeof year,
+        monthYear,
+        month
       });
     }
   });
@@ -291,8 +297,24 @@ const projectNextMonthCost = (monthlyData: MonthlyRigCost[]): number => {
  * Calculate year-over-year comparison
  */
 const calculateYearOverYearComparison = (monthlyData: MonthlyRigCost[]): RigCostTrend['yearOverYearComparison'] => {
-  const currentYear = new Date().getFullYear();
-  const previousYear = currentYear - 1;
+  // Get the actual years from the data
+  const years = [...new Set(monthlyData.map(m => m.year))].sort((a, b) => b - a);
+  
+  // If we don't have at least 2 years of data, return zeros
+  if (years.length < 2) {
+    return {
+      currentYear: 0,
+      previousYear: 0,
+      currentYearLabel: '',
+      previousYearLabel: '',
+      variance: 0,
+      variancePercentage: 0
+    };
+  }
+  
+  // Use the most recent year as "current" and the one before as "previous"
+  const currentYear = years[0];
+  const previousYear = years[1];
 
   const currentYearData = monthlyData.filter(m => m.year === currentYear);
   const previousYearData = monthlyData.filter(m => m.year === previousYear);
@@ -306,6 +328,8 @@ const calculateYearOverYearComparison = (monthlyData: MonthlyRigCost[]): RigCost
   return {
     currentYear: currentYearCost,
     previousYear: previousYearCost,
+    currentYearLabel: currentYear.toString(),
+    previousYearLabel: previousYear.toString(),
     variance,
     variancePercentage
   };
@@ -345,7 +369,21 @@ export const generateCostAnalysis = (costAllocations: CostAllocation[]): CostAna
   });
 
   // Generate yearly comparison
+  console.log('📅 YEARLY COMPARISON DEBUG:');
+  console.log('  Monthly rig costs sample:', monthlyRigCosts.slice(0, 5).map(m => ({
+    rigLocation: m.rigLocation,
+    monthYear: m.monthYear,
+    year: m.year,
+    yearType: typeof m.year,
+    month: m.month
+  })));
+  
   const yearlyComparison = monthlyRigCosts.reduce((acc, monthly) => {
+    // DEBUG: Log year values
+    if (Object.keys(acc).length < 3) {
+      console.log(`  Processing year ${monthly.year} (type: ${typeof monthly.year}) from ${monthly.rigLocation} ${monthly.monthYear}`);
+    }
+    
     if (!acc[monthly.year]) {
       acc[monthly.year] = {
         totalCost: 0,
@@ -361,6 +399,9 @@ export const generateCostAnalysis = (costAllocations: CostAllocation[]): CostAna
 
     return acc;
   }, {} as Record<number, any>);
+  
+  console.log('  Yearly comparison keys:', Object.keys(yearlyComparison));
+  console.log('  First year entry:', Object.entries(yearlyComparison)[0]);
 
   // Calculate yearly averages and convert Set to count
   Object.entries(yearlyComparison).forEach(([year, data]: [string, any]) => {

@@ -16,7 +16,8 @@ import {
   Wrench,
   Anchor,
   Settings,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { 
@@ -29,8 +30,12 @@ import {
 import { 
   formatCurrency, 
   formatDays,
-  formatToTwoDecimals,
-  formatLargeCurrency
+  formatLargeCurrency,
+  formatCurrencyWhole,
+  formatLargeCurrencyWhole,
+  formatNumberWhole,
+  formatDaysWhole,
+  formatPercentageWhole
 } from '../../utils/formatters';
 import { 
   generateCostAllocationTemplate, 
@@ -40,6 +45,8 @@ import {
   downloadExcelFile 
 } from '../../utils/excelTemplateGenerator';
 import { debugLocationMapping } from '../../data/masterFacilities';
+import DataQualityPopup from './DataQualityPopup';
+import { performDataQualityCheck } from '../../utils/dataQualityValidation';
 
 interface CostAllocationManagerProps {
   onNavigateToUpload?: () => void;
@@ -77,12 +84,133 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     ).length || 0
   });
   
+  // DATE DEBUG: Log actual date values
+  if (costAllocation && costAllocation.length > 0) {
+    console.log('📅 DATE DEBUG - Raw Cost Allocation Dates:');
+    const sampleDates = costAllocation.slice(0, 10).map(record => ({
+      lcNumber: record.lcNumber,
+      monthYear: record.monthYear,
+      month: record.month,
+      year: record.year,
+      yearIs2Digit: record.year && record.year >= 19 && record.year <= 25,
+      yearIs4Digit: record.year && record.year >= 2019 && record.year <= 2025,
+      costAllocationDate: record.costAllocationDate,
+      dateString: record.costAllocationDate?.toISOString(),
+      monthYearType: typeof record.monthYear,
+      hasValidDate: record.monthYear && /^\d{2}-\d{2}$/.test(record.monthYear)
+    }));
+    console.table(sampleDates);
+    
+    // Check if years are stored as 2-digit numbers
+    const twoDigitYears = costAllocation.filter(c => c.year && c.year >= 19 && c.year <= 25);
+    const fourDigitYears = costAllocation.filter(c => c.year && c.year >= 2019 && c.year <= 2025);
+    console.log(`📅 YEAR FORMAT ANALYSIS:`);
+    console.log(`  2-digit years (19-25): ${twoDigitYears.length} records`);
+    console.log(`  4-digit years (2019-2025): ${fourDigitYears.length} records`);
+    if (twoDigitYears.length > 0) {
+      console.warn(`⚠️ Found ${twoDigitYears.length} records with 2-digit years! Sample:`, twoDigitYears.slice(0, 3).map(c => ({ lcNumber: c.lcNumber, year: c.year, monthYear: c.monthYear })));
+    }
+    
+    // Analyze unique monthYear values
+    const uniqueMonthYears = [...new Set(costAllocation.map(c => c.monthYear).filter(Boolean))];
+    console.log('📊 Unique monthYear values:', uniqueMonthYears.slice(0, 10));
+    console.log('📊 MonthYear format check:');
+    uniqueMonthYears.slice(0, 5).forEach(my => {
+      if (my) {
+        console.log(`  "${my}" - Valid MM-YY format: ${/^\d{2}-\d{2}$/.test(my)}`);
+      }
+    });
+    
+    // Analyze unique years and months
+    const uniqueYears = [...new Set(costAllocation.map(c => c.year).filter(Boolean))].sort();
+    console.log('📊 Unique Years in Data:', uniqueYears);
+    const validYears = uniqueYears.filter((y): y is number => y !== undefined);
+    console.log('📊 Year Range:', validYears.length > 0 ? `${Math.min(...validYears)} to ${Math.max(...validYears)}` : 'No years found');
+  }
+  
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rigs' | 'projects' | 'monthly' | 'trends' | 'export'>('dashboard');
   
   // Enhanced filtering state
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [selectedProjectType, setSelectedProjectType] = useState<string>('all');
+  
+  // Data quality popup state
+  const [showDataQualityPopup, setShowDataQualityPopup] = useState(false);
+  const [hasShownDataQualityWarning, setHasShownDataQualityWarning] = useState(false);
+
+  // Auto-check data quality when data is loaded
+  React.useEffect(() => {
+    if (isDataReady && costAllocation && costAllocation.length > 0 && !hasShownDataQualityWarning) {
+      // Perform data quality check
+      const report = performDataQualityCheck(costAllocation);
+      
+      // Check for critical date issues
+      const dateIssues = report.issues.filter(issue => 
+        issue.category === 'Date Format Error' || 
+        (issue.message && issue.message.includes('2-digit years'))
+      );
+      
+      // Check if all dates are January (indicating parsing issue)
+      const uniqueMonths = [...new Set(costAllocation.map(c => c.month).filter(Boolean))];
+      const allJanuary = uniqueMonths.length === 1 && uniqueMonths[0] === 1;
+      
+      if (dateIssues.length > 0 || allJanuary) {
+        console.error('🚨 CRITICAL DATA QUALITY ISSUE DETECTED:');
+        console.error(`   Date parsing errors found: ${dateIssues.length} issues`);
+        if (allJanuary) {
+          console.error('   ALL DATES ARE SHOWING AS JANUARY - This indicates a date parsing problem!');
+        }
+        
+        // Automatically show the data quality popup
+        setShowDataQualityPopup(true);
+        setHasShownDataQualityWarning(true);
+      }
+    }
+  }, [isDataReady, costAllocation, hasShownDataQualityWarning]);
+
+  // Helper function to format month-year strings
+  const formatMonthYear = (monthYear: string): string => {
+    if (!monthYear || monthYear === 'Unknown') return monthYear || 'Unknown';
+    
+    // Debug log for first few calls
+    if (costAllocation && costAllocation.length > 0 && costAllocation.indexOf(costAllocation.find(c => c.monthYear === monthYear) || costAllocation[0]) < 5) {
+      console.log('🔍 formatMonthYear Debug:', { input: monthYear, type: typeof monthYear });
+    }
+    
+    // Handle MM-YY format
+    const parts = monthYear.split('-');
+    if (parts.length === 2) {
+      const monthNum = parseInt(parts[0], 10);
+      const yearNum = parseInt(parts[1], 10);
+      
+      // Validate month and year
+      if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+        console.warn(`⚠️ Invalid month in formatMonthYear: ${parts[0]} from "${monthYear}"`);
+        return monthYear;
+      }
+      
+      if (isNaN(yearNum)) {
+        console.warn(`⚠️ Invalid year in formatMonthYear: ${parts[1]} from "${monthYear}"`);
+        return monthYear;
+      }
+      
+      // Convert 2-digit year to full year (23 -> 2023, 24 -> 2024, 25 -> 2025)
+      const fullYear = 2000 + yearNum;
+      const date = new Date(fullYear, monthNum - 1, 1);
+      const formatted = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+      
+      // Debug output for first few
+      if (costAllocation && costAllocation.length > 0 && costAllocation.indexOf(costAllocation.find(c => c.monthYear === monthYear) || costAllocation[0]) < 5) {
+        console.log('✅ formatMonthYear Result:', { monthYear, monthNum, yearNum, fullYear, formatted });
+      }
+      
+      return formatted;
+    }
+    
+    console.warn(`⚠️ Unexpected monthYear format in formatMonthYear: "${monthYear}"`);
+    return monthYear;
+  };
 
   // ADDITIONAL DEBUG: Analyze data structure and values
   React.useEffect(() => {
@@ -112,7 +240,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
   }, [costAllocation]);
 
   // Intelligent project type detection
-  const detectProjectType = useCallback((description?: string, costElement?: string, lcNumber?: string, projectType?: string): ProjectType => {
+  const detectProjectType = useCallback((description?: string, costElement?: string, _lcNumber?: string, projectType?: string): ProjectType => {
     // First priority: Use the explicit Project Type from the data if available
     if (projectType && projectType in PROJECT_TYPE_CONFIG) {
       return projectType as ProjectType;
@@ -443,6 +571,34 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     return analysis;
   }, [filteredCostAllocation]);
 
+  // DEBUG: Comprehensive cost analysis debugging
+  React.useEffect(() => {
+    if (costAllocation && costAllocation.length > 0 && costAnalysis) {
+      console.log('🔍 COMPREHENSIVE DATE DEBUGGING:');
+      console.log('1️⃣ Cost Analysis Monthly Trends:', Object.entries(costAnalysis.monthlyTrends).slice(0, 5));
+      
+      // Check comprehensive cost analysis
+      const comprehensiveAnalysis = generateCostAnalysis(costAllocation);
+      console.log('2️⃣ Comprehensive Analysis Yearly Comparison:', comprehensiveAnalysis.yearlyComparison);
+      console.log('3️⃣ Monthly Overview Sample:', Object.entries(comprehensiveAnalysis.monthlyOverview).slice(0, 5));
+      
+      if (Object.keys(comprehensiveAnalysis.rigTrends).length > 0) {
+        const firstRig = Object.keys(comprehensiveAnalysis.rigTrends)[0];
+        const firstTrend = comprehensiveAnalysis.rigTrends[firstRig];
+        console.log(`4️⃣ Sample Rig Trend (${firstRig}):`, {
+          yearOverYearComparison: firstTrend.yearOverYearComparison,
+          monthlyDataCount: firstTrend.monthlyData.length,
+          monthlyDataSample: firstTrend.monthlyData.slice(0, 3).map(m => ({
+            monthYear: m.monthYear,
+            month: m.month,
+            year: m.year,
+            cost: m.budgetedCost
+          }))
+        });
+      }
+    }
+  }, [costAllocation, costAnalysis]);
+
   const handleDownloadTemplate = useCallback((withSampleData: boolean = false) => {
     try {
       const workbook = withSampleData 
@@ -691,8 +847,17 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
       <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Cost Analysis Filters</h3>
-          <div className="text-sm text-gray-500">
-            Showing {costAnalysis.totalAllocations} of {costAllocation?.length || 0} allocations
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowDataQualityPopup(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium"
+            >
+              <AlertTriangle size={16} />
+              Data Quality Check
+            </button>
+            <div className="text-sm text-gray-500">
+              Showing {costAnalysis.totalAllocations} of {costAllocation?.length || 0} allocations
+            </div>
           </div>
         </div>
         
@@ -892,7 +1057,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     <div>
                       <p className="text-orange-700 text-sm font-semibold uppercase tracking-wide">Daily Rate</p>
                       <p className="text-3xl font-bold text-orange-900 mt-1">
-                        {formatCurrency(costAnalysis.avgCostPerDay)}
+                        {formatCurrencyWhole(costAnalysis.avgCostPerDay)}
                       </p>
                       <p className="text-xs text-orange-600 mt-2">
                         Average cost per day
@@ -940,7 +1105,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                                 </div>
                                 <div>
                                   <p className="text-gray-600">Avg/Day</p>
-                                  <p className="font-semibold">{formatCurrency(data.avgCostPerDay)}</p>
+                                  <p className="font-semibold">{formatCurrencyWhole(data.avgCostPerDay)}</p>
                                 </div>
                               </div>
                               <div>
@@ -974,7 +1139,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     <div>
                       <p className="text-sm text-gray-600">Utilization Rate</p>
                       <p className="text-lg font-semibold text-blue-600">
-                        {costAnalysis.costEfficiencyMetrics.utilizationRate.toFixed(2)}%
+                        {Math.round(costAnalysis.costEfficiencyMetrics.utilizationRate)}%
                       </p>
                     </div>
                   </div>
@@ -1088,7 +1253,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-gray-200/50">
                                 <p className="text-sm text-gray-600">Cost/Day</p>
                                 <p className="text-lg font-bold text-gray-900">
-                                  {data.days > 0 ? formatCurrency(data.cost / data.days) : '$0'}
+                                  {data.days > 0 ? formatCurrencyWhole(data.cost / data.days) : '$0'}
                                 </p>
                               </div>
                             </div>
@@ -1142,11 +1307,9 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                 <div className="space-y-4">
                   {Object.entries(costAnalysis.monthlyTrends)
                     .filter(([monthYear]) => {
-                      // Only show 2024-2025 data
+                      // Show all available data except Unknown
                       if (monthYear === 'Unknown') return false;
-                      const [, year] = monthYear.split('-'); // Removed unused 'month' variable
-                      const yearNum = parseInt(year, 10);
-                      return yearNum >= 24 && yearNum <= 25; // 24 = 2024, 25 = 2025
+                      return true;
                     })
                     .sort(([a], [b]) => {
                       // Sort by year and month
@@ -1215,7 +1378,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               </div>
                               <div className="text-right">
                                 <p className="text-3xl font-bold text-gray-900">{formatLargeCurrency(data.cost)}</p>
-                                <p className="text-sm text-gray-600">{costPercentage.toFixed(2)}% of total cost</p>
+                                <p className="text-sm text-gray-600">{Math.round(costPercentage)}% of total cost</p>
                               </div>
                             </div>
 
@@ -1227,7 +1390,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               </div>
                               <div className="bg-white rounded-lg p-4 border">
                                 <p className="text-sm text-gray-600">Average Cost/Day</p>
-                                <p className="text-xl font-bold text-gray-900">{formatCurrency(data.avgCostPerDay)}</p>
+                                <p className="text-xl font-bold text-gray-900">{formatCurrencyWhole(data.avgCostPerDay)}</p>
                                 <p className="text-xs text-gray-500 mt-1">Daily vessel cost</p>
                               </div>
                               <div className="bg-white rounded-lg p-4 border">
@@ -1260,7 +1423,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                                 </div>
                                 <div>
                                   <p className="text-blue-800">
-                                    • {costPercentage.toFixed(2)}% of total portfolio cost
+                                    • {Math.round(costPercentage)}% of total portfolio cost
                                   </p>
                                   <p className="text-blue-800">
                                     • {data.count} active projects
@@ -1364,15 +1527,15 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               <Calendar className="text-blue-600" size={20} />
                             </div>
                             <div>
-                              <p className="font-semibold text-gray-900">{monthYear}</p>
+                              <p className="font-semibold text-gray-900">{formatMonthYear(monthYear)}</p>
                               <p className="text-sm text-gray-600">
-                                {data.rigCount} rigs • {formatDays(data.totalDays)} total days
+                                {data.rigCount} rigs • {formatDaysWhole(data.totalDays)} total days
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-gray-900">{formatLargeCurrency(data.totalCost)}</p>
-                            <p className="text-sm text-gray-600">{formatCurrency(data.averageDailyRate)}/day avg</p>
+                            <p className="text-sm text-gray-600">{formatCurrencyWhole(data.averageDailyRate)}/day avg</p>
                           </div>
                         </div>
                       ))}
@@ -1413,11 +1576,11 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">Days:</span>
-                                    <span className="font-semibold">{formatDays(monthly.allocatedDays)}</span>
+                                    <span className="font-semibold">{formatDaysWhole(monthly.allocatedDays)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">Rate:</span>
-                                    <span className="font-semibold">{formatCurrency(monthly.costPerDay)}/day</span>
+                                    <span className="font-semibold">{formatCurrencyWhole(monthly.costPerDay)}/day</span>
                                   </div>
                                   {monthly.lcNumbers.length > 0 && (
                                     <div className="text-xs text-gray-500 mt-2">
@@ -1436,16 +1599,16 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               <p className="text-xs text-gray-600">Avg Monthly Cost</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-lg font-bold text-green-600">{formatDays(trend.totalDays)}</p>
+                              <p className="text-lg font-bold text-green-600">{formatDaysWhole(trend.totalDays)}</p>
                               <p className="text-xs text-gray-600">Total Days</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-lg font-bold text-purple-600">{formatCurrency(trend.averageDailyRate)}</p>
+                              <p className="text-lg font-bold text-purple-600">{formatCurrencyWhole(trend.averageDailyRate)}</p>
                               <p className="text-xs text-gray-600">Avg Daily Rate</p>
                             </div>
                             <div className="text-center">
                               <p className={`text-lg font-bold ${trend.costTrend > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                {trend.costTrend > 0 ? '+' : ''}{formatToTwoDecimals(trend.costTrend)}%
+                                {trend.costTrend > 0 ? '+' : ''}{Math.round(trend.costTrend)}%
                               </p>
                               <p className="text-xs text-gray-600">Cost Trend</p>
                             </div>
@@ -1480,7 +1643,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                             {comprehensiveCostAnalysis.projections.trendDirection}
                           </p>
                           <p className="text-xs text-blue-600 mt-2">
-                            {formatToTwoDecimals(comprehensiveCostAnalysis.projections.confidenceLevel)}% confidence
+                            {Math.round(comprehensiveCostAnalysis.projections.confidenceLevel)}% confidence
                           </p>
                         </div>
                         <div className="bg-blue-200 rounded-lg p-3">
@@ -1547,10 +1710,26 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(comprehensiveCostAnalysis.yearlyComparison)
                         .sort(([a], [b]) => parseInt(b) - parseInt(a))
-                        .map(([year, data]: [string, any]) => (
+                        .map(([year, data]: [string, any]) => {
+                          // Ensure we display full 4-digit years
+                          const yearNum = parseInt(year);
+                          let displayYear = year;
+                          
+                          // Handle 2-digit years (19-25 -> 2019-2025)
+                          if (!isNaN(yearNum) && yearNum >= 19 && yearNum <= 25) {
+                            displayYear = `20${year}`;
+                            console.log(`📅 Converting 2-digit year: ${year} -> ${displayYear}`);
+                          } else if (!isNaN(yearNum) && yearNum >= 2019 && yearNum <= 2025) {
+                            displayYear = yearNum.toString();
+                            console.log(`📅 4-digit year already correct: ${displayYear}`);
+                          } else {
+                            console.warn(`⚠️ Unexpected year format: ${year}`);
+                          }
+                          
+                          return (
                         <div key={year} className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
                           <div className="flex items-center justify-between mb-4">
-                            <h5 className="text-xl font-bold text-gray-900">{year}</h5>
+                            <h5 className="text-xl font-bold text-gray-900">{displayYear}</h5>
                             <div className="bg-blue-100 rounded-lg p-2">
                               <Calendar className="text-blue-600" size={16} />
                             </div>
@@ -1563,7 +1742,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <p className="text-xs text-gray-600">Total Days</p>
-                                <p className="font-semibold">{formatDays(data.totalDays)}</p>
+                                <p className="font-semibold">{formatDaysWhole(data.totalDays)}</p>
                               </div>
                               <div>
                                 <p className="text-xs text-gray-600">Active Rigs</p>
@@ -1576,7 +1755,8 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                             </div>
                           </div>
                         </div>
-                      ))}
+                      );}
+                      )}
                     </div>
                   </div>
 
@@ -1606,7 +1786,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                                 ) : (
                                   <Activity size={16} />
                                 )}
-                                {trend.costTrend > 0 ? '+' : ''}{formatToTwoDecimals(trend.costTrend)}%/month
+                                {trend.costTrend > 0 ? '+' : ''}{Math.round(trend.costTrend)}%/month
                               </div>
                             </div>
                           </div>
@@ -1622,11 +1802,11 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               <p className="text-xs text-green-800">Next Month</p>
                             </div>
                             <div className="bg-purple-50 rounded-lg p-3 text-center">
-                              <p className="text-lg font-bold text-purple-600">{formatCurrency(trend.averageDailyRate)}</p>
+                              <p className="text-lg font-bold text-purple-600">{formatCurrencyWhole(trend.averageDailyRate)}</p>
                               <p className="text-xs text-purple-800">Daily Rate</p>
                             </div>
                             <div className="bg-orange-50 rounded-lg p-3 text-center">
-                              <p className="text-lg font-bold text-orange-600">{formatDays(trend.totalDays)}</p>
+                              <p className="text-lg font-bold text-orange-600">{formatDaysWhole(trend.totalDays)}</p>
                               <p className="text-xs text-orange-800">Total Days</p>
                             </div>
                             <div className={`rounded-lg p-3 text-center ${
@@ -1635,7 +1815,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               <p className={`text-lg font-bold ${
                                 trend.yearOverYearComparison.variancePercentage > 0 ? 'text-red-600' : 'text-green-600'
                               }`}>
-                                {trend.yearOverYearComparison.variancePercentage > 0 ? '+' : ''}{formatToTwoDecimals(trend.yearOverYearComparison.variancePercentage)}%
+                                {trend.yearOverYearComparison.variancePercentage > 0 ? '+' : ''}{Math.round(trend.yearOverYearComparison.variancePercentage)}%
                               </p>
                               <p className={`text-xs ${
                                 trend.yearOverYearComparison.variancePercentage > 0 ? 'text-red-800' : 'text-green-800'
@@ -1649,11 +1829,29 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                               <h6 className="font-semibold text-gray-900 mb-3">Year-over-Year Comparison</h6>
                               <div className="grid grid-cols-3 gap-4">
                                 <div className="text-center">
-                                  <p className="text-sm text-gray-600">Current Year</p>
+                                  <p className="text-sm text-gray-600">{(() => {
+                                    const label = trend.yearOverYearComparison.currentYearLabel;
+                                    if (!label) return 'Current Year';
+                                    const year = parseInt(label);
+                                    // Convert 2-digit years to 4-digit years
+                                    if (year >= 0 && year <= 99) {
+                                      return `20${String(year).padStart(2, '0')}`;
+                                    }
+                                    return label;
+                                  })()}</p>
                                   <p className="font-bold text-gray-900">{formatLargeCurrency(trend.yearOverYearComparison.currentYear)}</p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-sm text-gray-600">Previous Year</p>
+                                  <p className="text-sm text-gray-600">{(() => {
+                                    const label = trend.yearOverYearComparison.previousYearLabel;
+                                    if (!label) return 'Previous Year';
+                                    const year = parseInt(label);
+                                    // Convert 2-digit years to 4-digit years
+                                    if (year >= 0 && year <= 99) {
+                                      return `20${String(year).padStart(2, '0')}`;
+                                    }
+                                    return label;
+                                  })()}</p>
                                   <p className="font-bold text-gray-900">{formatLargeCurrency(trend.yearOverYearComparison.previousYear)}</p>
                                 </div>
                                 <div className="text-center">
@@ -1678,16 +1876,25 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                                   {Math.abs(trend.costTrend) < 2 ? 'stable' : trend.costTrend > 0 ? 'increasing' : 'decreasing'}
                                 </span>
                                 {Math.abs(trend.costTrend) >= 2 && (
-                                  <span> at {formatToTwoDecimals(Math.abs(trend.costTrend))}% per month</span>
+                                  <span> at {Math.round(Math.abs(trend.costTrend))}% per month</span>
                                 )}
                               </p>
                               <p>
                                 • Next month projected cost: <span className="font-semibold">{formatLargeCurrency(trend.projectedNextMonthCost)}</span>
                               </p>
                               <p>
-                                • Compared to last year: <span className="font-semibold">
+                                • Compared to {(() => {
+                                  const label = trend.yearOverYearComparison.previousYearLabel;
+                                  if (!label) return 'last year';
+                                  const year = parseInt(label);
+                                  // Convert 2-digit years to 4-digit years
+                                  if (year >= 0 && year <= 99) {
+                                    return `20${String(year).padStart(2, '0')}`;
+                                  }
+                                  return label;
+                                })()}: <span className="font-semibold">
                                   {trend.yearOverYearComparison.variancePercentage > 0 ? 'Higher' : 'Lower'} by{' '}
-                                  {formatToTwoDecimals(Math.abs(trend.yearOverYearComparison.variancePercentage))}%
+                                  {Math.round(Math.abs(trend.yearOverYearComparison.variancePercentage))}%
                                 </span>
                               </p>
                             </div>
@@ -1715,7 +1922,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                         <p className="text-3xl font-bold mb-2">{formatLargeCurrency(comprehensiveCostAnalysis.projections.nextQuarterCost)}</p>
                         <p className="text-sm opacity-90">Next 3 months</p>
                         <div className="mt-3 text-xs opacity-75">
-                          {formatToTwoDecimals(comprehensiveCostAnalysis.projections.confidenceLevel)}% confidence level
+                          {Math.round(comprehensiveCostAnalysis.projections.confidenceLevel)}% confidence level
                         </div>
                       </div>
                       
@@ -1834,6 +2041,35 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                 </div>
               </div>
 
+              {/* Data Quality Check */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-6 border border-amber-200">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-amber-200 rounded-lg p-3">
+                      <AlertTriangle size={24} className="text-amber-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-amber-900">Data Quality Check</h3>
+                      <p className="text-amber-700 text-sm">Validate your cost allocation data</p>
+                    </div>
+                  </div>
+                  {isDataReady && costAllocation.length > 0 ? (
+                    <button
+                      onClick={() => setShowDataQualityPopup(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                    >
+                      <AlertTriangle size={16} />
+                      Run Data Quality Check
+                    </button>
+                  ) : (
+                    <div className="text-center py-4 text-amber-700">
+                      <p>No data to validate</p>
+                      <p className="text-sm mt-1">Upload cost allocation data first</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Export Statistics */}
               {isDataReady && costAllocation.length > 0 && (
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
@@ -1926,6 +2162,20 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
           )}
         </div>
       </div>
+      
+      {/* Data Quality Popup */}
+      {showDataQualityPopup && costAllocation && (() => {
+        const dataQualityReport = performDataQualityCheck(costAllocation);
+        return (
+          <DataQualityPopup
+            isOpen={showDataQualityPopup}
+            onClose={() => setShowDataQualityPopup(false)}
+            issues={dataQualityReport.issues}
+            totalRecords={dataQualityReport.totalRecords}
+            validRecords={dataQualityReport.validRecordCount}
+          />
+        );
+      })()}
     </div>
   );
 };

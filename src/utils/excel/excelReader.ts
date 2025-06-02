@@ -209,9 +209,10 @@ export const readExcelFile = async <T>(file: File): Promise<T[]> => {
     console.log(`📊 Parsing Excel workbook for ${file.name}...`);
     const workbook = XLSX.read(buffer, { 
       type: 'array',
-      cellDates: true,
+      cellDates: true,  // CRITICAL: Set to true to let XLSX handle date conversion
       cellNF: false,
-      cellText: false
+      cellText: false,
+      raw: false  // Let XLSX format dates properly
     });
     
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
@@ -226,12 +227,68 @@ export const readExcelFile = async <T>(file: File): Promise<T[]> => {
       throw new Error(`Sheet "${firstSheetName}" not found in ${file.name}`);
     }
     
-    const data = XLSX.utils.sheet_to_json(worksheet, { 
-      raw: false,
-      dateNF: 'yyyy-mm-dd',
+    // First, get raw data to debug date values
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+      raw: false,  // Let XLSX format dates
       defval: '',
-      blankrows: false
+      blankrows: false,
+      dateNF: 'mm/dd/yyyy'  // Ensure consistent date format
     });
+    
+    // Debug: Log raw values for date columns
+    if (rawData.length > 0) {
+      console.log(`🔍 RAW DATA DEBUG - First 5 rows:`);
+      rawData.slice(0, 5).forEach((row: any, idx) => {
+        console.log(`  Row ${idx + 1}:`);
+        Object.keys(row).forEach(key => {
+          // Check for date-related columns
+          if (key.toLowerCase().includes('date') || 
+              key.toLowerCase().includes('month') || 
+              key.toLowerCase().includes('year') ||
+              key === 'Month-Year' ||
+              key === 'From' || 
+              key === 'To' ||
+              key === 'Start Date' ||
+              key === 'End Date') {
+            const value = row[key];
+            console.log(`    ${key}: ${value} (type: ${typeof value}, isNumber: ${typeof value === 'number'})`);
+            
+            // If it's a number, check if it's an Excel serial date
+            if (typeof value === 'number') {
+              const excelEpoch = new Date(1899, 11, 30);
+              const possibleDate = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+              console.log(`      -> As Excel serial date: ${possibleDate.toISOString()}`);
+            }
+          }
+        });
+      });
+    }
+    
+    // Use the same data (no need to parse twice)
+    const data = rawData;
+    
+    // Debug: Compare raw vs formatted for date columns
+    if (data.length > 0 && rawData.length > 0) {
+      console.log(`🔍 FORMATTED vs RAW COMPARISON - First 3 rows:`);
+      data.slice(0, 3).forEach((row: any, idx) => {
+        const rawRow = rawData[idx] as any;
+        console.log(`  Row ${idx + 1}:`);
+        Object.keys(row).forEach(key => {
+          if (key.toLowerCase().includes('date') || 
+              key.toLowerCase().includes('month') || 
+              key.toLowerCase().includes('year') ||
+              key === 'Month-Year' ||
+              key === 'From' || 
+              key === 'To' ||
+              key === 'Start Date' ||
+              key === 'End Date') {
+            console.log(`    ${key}:`);
+            console.log(`      Raw: ${rawRow[key]} (type: ${typeof rawRow[key]})`);
+            console.log(`      Formatted: ${row[key]} (type: ${typeof row[key]})`);
+          }
+        });
+      });
+    }
     
     console.log(`✅ Successfully read ${data.length} rows from ${file.name}`);
     

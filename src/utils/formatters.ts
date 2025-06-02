@@ -1,5 +1,6 @@
 // Utility functions for consistent formatting across the application
 // All decimal places standardized to hundredths (2 decimal places)
+// Cost Allocation Dashboard uses whole numbers only
 
 /**
  * Format numbers to 2 decimal places consistently
@@ -243,4 +244,58 @@ export const formatDateRange = (startDate: Date | string | null | undefined, end
   if (!endDate) return `From ${formatDate(startDate)}`;
   
   return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+};
+
+// Whole number formatters for Cost Allocation Dashboard
+
+/**
+ * Format currency as whole numbers (no decimals)
+ */
+export const formatCurrencyWhole = (amount: number | undefined | null): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '$0';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(Math.round(amount));
+};
+
+/**
+ * Format large currency values with M/K suffixes (no decimals)
+ */
+export const formatLargeCurrencyWhole = (amount: number | undefined | null): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '$0';
+  
+  const rounded = Math.round(amount);
+  if (rounded >= 1000000) {
+    return `$${Math.round(rounded / 1000000)}M`;
+  } else if (rounded >= 1000) {
+    return `$${Math.round(rounded / 1000)}K`;
+  }
+  return formatCurrencyWhole(rounded);
+};
+
+/**
+ * Format numbers as whole numbers with thousands separators
+ */
+export const formatNumberWhole = (value: number | undefined | null): string => {
+  if (value === undefined || value === null || isNaN(value)) return '0';
+  return Math.round(value).toLocaleString('en-US');
+};
+
+/**
+ * Format days as whole numbers
+ */
+export const formatDaysWhole = (days: number | undefined | null): string => {
+  if (days === undefined || days === null || isNaN(days)) return '0';
+  return Math.round(days).toString();
+};
+
+/**
+ * Format percentages as whole numbers
+ */
+export const formatPercentageWhole = (value: number | undefined | null): string => {
+  if (value === undefined || value === null || isNaN(value)) return '0%';
+  return `${Math.round(value)}%`;
 }; 
