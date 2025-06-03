@@ -6,12 +6,9 @@ import {
   AlertCircle, 
   Calendar, 
   TrendingUp,
-  TrendingDown,
-  Activity,
   BarChart3,
   MapPin,
   FileText,
-  Download,
   Drill,
   Wrench,
   Anchor,
@@ -28,22 +25,10 @@ import {
   RigCostTrend
 } from '../../utils/costAnalysis';
 import { 
-  formatCurrency, 
-  formatDays,
   formatLargeCurrency,
   formatCurrencyWhole,
-  formatLargeCurrencyWhole,
-  formatNumberWhole,
-  formatDaysWhole,
-  formatPercentageWhole
+  formatDaysWhole
 } from '../../utils/formatters';
-import { 
-  generateCostAllocationTemplate, 
-  generateBlankCostAllocationTemplate, 
-  exportCostAllocationData, 
-  generateCostAllocationSummary,
-  downloadExcelFile 
-} from '../../utils/excelTemplateGenerator';
 import { debugLocationMapping } from '../../data/masterFacilities';
 import DataQualityPopup from './DataQualityPopup';
 import { performDataQualityCheck } from '../../utils/dataQualityValidation';
@@ -93,7 +78,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
       month: record.month,
       year: record.year,
       yearIs2Digit: record.year && record.year >= 19 && record.year <= 25,
-      yearIs4Digit: record.year && record.year >= 2019 && record.year <= 2025,
+      yearIs4Digit: record.year && record.year >= 2023 && record.year <= 2025,
       costAllocationDate: record.costAllocationDate,
       dateString: record.costAllocationDate?.toISOString(),
       monthYearType: typeof record.monthYear,
@@ -103,10 +88,10 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     
     // Check if years are stored as 2-digit numbers
     const twoDigitYears = costAllocation.filter(c => c.year && c.year >= 19 && c.year <= 25);
-    const fourDigitYears = costAllocation.filter(c => c.year && c.year >= 2019 && c.year <= 2025);
+    const fourDigitYears = costAllocation.filter(c => c.year && c.year >= 2023 && c.year <= 2025);
     console.log(`📅 YEAR FORMAT ANALYSIS:`);
     console.log(`  2-digit years (19-25): ${twoDigitYears.length} records`);
-    console.log(`  4-digit years (2019-2025): ${fourDigitYears.length} records`);
+    console.log(`  4-digit years (2023-2025): ${fourDigitYears.length} records`);
     if (twoDigitYears.length > 0) {
       console.warn(`⚠️ Found ${twoDigitYears.length} records with 2-digit years! Sample:`, twoDigitYears.slice(0, 3).map(c => ({ lcNumber: c.lcNumber, year: c.year, monthYear: c.monthYear })));
     }
@@ -128,7 +113,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     console.log('📊 Year Range:', validYears.length > 0 ? `${Math.min(...validYears)} to ${Math.max(...validYears)}` : 'No years found');
   }
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'rigs' | 'projects' | 'monthly' | 'trends' | 'export'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'rigs' | 'projects' | 'monthly'>('dashboard');
   
   // Enhanced filtering state
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -173,42 +158,25 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
   const formatMonthYear = (monthYear: string): string => {
     if (!monthYear || monthYear === 'Unknown') return monthYear || 'Unknown';
     
-    // Debug log for first few calls
-    if (costAllocation && costAllocation.length > 0 && costAllocation.indexOf(costAllocation.find(c => c.monthYear === monthYear) || costAllocation[0]) < 5) {
-      console.log('🔍 formatMonthYear Debug:', { input: monthYear, type: typeof monthYear });
-    }
-    
     // Handle MM-YY format
     const parts = monthYear.split('-');
     if (parts.length === 2) {
       const monthNum = parseInt(parts[0], 10);
       const yearNum = parseInt(parts[1], 10);
       
-      // Validate month and year
+      // Validate month
       if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
         console.warn(`⚠️ Invalid month in formatMonthYear: ${parts[0]} from "${monthYear}"`);
         return monthYear;
       }
       
-      if (isNaN(yearNum)) {
-        console.warn(`⚠️ Invalid year in formatMonthYear: ${parts[1]} from "${monthYear}"`);
-        return monthYear;
-      }
-      
-      // Convert 2-digit year to full year (23 -> 2023, 24 -> 2024, 25 -> 2025)
-      const fullYear = 2000 + yearNum;
+      // Convert 2-digit year to full year
+      const fullYear = yearNum < 100 ? 2000 + yearNum : yearNum;
       const date = new Date(fullYear, monthNum - 1, 1);
-      const formatted = date.toLocaleString('default', { month: 'long', year: 'numeric' });
       
-      // Debug output for first few
-      if (costAllocation && costAllocation.length > 0 && costAllocation.indexOf(costAllocation.find(c => c.monthYear === monthYear) || costAllocation[0]) < 5) {
-        console.log('✅ formatMonthYear Result:', { monthYear, monthNum, yearNum, fullYear, formatted });
-      }
-      
-      return formatted;
+      return date.toLocaleString('default', { month: 'long', year: 'numeric' });
     }
     
-    console.warn(`⚠️ Unexpected monthYear format in formatMonthYear: "${monthYear}"`);
     return monthYear;
   };
 
@@ -288,13 +256,32 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     return 'Other';
   }, []);
 
+  // Helper function to parse monthYear string to Date for sorting
+  const parseMonthYearToDate = (monthYear: string | undefined): Date => {
+    if (!monthYear || monthYear === 'Unknown') return new Date(2024, 0, 1);
+    const parts = monthYear.split('-');
+    if (parts.length === 2) {
+      const month = parseInt(parts[0], 10);
+      const yearNum = parseInt(parts[1], 10);
+      // Convert 2-digit year to full year (00-29 = 2000-2029, 30-99 = 1930-1999)
+      const fullYear = yearNum <= 29 ? 2000 + yearNum : 1900 + yearNum;
+      return new Date(fullYear, month - 1, 1);
+    }
+    return new Date(2024, 0, 1);
+  };
+
   // Enhanced filter options
   const filterOptions = useMemo(() => {
     if (!costAllocation || costAllocation.length === 0) {
       return { months: [], locations: [], projectTypes: [] };
     }
 
-    const months = [...new Set(costAllocation.map(a => a.monthYear).filter(Boolean))].sort();
+    const months = [...new Set(costAllocation.map(a => a.monthYear).filter(Boolean))]
+      .sort((a, b) => {
+        const dateA = parseMonthYearToDate(a);
+        const dateB = parseMonthYearToDate(b);
+        return dateA.getTime() - dateB.getTime();
+      });
     const locations = [...new Set(costAllocation.map(a => a.rigLocation).filter(Boolean))].sort();
     
     // Get project types from data
@@ -304,6 +291,49 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     
     return { months, locations, projectTypes };
   }, [costAllocation, detectProjectType]);
+
+  // Calculate actual date range from the data
+  const dateRange = useMemo(() => {
+    if (!costAllocation || costAllocation.length === 0) {
+      return { start: null, end: null, display: 'No data loaded' };
+    }
+
+    const years = costAllocation
+      .map(record => record.year)
+      .filter((year): year is number => year !== undefined && year !== null)
+      .sort((a, b) => a - b);
+
+    const monthYears = costAllocation
+      .map(record => {
+        if (!record.costAllocationDate) return null;
+        return record.costAllocationDate;
+      })
+      .filter((date): date is Date => date !== null)
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (monthYears.length > 0) {
+      const startDate = monthYears[0];
+      const endDate = monthYears[monthYears.length - 1];
+      const startStr = startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const endStr = endDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      
+      return {
+        start: startDate,
+        end: endDate,
+        display: `${startStr} - ${endStr}`
+      };
+    } else if (years.length > 0) {
+      const minYear = years[0];
+      const maxYear = years[years.length - 1];
+      return {
+        start: new Date(minYear, 0, 1),
+        end: new Date(maxYear, 11, 31),
+        display: `${minYear} - ${maxYear}`
+      };
+    }
+
+    return { start: null, end: null, display: 'Invalid date range' };
+  }, [costAllocation]);
 
   // Enhanced filtering with project types
   const filteredCostAllocation = useMemo(() => {
@@ -599,39 +629,6 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
     }
   }, [costAllocation, costAnalysis]);
 
-  const handleDownloadTemplate = useCallback((withSampleData: boolean = false) => {
-    try {
-      const workbook = withSampleData 
-        ? generateCostAllocationTemplate() 
-        : generateBlankCostAllocationTemplate();
-      const filename = withSampleData 
-        ? 'cost-allocation-template-with-samples.xlsx'
-        : 'cost-allocation-template.xlsx';
-      downloadExcelFile(workbook, filename);
-    } catch (error) {
-      console.error('Error generating template:', error);
-      alert('Error generating template. Please try again.');
-    }
-  }, []);
-
-  const handleExportData = useCallback(() => {
-    try {
-      exportCostAllocationData(costAllocation);
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      alert('Error exporting data. Please try again.');
-    }
-  }, [costAllocation]);
-
-  const handleExportSummary = useCallback(() => {
-    try {
-      const summaryWorkbook = generateCostAllocationSummary(costAllocation);
-      downloadExcelFile(summaryWorkbook, `cost-allocation-summary-${new Date().toISOString().split('T')[0]}.xlsx`);
-    } catch (error) {
-      console.error('Error generating summary:', error);
-      alert('Error generating summary report. Please try again.');
-    }
-  }, [costAllocation]);
 
   // Add debugging logs to understand the data
   React.useEffect(() => {
@@ -861,6 +858,22 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
           </div>
         </div>
         
+        {/* Date Range Display */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="text-blue-600" size={20} />
+              <span className="text-sm font-medium text-blue-900">Data Range: {dateRange.display}</span>
+            </div>
+            <span className="text-xs text-blue-600">
+              {costAllocation && costAllocation.length > 0 
+                ? `${costAllocation.length.toLocaleString()} total records`
+                : 'No data loaded'
+              }
+            </span>
+          </div>
+        </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Time Period</label>
@@ -929,9 +942,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
               { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
               { id: 'rigs', label: 'Rigs', icon: MapPin },
               { id: 'projects', label: 'Projects', icon: FileText },
-              { id: 'monthly', label: 'Monthly Tracking', icon: Calendar },
-              { id: 'trends', label: 'Monthly Trends', icon: TrendingUp },
-              { id: 'export', label: 'Export & Templates', icon: Download }
+              { id: 'monthly', label: 'Monthly Tracking', icon: Calendar }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1009,7 +1020,7 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                         {costAnalysis.totalAllocations.toLocaleString()}
                       </p>
                       <p className="text-xs text-blue-600 mt-2">
-                        {selectedMonth !== 'all' ? `${selectedMonth}` : 'All periods'}
+                        {selectedMonth !== 'all' ? `${selectedMonth}` : dateRange.display}
                       </p>
                     </div>
                     <div className="bg-blue-200 rounded-lg p-3">
@@ -1150,21 +1161,8 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   <div className="space-y-3">
                     {Object.entries(costAnalysis.monthlyTrends)
                       .sort(([a], [b]) => {
-                        // Parse MM-YY format for proper chronological sorting
-                        const parseMonthYear = (monthYear: string) => {
-                          if (monthYear === 'Unknown') return new Date(2024, 0, 1);
-                          const parts = monthYear.split('-');
-                          if (parts.length === 2) {
-                            const month = parseInt(parts[0], 10);
-                            const yearNum = parseInt(parts[1], 10);
-                            // Convert 2-digit year to full year (24 -> 2024, 25 -> 2025)
-                            const fullYear = 2000 + yearNum;
-                            return new Date(fullYear, month - 1, 1);
-                          }
-                          return new Date(2024, 0, 1);
-                        };
-                        const dateA = parseMonthYear(a);
-                        const dateB = parseMonthYear(b);
+                        const dateA = parseMonthYearToDate(a);
+                        const dateB = parseMonthYearToDate(b);
                         return dateA.getTime() - dateB.getTime();
                       })
                       .slice(-6) // Show last 6 months
@@ -1312,9 +1310,15 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                       return true;
                     })
                     .sort(([a], [b]) => {
-                      // Sort by year and month
-                      const [aMonth, aYear] = a.split('-').map(Number);
-                      const [bMonth, bYear] = b.split('-').map(Number);
+                      // Parse MM-YY format and convert 2-digit year to 4-digit
+                      const [aMonth, aYear2Digit] = a.split('-').map(Number);
+                      const [bMonth, bYear2Digit] = b.split('-').map(Number);
+                      
+                      // Convert 2-digit year to 4-digit (00-29 = 2000-2029, 30-99 = 1930-1999)
+                      const aYear = aYear2Digit <= 29 ? 2000 + aYear2Digit : 1900 + aYear2Digit;
+                      const bYear = bYear2Digit <= 29 ? 2000 + bYear2Digit : 1900 + bYear2Digit;
+                      
+                      // Sort by year first, then by month
                       if (aYear !== bYear) return aYear - bYear;
                       return aMonth - bMonth;
                     })
@@ -1519,7 +1523,11 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                     <h4 className="text-lg font-bold text-gray-900 mb-6">Monthly Cost Timeline</h4>
                     <div className="space-y-4">
                       {Object.entries(comprehensiveCostAnalysis.monthlyOverview)
-                        .sort(([a], [b]) => a.localeCompare(b))
+                        .sort(([a], [b]) => {
+                          const dateA = parseMonthYearToDate(a);
+                          const dateB = parseMonthYearToDate(b);
+                          return dateA.getTime() - dateB.getTime();
+                        })
                         .map(([monthYear, data]: [string, any]) => (
                         <div key={monthYear} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                           <div className="flex items-center gap-4">
@@ -1563,7 +1571,13 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
 
                           {/* Monthly data for this rig */}
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {trend.monthlyData.map((monthly: MonthlyRigCost) => (
+                            {trend.monthlyData
+                              .sort((a: MonthlyRigCost, b: MonthlyRigCost) => {
+                                const dateA = parseMonthYearToDate(a.monthYear);
+                                const dateB = parseMonthYearToDate(b.monthYear);
+                                return dateA.getTime() - dateB.getTime();
+                              })
+                              .map((monthly: MonthlyRigCost) => (
                               <div key={`${monthly.monthYear}_${monthly.rigLocation}`} className="bg-gray-50 rounded-lg p-4">
                                 <div className="flex items-center justify-between mb-2">
                                   <p className="font-medium text-gray-900">{monthly.month} {monthly.year}</p>
@@ -1625,539 +1639,6 @@ const CostAllocationManager: React.FC<CostAllocationManagerProps> = ({ onNavigat
                   <p className="text-sm text-gray-500">Upload cost allocation data to see monthly tracking</p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Monthly Trends Tab */}
-          {activeTab === 'trends' && (
-            <div className="space-y-6">
-              {comprehensiveCostAnalysis ? (
-                <>
-                  {/* Trend Overview Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-700 text-sm font-semibold uppercase tracking-wide">Trend Direction</p>
-                          <p className="text-2xl font-bold text-blue-900 mt-1 capitalize">
-                            {comprehensiveCostAnalysis.projections.trendDirection}
-                          </p>
-                          <p className="text-xs text-blue-600 mt-2">
-                            {Math.round(comprehensiveCostAnalysis.projections.confidenceLevel)}% confidence
-                          </p>
-                        </div>
-                        <div className="bg-blue-200 rounded-lg p-3">
-                          {comprehensiveCostAnalysis.projections.trendDirection === 'increasing' ? (
-                            <TrendingUp className="text-blue-700" size={24} />
-                          ) : comprehensiveCostAnalysis.projections.trendDirection === 'decreasing' ? (
-                            <TrendingDown className="text-blue-700" size={24} />
-                          ) : (
-                            <Activity className="text-blue-700" size={24} />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-green-700 text-sm font-semibold uppercase tracking-wide">Next Month Projection</p>
-                          <p className="text-2xl font-bold text-green-900 mt-1">
-                            {formatLargeCurrency(comprehensiveCostAnalysis.projections.nextMonthTotalCost)}
-                          </p>
-                          <p className="text-xs text-green-600 mt-2">Predicted cost</p>
-                        </div>
-                        <div className="bg-green-200 rounded-lg p-3">
-                          <Calendar className="text-green-700" size={24} />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-purple-700 text-sm font-semibold uppercase tracking-wide">Next Quarter</p>
-                          <p className="text-2xl font-bold text-purple-900 mt-1">
-                            {formatLargeCurrency(comprehensiveCostAnalysis.projections.nextQuarterCost)}
-                          </p>
-                          <p className="text-xs text-purple-600 mt-2">3-month projection</p>
-                        </div>
-                        <div className="bg-purple-200 rounded-lg p-3">
-                          <BarChart3 className="text-purple-700" size={24} />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-orange-700 text-sm font-semibold uppercase tracking-wide">Yearly Periods</p>
-                          <p className="text-2xl font-bold text-orange-900 mt-1">
-                            {Object.keys(comprehensiveCostAnalysis.yearlyComparison).length}
-                          </p>
-                          <p className="text-xs text-orange-600 mt-2">Years of data</p>
-                        </div>
-                        <div className="bg-orange-200 rounded-lg p-3">
-                          <TrendingUp className="text-orange-700" size={24} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Year-over-Year Comparison */}
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-                    <h4 className="text-lg font-bold text-gray-900 mb-6">Year-over-Year Analysis</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {Object.entries(comprehensiveCostAnalysis.yearlyComparison)
-                        .sort(([a], [b]) => parseInt(b) - parseInt(a))
-                        .map(([year, data]: [string, any]) => {
-                          // Ensure we display full 4-digit years
-                          const yearNum = parseInt(year);
-                          let displayYear = year;
-                          
-                          // Handle 2-digit years (19-25 -> 2019-2025)
-                          if (!isNaN(yearNum) && yearNum >= 19 && yearNum <= 25) {
-                            displayYear = `20${year}`;
-                            console.log(`📅 Converting 2-digit year: ${year} -> ${displayYear}`);
-                          } else if (!isNaN(yearNum) && yearNum >= 2019 && yearNum <= 2025) {
-                            displayYear = yearNum.toString();
-                            console.log(`📅 4-digit year already correct: ${displayYear}`);
-                          } else {
-                            console.warn(`⚠️ Unexpected year format: ${year}`);
-                          }
-                          
-                          return (
-                        <div key={year} className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
-                          <div className="flex items-center justify-between mb-4">
-                            <h5 className="text-xl font-bold text-gray-900">{displayYear}</h5>
-                            <div className="bg-blue-100 rounded-lg p-2">
-                              <Calendar className="text-blue-600" size={16} />
-                            </div>
-                          </div>
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-sm text-gray-600">Total Cost</p>
-                              <p className="text-lg font-bold text-gray-900">{formatLargeCurrency(data.totalCost)}</p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <p className="text-xs text-gray-600">Total Days</p>
-                                <p className="font-semibold">{formatDaysWhole(data.totalDays)}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-600">Active Rigs</p>
-                                <p className="font-semibold">{data.rigCount}</p>
-                              </div>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Avg Monthly Cost</p>
-                              <p className="font-semibold text-purple-600">{formatLargeCurrency(data.averageMonthlyCost)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      );}
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Rig-Level Trend Analysis */}
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-                    <h4 className="text-lg font-bold text-gray-900 mb-6">Rig Cost Trends & Projections</h4>
-                    <div className="space-y-6">
-                      {Object.entries(comprehensiveCostAnalysis.rigTrends)
-                        .sort(([,a], [,b]) => Math.abs(b.costTrend) - Math.abs(a.costTrend))
-                        .map(([rigLocation, trend]: [string, RigCostTrend]) => (
-                        <div key={rigLocation} className="border border-gray-200 rounded-xl p-6">
-                          <div className="flex items-start justify-between mb-6">
-                            <div>
-                              <h5 className="text-xl font-bold text-gray-900">{rigLocation}</h5>
-                              <p className="text-gray-600">{trend.monthlyData.length} months of historical data</p>
-                            </div>
-                            <div className="text-right">
-                              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-                                trend.costTrend > 5 ? 'bg-red-100 text-red-700' :
-                                trend.costTrend < -5 ? 'bg-green-100 text-green-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {trend.costTrend > 0 ? (
-                                  <TrendingUp size={16} />
-                                ) : trend.costTrend < 0 ? (
-                                  <TrendingDown size={16} />
-                                ) : (
-                                  <Activity size={16} />
-                                )}
-                                {trend.costTrend > 0 ? '+' : ''}{Math.round(trend.costTrend)}%/month
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Key Metrics */}
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                            <div className="bg-blue-50 rounded-lg p-3 text-center">
-                              <p className="text-lg font-bold text-blue-600">{formatLargeCurrency(trend.averageMonthlyCost)}</p>
-                              <p className="text-xs text-blue-800">Avg Monthly</p>
-                            </div>
-                            <div className="bg-green-50 rounded-lg p-3 text-center">
-                              <p className="text-lg font-bold text-green-600">{formatLargeCurrency(trend.projectedNextMonthCost)}</p>
-                              <p className="text-xs text-green-800">Next Month</p>
-                            </div>
-                            <div className="bg-purple-50 rounded-lg p-3 text-center">
-                              <p className="text-lg font-bold text-purple-600">{formatCurrencyWhole(trend.averageDailyRate)}</p>
-                              <p className="text-xs text-purple-800">Daily Rate</p>
-                            </div>
-                            <div className="bg-orange-50 rounded-lg p-3 text-center">
-                              <p className="text-lg font-bold text-orange-600">{formatDaysWhole(trend.totalDays)}</p>
-                              <p className="text-xs text-orange-800">Total Days</p>
-                            </div>
-                            <div className={`rounded-lg p-3 text-center ${
-                              trend.yearOverYearComparison.variancePercentage > 0 ? 'bg-red-50' : 'bg-green-50'
-                            }`}>
-                              <p className={`text-lg font-bold ${
-                                trend.yearOverYearComparison.variancePercentage > 0 ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                {trend.yearOverYearComparison.variancePercentage > 0 ? '+' : ''}{Math.round(trend.yearOverYearComparison.variancePercentage)}%
-                              </p>
-                              <p className={`text-xs ${
-                                trend.yearOverYearComparison.variancePercentage > 0 ? 'text-red-800' : 'text-green-800'
-                              }`}>YoY Change</p>
-                            </div>
-                          </div>
-
-                          {/* Historical vs Current Year */}
-                          {(trend.yearOverYearComparison.currentYear > 0 || trend.yearOverYearComparison.previousYear > 0) && (
-                            <div className="bg-gray-50 rounded-lg p-4">
-                              <h6 className="font-semibold text-gray-900 mb-3">Year-over-Year Comparison</h6>
-                              <div className="grid grid-cols-3 gap-4">
-                                <div className="text-center">
-                                  <p className="text-sm text-gray-600">{(() => {
-                                    const label = trend.yearOverYearComparison.currentYearLabel;
-                                    if (!label) return 'Current Year';
-                                    const year = parseInt(label);
-                                    // Convert 2-digit years to 4-digit years
-                                    if (year >= 0 && year <= 99) {
-                                      return `20${String(year).padStart(2, '0')}`;
-                                    }
-                                    return label;
-                                  })()}</p>
-                                  <p className="font-bold text-gray-900">{formatLargeCurrency(trend.yearOverYearComparison.currentYear)}</p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-sm text-gray-600">{(() => {
-                                    const label = trend.yearOverYearComparison.previousYearLabel;
-                                    if (!label) return 'Previous Year';
-                                    const year = parseInt(label);
-                                    // Convert 2-digit years to 4-digit years
-                                    if (year >= 0 && year <= 99) {
-                                      return `20${String(year).padStart(2, '0')}`;
-                                    }
-                                    return label;
-                                  })()}</p>
-                                  <p className="font-bold text-gray-900">{formatLargeCurrency(trend.yearOverYearComparison.previousYear)}</p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-sm text-gray-600">Variance</p>
-                                  <p className={`font-bold ${
-                                    trend.yearOverYearComparison.variance > 0 ? 'text-red-600' : 'text-green-600'
-                                  }`}>
-                                    {trend.yearOverYearComparison.variance > 0 ? '+' : ''}{formatLargeCurrency(trend.yearOverYearComparison.variance)}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Cost Projection Insights */}
-                          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                            <h6 className="font-semibold text-blue-900 mb-2">🔮 Cost Projections & Insights</h6>
-                            <div className="text-sm text-blue-800 space-y-1">
-                              <p>
-                                • Based on {trend.monthlyData.length} months of data, the cost trend is{' '}
-                                <span className="font-semibold">
-                                  {Math.abs(trend.costTrend) < 2 ? 'stable' : trend.costTrend > 0 ? 'increasing' : 'decreasing'}
-                                </span>
-                                {Math.abs(trend.costTrend) >= 2 && (
-                                  <span> at {Math.round(Math.abs(trend.costTrend))}% per month</span>
-                                )}
-                              </p>
-                              <p>
-                                • Next month projected cost: <span className="font-semibold">{formatLargeCurrency(trend.projectedNextMonthCost)}</span>
-                              </p>
-                              <p>
-                                • Compared to {(() => {
-                                  const label = trend.yearOverYearComparison.previousYearLabel;
-                                  if (!label) return 'last year';
-                                  const year = parseInt(label);
-                                  // Convert 2-digit years to 4-digit years
-                                  if (year >= 0 && year <= 99) {
-                                    return `20${String(year).padStart(2, '0')}`;
-                                  }
-                                  return label;
-                                })()}: <span className="font-semibold">
-                                  {trend.yearOverYearComparison.variancePercentage > 0 ? 'Higher' : 'Lower'} by{' '}
-                                  {Math.round(Math.abs(trend.yearOverYearComparison.variancePercentage))}%
-                                </span>
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Overall Portfolio Projections */}
-                  <div className="bg-gradient-to-br from-slate-800 to-blue-900 rounded-xl p-8 text-white">
-                    <h4 className="text-xl font-bold mb-6">📈 Portfolio Cost Projections</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-                        <h5 className="font-semibold mb-2">Short-term Forecast</h5>
-                        <p className="text-3xl font-bold mb-2">{formatLargeCurrency(comprehensiveCostAnalysis.projections.nextMonthTotalCost)}</p>
-                        <p className="text-sm opacity-90">Next month (all rigs)</p>
-                        <div className="mt-3 text-xs opacity-75">
-                          Based on recent trend analysis
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-                        <h5 className="font-semibold mb-2">Quarterly Outlook</h5>
-                        <p className="text-3xl font-bold mb-2">{formatLargeCurrency(comprehensiveCostAnalysis.projections.nextQuarterCost)}</p>
-                        <p className="text-sm opacity-90">Next 3 months</p>
-                        <div className="mt-3 text-xs opacity-75">
-                          {Math.round(comprehensiveCostAnalysis.projections.confidenceLevel)}% confidence level
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-                        <h5 className="font-semibold mb-2">Trend Summary</h5>
-                        <p className="text-2xl font-bold mb-2 capitalize">{comprehensiveCostAnalysis.projections.trendDirection}</p>
-                        <p className="text-sm opacity-90">Overall direction</p>
-                        <div className="mt-3 text-xs opacity-75">
-                          {comprehensiveCostAnalysis.projections.trendDirection === 'increasing' ? '⚠️ Monitor costs closely' :
-                           comprehensiveCostAnalysis.projections.trendDirection === 'decreasing' ? '✅ Costs under control' :
-                           '📊 Stable spending pattern'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <TrendingUp size={48} className="text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No trend data available</p>
-                  <p className="text-sm text-gray-500">Upload cost allocation data to see trend analysis</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Export & Templates Tab */}
-          {activeTab === 'export' && (
-            <div className="space-y-6">
-              {/* Export Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Template Generation */}
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-blue-200 rounded-lg p-3">
-                      <FileSpreadsheet size={24} className="text-blue-700" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-blue-900">Excel Templates</h3>
-                      <p className="text-blue-700 text-sm">Download formatted templates for data entry</p>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => handleDownloadTemplate(false)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      <Download size={16} />
-                      Blank Template
-                    </button>
-                    <button
-                      onClick={() => handleDownloadTemplate(true)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
-                    >
-                      <Download size={16} />
-                      Template with Samples
-                    </button>
-                  </div>
-                </div>
-
-                {/* Data Export */}
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-green-200 rounded-lg p-3">
-                      <Upload size={24} className="text-green-700" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-green-900">Data Export</h3>
-                      <p className="text-green-700 text-sm">Export your current cost allocation data</p>
-                    </div>
-                  </div>
-                  {isDataReady && costAllocation.length > 0 ? (
-                    <div className="space-y-3">
-                      <button
-                        onClick={handleExportData}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-                      >
-                        <Download size={16} />
-                        Export Current Data
-                      </button>
-                      <button
-                        onClick={handleExportSummary}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
-                      >
-                        <BarChart3 size={16} />
-                        Export Summary Report
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <AlertCircle size={48} className="text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 font-medium mb-2">No cost allocation data available</p>
-                      <p className="text-sm text-gray-500 mb-6">Upload your Cost Allocation Excel file to see vessel cost analysis and rig location breakdowns</p>
-                      
-                      <div className="space-y-3">
-                        <button
-                          onClick={onNavigateToUpload}
-                          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                        >
-                          <Upload size={20} />
-                          Upload Cost Allocation Data
-                        </button>
-                        
-                        <div className="text-center">
-                          <button
-                            onClick={() => handleDownloadTemplate(true)}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 transition-colors text-sm"
-                          >
-                            <Download size={16} />
-                            Download Template with Sample Data
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Data Quality Check */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-6 border border-amber-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-amber-200 rounded-lg p-3">
-                      <AlertTriangle size={24} className="text-amber-700" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-amber-900">Data Quality Check</h3>
-                      <p className="text-amber-700 text-sm">Validate your cost allocation data</p>
-                    </div>
-                  </div>
-                  {isDataReady && costAllocation.length > 0 ? (
-                    <button
-                      onClick={() => setShowDataQualityPopup(true)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
-                    >
-                      <AlertTriangle size={16} />
-                      Run Data Quality Check
-                    </button>
-                  ) : (
-                    <div className="text-center py-4 text-amber-700">
-                      <p>No data to validate</p>
-                      <p className="text-sm mt-1">Upload cost allocation data first</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Export Statistics */}
-              {isDataReady && costAllocation.length > 0 && (
-                <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4">Export Summary</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <p className="text-3xl font-bold text-blue-600">{costAnalysis.totalAllocations}</p>
-                      <p className="text-gray-600 font-medium">Total Records</p>
-                      <p className="text-xs text-gray-500 mt-1">Cost allocations</p>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <p className="text-3xl font-bold text-green-600">{Object.keys(costAnalysis.projectTypeBreakdown).length}</p>
-                      <p className="text-gray-600 font-medium">Project Types</p>
-                      <p className="text-xs text-gray-500 mt-1">Drilling, completion, etc.</p>
-                    </div>
-                    <div className="text-center p-4 bg-purple-50 rounded-lg">
-                      <p className="text-3xl font-bold text-purple-600">{Object.keys(costAnalysis.rigLocationBreakdown).length}</p>
-                      <p className="text-gray-600 font-medium">Rig Locations</p>
-                      <p className="text-xs text-gray-500 mt-1">Active drilling rigs</p>
-                    </div>
-                    <div className="text-center p-4 bg-orange-50 rounded-lg">
-                      <p className="text-3xl font-bold text-orange-600">{Object.keys(costAnalysis.monthlyTrends).length}</p>
-                      <p className="text-gray-600 font-medium">Time Periods</p>
-                      <p className="text-xs text-gray-500 mt-1">Months with data</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Template Guide */}
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
-                <h4 className="text-lg font-bold text-gray-900 mb-4">Template Usage Guide</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h5 className="font-semibold mb-3 text-gray-800">Required Columns:</h5>
-                    <ul className="space-y-2 text-sm text-gray-600">
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <strong>LC Number:</strong> Location code identifier
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <strong>Description:</strong> Project/operation description
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <strong>Total Allocated Days:</strong> Number of days allocated
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <strong>Month-Year:</strong> Allocation time period
-                      </li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h5 className="font-semibold mb-3 text-gray-800">Optional Columns:</h5>
-                    <ul className="space-y-2 text-sm text-gray-600">
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                        <strong>Rig Location:</strong> Specific rig name
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                        <strong>Rig Type:</strong> Equipment type
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                        <strong>Water Depth:</strong> Depth in feet
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                        <strong>Cost Element:</strong> Type of cost/project phase
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-                
-                <div className="mt-6 p-4 bg-white rounded-lg border border-gray-200">
-                  <h5 className="font-semibold mb-2 text-gray-800">💡 Pro Tips:</h5>
-                  <ul className="space-y-1 text-sm text-gray-600">
-                    <li>• Include keywords like "drill", "completion", "P&A" in descriptions for automatic project type detection</li>
-                    <li>• Use consistent rig naming conventions for better location analysis</li>
-                    <li>• Provide water depth data for enhanced rig performance insights</li>
-                    <li>• Keep LC Numbers consistent with your existing location system</li>
-                  </ul>
-                </div>
-              </div>
             </div>
           )}
         </div>

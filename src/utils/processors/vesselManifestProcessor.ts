@@ -178,11 +178,13 @@ export const processVesselManifests = (
         const finalDepartment = determineFinalDepartment();
         
         // Direct pattern recognition for explicit facility names (most reliable)
-        if (offshoreLocation.toLowerCase().includes("thunder horse drilling")) {
+        if (offshoreLocation.toLowerCase().includes("thunder horse drilling") ||
+            (offshoreLocation.toLowerCase().includes("thunder horse") && offshoreLocation.toLowerCase().includes("drill"))) {
           return "Thunder Horse Drilling";
         } else if (offshoreLocation.toLowerCase().includes("thunder horse prod")) {
           return "Thunder Horse Prod";
-        } else if (offshoreLocation.toLowerCase().includes("mad dog drilling")) {
+        } else if (offshoreLocation.toLowerCase().includes("mad dog drilling") ||
+                   (offshoreLocation.toLowerCase().includes("mad dog") && offshoreLocation.toLowerCase().includes("drill"))) {
           return "Mad Dog Drilling";
         } else if (offshoreLocation.toLowerCase().includes("mad dog prod")) {
           return "Mad Dog Prod";

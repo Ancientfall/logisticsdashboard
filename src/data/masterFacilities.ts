@@ -381,10 +381,15 @@ export const mapCostAllocationLocation = (rigLocation?: string, locationReferenc
       'ocean blacklion': 'Ocean BlackLion', 
       'ocean blackhornet': 'Ocean Blackhornet',
       'thunder horse pdq': 'Thunder Horse PDQ',
+      'thunder horse drilling': 'Thunder Horse Drilling',
+      'thunder horse drill': 'Thunder Horse Drilling',
       'thunder horse': 'Thunder Horse PDQ',
+      'thunderhorse': 'Thunder Horse PDQ',
       'argos': 'Argos',
       'island venture': 'Island Venture',
       'mad dog': 'Mad Dog',
+      'mad dog drilling': 'Mad Dog Drilling',
+      'mad dog drill': 'Mad Dog Drilling',
       'na kika': 'Na Kika',
       'atlantis': 'Atlantis'
     };

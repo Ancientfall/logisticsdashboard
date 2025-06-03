@@ -39,12 +39,37 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       const drillingFacilities = getAllDrillingCapableLocations();
       const selectedFacility = drillingFacilities.find(f => f.displayName === filters.selectedLocation);
       
+      // Normalize location names for comparison
+      const normalizedLocation = location?.toLowerCase() || '';
+      const normalizedSelected = filters.selectedLocation.toLowerCase();
+      
       // Check against both display name and location name
-      return location === filters.selectedLocation || 
-             (selectedFacility && (
-               location === selectedFacility.locationName ||
-               location === selectedFacility.displayName
-             ));
+      const directMatch = location === filters.selectedLocation || 
+                         normalizedLocation === normalizedSelected;
+      
+      const facilityMatch = selectedFacility && (
+        location === selectedFacility.locationName ||
+        location === selectedFacility.displayName ||
+        normalizedLocation === selectedFacility.locationName.toLowerCase() ||
+        normalizedLocation === selectedFacility.displayName.toLowerCase()
+      );
+      
+      // Special handling for Thunder Horse variations
+      if (filters.selectedLocation === 'Thunder Horse (Drilling)') {
+        return normalizedLocation.includes('thunder') && 
+               (normalizedLocation.includes('drill') || 
+                normalizedLocation.includes('pdq') ||
+                normalizedLocation === 'thunder horse');
+      }
+      
+      // Special handling for Mad Dog variations
+      if (filters.selectedLocation === 'Mad Dog (Drilling)') {
+        return normalizedLocation.includes('mad dog') && 
+               (normalizedLocation.includes('drill') || 
+                normalizedLocation === 'mad dog');
+      }
+      
+      return directMatch || facilityMatch;
     };
 
     // Debug: Check what departments we have in the data
@@ -97,6 +122,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
     // Apply filters to data - Enhanced logic for drilling locations
     const filteredVoyageEvents = voyageEvents.filter(event => {
+      // Check both location and mapped location
+      const locationMatch = filterByLocation(event.location) || filterByLocation(event.mappedLocation || '');
+      const dateMatch = filterByDate(event.eventDate);
+      
       // For drilling locations, use location + time filtering primarily
       if (filters.selectedLocation !== 'all' && 
           filters.selectedLocation !== 'All Locations' &&
@@ -106,19 +135,21 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         
         // For drilling locations: Include ALL events at that location during the time period
         // This captures drilling activities regardless of department classification
-        return filterByDate(event.eventDate) && filterByLocation(event.location);
+        return dateMatch && locationMatch;
       }
       
-      // For non-drilling locations, use the original logic
+      // For "All Locations" or non-specific drilling locations, filter by department
       const isDrillingRelated = event.department === 'Drilling' || 
                                !event.department; // Include events without department classification
       
-      return isDrillingRelated &&
-             filterByDate(event.eventDate) &&
-             filterByLocation(event.location);
+      return isDrillingRelated && dateMatch && locationMatch;
     });
 
     const filteredVesselManifests = vesselManifests.filter(manifest => {
+      // Check both offshore location and mapped location
+      const locationMatch = filterByLocation(manifest.offshoreLocation || '') || filterByLocation(manifest.mappedLocation || '');
+      const dateMatch = filterByDate(manifest.manifestDate);
+      
       // For drilling locations, use location + time filtering primarily
       if (filters.selectedLocation !== 'all' && 
           filters.selectedLocation !== 'All Locations' &&
@@ -128,16 +159,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         
         // For drilling locations: Include ALL manifests at that location during the time period
         // This captures drilling activities regardless of department classification
-        return filterByDate(manifest.manifestDate) && filterByLocation(manifest.mappedLocation);
+        return dateMatch && locationMatch;
       }
       
-      // For non-drilling locations, use the original logic
+      // For "All Locations" or non-specific drilling locations, filter by department
       const isDrillingRelated = manifest.finalDepartment === 'Drilling' ||
                                !manifest.finalDepartment; // Include manifests without department classification
       
-      return isDrillingRelated &&
-             filterByDate(manifest.manifestDate) &&
-             filterByLocation(manifest.mappedLocation);
+      return isDrillingRelated && dateMatch && locationMatch;
     });
 
     // Calculate KPIs based on filtered data using exact PowerBI DAX logic
@@ -276,13 +305,40 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     
     // 7. Voyage Efficiency - Using voyage list data for better accuracy with filtering
     const drillingVoyages = voyageList.filter(voyage => {
-      const isDrilling = voyage.voyagePurpose === 'Drilling' || voyage.voyagePurpose === 'Mixed';
-      
-      // Apply location filter if not "All Locations"
+      // For specific drilling locations, include any voyage that visits that location
+      // regardless of voyage purpose classification
       if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-        const locationMatch = filterByLocation(voyage.mainDestination || voyage.originPort || voyage.locations || '');
+        // Check if any location in the voyage's location list matches the selected location
+        let locationMatch = false;
+        
+        // Check main destination and origin port first
+        if (voyage.mainDestination && filterByLocation(voyage.mainDestination)) {
+          locationMatch = true;
+        } else if (voyage.originPort && filterByLocation(voyage.originPort)) {
+          locationMatch = true;
+        } else if (voyage.locationList && voyage.locationList.length > 0) {
+          // Check each location in the location list
+          locationMatch = voyage.locationList.some(loc => filterByLocation(loc));
+        } else if (voyage.locations) {
+          // Fallback to checking the full locations string
+          locationMatch = filterByLocation(voyage.locations) || false;
+        }
+        
         if (!locationMatch) return false;
+        
+        // Apply date filter if not "All Months"
+        if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
+          const dateMatch = filterByDate(voyage.startDate || voyage.voyageDate || new Date());
+          if (!dateMatch) return false;
+        }
+        
+        // For specific drilling locations, include the voyage if it visited that location
+        // This ensures we count all voyages to drilling locations, not just those classified as "Drilling"
+        return true;
       }
+      
+      // For "All Locations", use the voyage purpose classification
+      const isDrilling = voyage.voyagePurpose === 'Drilling' || voyage.voyagePurpose === 'Mixed';
       
       // Apply date filter if not "All Months"
       if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
@@ -296,6 +352,30 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     
     // 8. Vessel Visits - Unique manifest entries (actual visits)
     const vesselVisits = filteredVesselManifests.length;
+    
+    // Debug: Log voyage vs vessel count discrepancy
+    if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+      console.log(`📊 VOYAGE vs VESSEL COUNT for ${filters.selectedLocation}:`);
+      console.log(`- Drilling Voyages: ${fsvRuns}`);
+      console.log(`- Unique Vessels (from events): ${[...new Set(filteredVoyageEvents.map(e => e.vessel))].length}`);
+      console.log(`- Vessel Manifests: ${vesselVisits}`);
+      
+      // List unique vessels that visited this location
+      const uniqueVesselsFromEvents = [...new Set(filteredVoyageEvents.map(e => e.vessel))];
+      const uniqueVesselsFromManifests = [...new Set(filteredVesselManifests.map(m => m.transporter))];
+      const allUniqueVessels = [...new Set([...uniqueVesselsFromEvents, ...uniqueVesselsFromManifests])];
+      
+      console.log(`- Total Unique Vessels: ${allUniqueVessels.length}`);
+      console.log(`- Vessels:`, allUniqueVessels);
+      
+      // Show which voyages were found
+      console.log(`- Drilling Voyage Details:`, drillingVoyages.map(v => ({
+        vessel: v.vessel,
+        voyageNumber: v.voyageNumber,
+        month: v.month,
+        locations: v.locationList || v.locations
+      })));
+    }
     
     // 9. Maneuvering Hours - Setup and positioning activities with cost allocation
     const maneuveringEvents = filteredVoyageEvents.filter(event => 
@@ -348,22 +428,51 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       maneuveringHours: maneuveringHours,
       drillingVoyageCount: fsvRuns
     });
+    
+    // Additional debug for Thunder Horse specifically
+    if (filters.selectedLocation === 'Thunder Horse (Drilling)') {
+      console.log('🔍 THUNDER HORSE DEBUG:');
+      console.log('Events with Thunder Horse:', voyageEvents.filter(e => 
+        e.location?.toLowerCase().includes('thunder') || 
+        e.mappedLocation?.toLowerCase().includes('thunder')
+      ).length);
+      console.log('Filtered Thunder Horse events:', filteredVoyageEvents.length);
+      console.log('Sample Thunder Horse events:', filteredVoyageEvents.slice(0, 5).map(e => ({
+        location: e.location,
+        mappedLocation: e.mappedLocation,
+        department: e.department,
+        hours: e.finalHours
+      })));
+      console.log('Thunder Horse manifests:', filteredVesselManifests.length);
+    }
 
     // NEW ENHANCED COST ALLOCATION INTEGRATION
     
-    // Filter cost allocation data for drilling operations - exclude production LCs
+    // Filter cost allocation data for drilling operations
     const drillingCostAllocation = costAllocation.filter(cost => {
-      // Include only drilling LCs
+      // Check if this is a drilling LC
       const lcNumber = String(cost.lcNumber || '').trim();
-      if (!drillingLCs.has(lcNumber)) {
-        console.log(`🚫 Excluding non-drilling LC: ${lcNumber}`);
-        return false;
+      const isDrillingLC = drillingLCs.has(lcNumber);
+      
+      // Include if:
+      // 1. It's a drilling LC number
+      // 2. OR it's marked as Drilling department
+      // 3. OR it's a Drilling/Completions project type
+      // 4. OR it's at a drilling location
+      const isDrillingDept = cost.department === 'Drilling';
+      const isDrillingProject = cost.projectType === 'Drilling' || cost.projectType === 'Completions';
+      const isDrillingLocation = cost.rigLocation?.toLowerCase().includes('drilling') ||
+                                cost.locationReference?.toLowerCase().includes('drilling') ||
+                                (cost.rigLocation?.toLowerCase().includes('thunder') && cost.rigLocation?.toLowerCase().includes('horse')) ||
+                                (cost.locationReference?.toLowerCase().includes('thunder') && cost.locationReference?.toLowerCase().includes('horse'));
+      
+      const shouldInclude = isDrillingLC || isDrillingDept || isDrillingProject || isDrillingLocation;
+      
+      if (!shouldInclude && lcNumber) {
+        console.log(`🚫 Excluding non-drilling LC: ${lcNumber} (dept: ${cost.department}, project: ${cost.projectType}, location: ${cost.rigLocation || cost.locationReference})`);
       }
       
-      // Include drilling and completions
-      return cost.department === 'Drilling' ||
-             cost.projectType === 'Drilling' ||
-             cost.projectType === 'Completions';
+      return shouldInclude;
     });
     
     console.log(`💰 Drilling Cost Allocations: ${drillingCostAllocation.length} (excluded ${costAllocation.length - drillingCostAllocation.length} production LCs)`);
@@ -427,6 +536,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       const monthLabel = `${costDate.toLocaleString('default', { month: 'long' })} ${costDate.getFullYear()}`;
       return monthLabel === filters.selectedMonth;
     });
+    
+    // Log Thunder Horse cost allocations if Thunder Horse is selected
+    if (filters.selectedLocation === 'Thunder Horse') {
+      console.log('Thunder Horse cost allocations:', dateFilteredDrillingCosts.length);
+    }
     
     // 11. Total Cost (YTD) - Enhanced calculation using filtered cost allocation
     const totalCostYTD = dateFilteredDrillingCosts.reduce((sum, cost) => {
@@ -975,7 +1089,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       .map(facility => facility.displayName)];
 
     return { months, locations };
-  }, [voyageEvents, vesselManifests, voyageList, costAllocation.length]); // Focus on primary data sources
+  }, [voyageEvents, vesselManifests, voyageList]); // Focus on primary data sources
 
   if (!isDataReady || voyageEvents.length === 0) {
     return (
@@ -1332,7 +1446,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           <div className="h-64">
             {drillingMetrics.activityData.length > 0 ? (
               <div className="space-y-3 h-full flex flex-col justify-center">
-                {drillingMetrics.activityData.map((activity, index) => (
+                {drillingMetrics.activityData.map((activity) => (
                   <div key={activity.name}>
                     <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
                       <span>{activity.name}</span>
