@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation } from '../../data/masterFacilities';
+import { masterFacilitiesData } from '../../data/masterFacilities';
+import type { VoyageEvent, VesselManifest } from '../../types';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -81,9 +83,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       vesselManifestDepartments: uniqueManifestDepartments
     });
 
-    // Get all drilling LC numbers to exclude from drilling cost allocations
+    // Get all drilling LC numbers from pure drilling facilities only
     const getAllDrillingLCs = () => {
-      const drillingFacilities = getAllDrillingCapableLocations();
+      const drillingFacilities = getAllDrillingCapableLocations()
+        .filter(facility => facility.facilityType === 'Drilling'); // Only pure drilling facilities
       const allDrillingLCs = new Set<string>();
       
       drillingFacilities.forEach(facility => {
@@ -100,73 +103,136 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
     const drillingLCs = getAllDrillingLCs();
 
-    // Helper function to apply cost allocation percentage for drilling locations
-    const applyCostAllocationPercentage = (event: any, hours: number) => {
-      if (filters.selectedLocation !== 'all' && 
-          filters.selectedLocation !== 'All Locations' &&
-          event.costDedicatedTo && 
-          (filters.selectedLocation.toLowerCase().includes('drilling') || 
-           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
-           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
+    // Helper function to calculate drilling-allocated hours based on LC information
+    const getDrillingAllocatedHours = (event: VoyageEvent) => {
+      const baseHours = event.finalHours || event.hours || 0;
+      
+      // Check if event has LC number
+      if (event.lcNumber) {
+        const lcNum = String(event.lcNumber).trim();
         
+        // If it's a drilling LC, use the percentage or full hours
+        if (drillingLCs.has(lcNum)) {
+          const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+          console.log(`📊 Event ${event.event} - Drilling LC ${lcNum}: ${(percentage * 100).toFixed(1)}% of ${baseHours}h`);
+          return baseHours * percentage;
+        }
+        
+        // If it's a production LC, exclude
+        if (productionLCs.has(lcNum)) {
+          console.log(`📊 Event ${event.event} - Production LC ${lcNum}: excluding from drilling`);
+          return 0;
+        }
+      }
+      
+      // Fallback to cost allocation percentage if available
+      if (event.costDedicatedTo) {
         const costDedicatedTo = event.costDedicatedTo.toString();
         const percentageMatch = costDedicatedTo.match(/(\d+(?:\.\d+)?)%/);
         
         if (percentageMatch) {
           const percentage = parseFloat(percentageMatch[1]) / 100;
-          return hours * percentage;
+          console.log(`📊 Event ${event.event} - Using cost allocation: ${percentageMatch[1]}% of ${baseHours}h`);
+          return baseHours * percentage;
         }
       }
-      return hours;
-    };
-
-    // Apply filters to data - Enhanced logic for drilling locations
-    const filteredVoyageEvents = voyageEvents.filter(event => {
-      // Check both location and mapped location
-      const locationMatch = filterByLocation(event.location) || filterByLocation(event.mappedLocation || '');
-      const dateMatch = filterByDate(event.eventDate);
       
-      // For drilling locations, use location + time filtering primarily
-      if (filters.selectedLocation !== 'all' && 
-          filters.selectedLocation !== 'All Locations' &&
-          (filters.selectedLocation.toLowerCase().includes('drilling') || 
-           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
-           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
-        
-        // For drilling locations: Include ALL events at that location during the time period
-        // This captures drilling activities regardless of department classification
-        return dateMatch && locationMatch;
+      // If marked as drilling department, use full hours
+      if (event.department === 'Drilling') {
+        return baseHours;
       }
       
-      // For "All Locations" or non-specific drilling locations, filter by department
-      const isDrillingRelated = event.department === 'Drilling' || 
-                               !event.department; // Include events without department classification
+      // Otherwise, no drilling allocation
+      return 0;
+    };
+
+    // Apply filters to data - Enhanced logic for drilling locations with LC-based filtering
+    const filteredVoyageEvents = voyageEvents.filter(event => {
+      const dateMatch = filterByDate(event.eventDate);
+      if (!dateMatch) return false;
       
-      return isDrillingRelated && dateMatch && locationMatch;
+      // Check if this event has drilling LC
+      let hasDrillingLC = false;
+      let hasProductionLC = false;
+      
+      if (event.lcNumber) {
+        const lcNum = String(event.lcNumber).trim();
+        hasDrillingLC = drillingLCs.has(lcNum);
+        hasProductionLC = productionLCs.has(lcNum);
+      }
+      
+      // Exclude if it has a production LC
+      if (hasProductionLC) return false;
+      
+      // For specific location filtering
+      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+        const locationMatch = filterByLocation(event.location) || filterByLocation(event.mappedLocation || '');
+        
+        // For drilling locations: Include events that:
+        // 1. Are at the selected location AND
+        // 2. Have drilling LC OR are marked as drilling department
+        if (locationMatch) {
+          return hasDrillingLC || event.department === 'Drilling';
+        }
+        return false;
+      }
+      
+      // For "All Locations": include all events with drilling LCs or drilling department
+      return hasDrillingLC || event.department === 'Drilling';
     });
 
     const filteredVesselManifests = vesselManifests.filter(manifest => {
-      // Check both offshore location and mapped location
-      const locationMatch = filterByLocation(manifest.offshoreLocation || '') || filterByLocation(manifest.mappedLocation || '');
       const dateMatch = filterByDate(manifest.manifestDate);
+      if (!dateMatch) return false;
       
-      // For drilling locations, use location + time filtering primarily
-      if (filters.selectedLocation !== 'all' && 
-          filters.selectedLocation !== 'All Locations' &&
-          (filters.selectedLocation.toLowerCase().includes('drilling') || 
-           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
-           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
-        
-        // For drilling locations: Include ALL manifests at that location during the time period
-        // This captures drilling activities regardless of department classification
-        return dateMatch && locationMatch;
+      // Check if manifest is for drilling based on multiple criteria
+      let isDrillingManifest = false;
+      
+      // 1. Check Cost Code (LC number)
+      if (manifest.costCode) {
+        const costCodeStr = String(manifest.costCode).trim();
+        if (drillingLCs.has(costCodeStr)) {
+          isDrillingManifest = true;
+          console.log(`✅ Manifest ${manifest.manifestNumber} - Drilling LC: ${costCodeStr}`);
+        } else if (productionLCs.has(costCodeStr)) {
+          console.log(`❌ Manifest ${manifest.manifestNumber} - Production LC: ${costCodeStr}`);
+          return false; // Explicitly exclude production LCs
+        }
       }
       
-      // For "All Locations" or non-specific drilling locations, filter by department
-      const isDrillingRelated = manifest.finalDepartment === 'Drilling' ||
-                               !manifest.finalDepartment; // Include manifests without department classification
+      // 2. Check Offshore Location facility type
+      if (manifest.offshoreLocation || manifest.mappedLocation) {
+        const facility = mapCostAllocationLocation(manifest.offshoreLocation, manifest.mappedLocation);
+        if (facility) {
+          if (facility.facilityType === 'Drilling') {
+            isDrillingManifest = true;
+          } else if (facility.facilityType === 'Production') {
+            // Only exclude if we're sure it's production (and no drilling LC)
+            if (!manifest.costCode || !drillingLCs.has(String(manifest.costCode).trim())) {
+              return false;
+            }
+          }
+        }
+      }
       
-      return isDrillingRelated && dateMatch && locationMatch;
+      // 3. Fallback to department if no Cost Code
+      if (!manifest.costCode && manifest.finalDepartment === 'Drilling') {
+        isDrillingManifest = true;
+      }
+      
+      // For specific location filtering
+      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+        const locationMatch = filterByLocation(manifest.offshoreLocation || '') || 
+                            filterByLocation(manifest.mappedLocation || '');
+        
+        // Only include manifests that are:
+        // 1. At the selected location AND
+        // 2. Identified as drilling through LC or facility type
+        return locationMatch && isDrillingManifest;
+      }
+      
+      // For "All Locations": include all drilling manifests
+      return isDrillingManifest;
     });
 
     // Calculate KPIs based on filtered data using exact PowerBI DAX logic
@@ -190,8 +256,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       event.event?.toLowerCase().includes('simops')
     );
     const cargoOpsHours = cargoOpsEvents.reduce((sum, event) => {
-      const hours = event.finalHours || 0;
-      return sum + applyCostAllocationPercentage(event, hours);
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
 
     // Enhanced Lifts per Hour calculation
@@ -200,10 +265,24 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       // For all locations and all months, calculate average across all drilling locations
       const drillingFacilities = getAllDrillingCapableLocations();
       const drillingLocationLifts = drillingFacilities.map(facility => {
-        const facilityManifests = vesselManifests.filter(m => 
-          m.mappedLocation === facility.locationName || 
-          m.mappedLocation === facility.displayName
-        );
+        const facilityManifests = vesselManifests.filter(m => {
+          const locationMatch = m.mappedLocation === facility.locationName || 
+                              m.mappedLocation === facility.displayName ||
+                              m.offshoreLocation === facility.locationName ||
+                              m.offshoreLocation === facility.displayName;
+          
+          if (!locationMatch) return false;
+          
+          // Apply LC-based filtering
+          if (m.costCode) {
+            const costCodeStr = String(m.costCode).trim();
+            if (drillingLCs.has(costCodeStr)) return true;
+            if (productionLCs.has(costCodeStr)) return false;
+          }
+          
+          // Fallback to department
+          return m.finalDepartment === 'Drilling';
+        });
         const facilityLifts = facilityManifests.reduce((sum, m) => sum + (m.lifts || 0), 0);
         
         const facilityEvents = voyageEvents.filter(e => 
@@ -216,7 +295,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
              e.event?.toLowerCase().includes('discharge'))) ||
            e.event?.toLowerCase().includes('simops'))
         );
-        const facilityHours = facilityEvents.reduce((sum, e) => sum + (e.finalHours || 0), 0);
+        const facilityHours = facilityEvents.reduce((sum, e) => sum + getDrillingAllocatedHours(e), 0);
         
         return { lifts: facilityLifts, hours: facilityHours };
       });
@@ -246,31 +325,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       event.activityCategory === 'Productive'
     );
     
-    // Enhanced calculation for drilling locations - use cost allocation percentages
+    // Calculate productive hours using LC-based allocation
     const osvProductiveHours = productiveEvents.reduce((sum, event) => {
-      let hours = event.finalHours || 0;
-      
-      // For drilling locations, check if we need to apply cost allocation percentage
-      if (filters.selectedLocation !== 'all' && 
-          filters.selectedLocation !== 'All Locations' &&
-          event.costDedicatedTo && 
-          (filters.selectedLocation.toLowerCase().includes('drilling') || 
-           filters.selectedLocation.toLowerCase().includes('thunder horse') ||
-           filters.selectedLocation.toLowerCase().includes('mad dog'))) {
-        
-        // Parse cost allocation percentage if available
-        // Format might be like "LC12345 - 50%" or just "50%"
-        const costDedicatedTo = event.costDedicatedTo.toString();
-        const percentageMatch = costDedicatedTo.match(/(\d+(?:\.\d+)?)%/);
-        
-        if (percentageMatch) {
-          const percentage = parseFloat(percentageMatch[1]) / 100;
-          hours = hours * percentage;
-          console.log(`⚖️ Applied ${percentageMatch[1]}% allocation to ${event.vessel} event: ${event.finalHours}h → ${hours}h`);
-        }
-      }
-      
-      return sum + hours;
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
     
     // 4. Waiting Time Offshore - Specific offshore waiting events with cost allocation
@@ -285,8 +342,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     );
     
     const waitingTimeOffshore = waitingEvents.reduce((sum, event) => {
-      const hours = event.finalHours || 0;
-      return sum + applyCostAllocationPercentage(event, hours);
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
     
     // 5. Fluid Movement - Wet bulk cargo (bbls + gals converted to bbls)
@@ -294,12 +350,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const wetBulkGals = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkGals || 0), 0);
     const fluidMovement = wetBulkBbls + (wetBulkGals / 42); // Convert gallons to barrels
     
-    // 6. Vessel Utilization - Productive hours vs total offshore time with cost allocation
+    // 6. Vessel Utilization - Productive hours vs total offshore time with LC allocation
     const totalOffshoreHours = filteredVoyageEvents
       .filter(event => event.portType === 'rig')
       .reduce((sum, event) => {
-        const hours = event.finalHours || 0;
-        return sum + applyCostAllocationPercentage(event, hours);
+        return sum + getDrillingAllocatedHours(event);
       }, 0);
     const vesselUtilization = totalOffshoreHours > 0 ? (osvProductiveHours / totalOffshoreHours) * 100 : 0;
     
@@ -386,8 +441,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       event.event?.toLowerCase().includes('shifting')
     );
     const maneuveringHours = maneuveringEvents.reduce((sum, event) => {
-      const hours = event.finalHours || 0;
-      return sum + applyCostAllocationPercentage(event, hours);
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
     
     // 10. Non-Productive Time Analysis with cost allocation
@@ -395,12 +449,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       event.activityCategory === 'Non-Productive'
     );
     const nonProductiveHours = nonProductiveEvents.reduce((sum, event) => {
-      const hours = event.finalHours || 0;
-      return sum + applyCostAllocationPercentage(event, hours);
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
     const totalHours = filteredVoyageEvents.reduce((sum, event) => {
-      const hours = event.finalHours || 0;
-      return sum + applyCostAllocationPercentage(event, hours);
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
     const nptPercentage = totalHours > 0 ? (nonProductiveHours / totalHours) * 100 : 0;
     
@@ -409,8 +461,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       event.parentEvent === 'Waiting on Weather'
     );
     const weatherWaitingHours = weatherEvents.reduce((sum, event) => {
-      const hours = event.finalHours || 0;
-      return sum + applyCostAllocationPercentage(event, hours);
+      return sum + getDrillingAllocatedHours(event);
     }, 0);
     const weatherImpactPercentage = totalOffshoreHours > 0 ? (weatherWaitingHours / totalOffshoreHours) * 100 : 0;
 
@@ -448,34 +499,77 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
     // NEW ENHANCED COST ALLOCATION INTEGRATION
     
+    // Get all production LC numbers to explicitly exclude
+    const getAllProductionLCs = () => {
+      const productionFacilities = masterFacilitiesData
+        .filter(facility => facility.facilityType === 'Production');
+      const allProductionLCs = new Set<string>();
+      
+      productionFacilities.forEach(facility => {
+        if (facility.productionLCs) {
+          facility.productionLCs.split(',').forEach(lc => {
+            allProductionLCs.add(lc.trim());
+          });
+        }
+      });
+      
+      console.log('🏭 Production LC Numbers to exclude:', Array.from(allProductionLCs));
+      return allProductionLCs;
+    };
+    
+    const productionLCs = getAllProductionLCs();
+
     // Filter cost allocation data for drilling operations
     const drillingCostAllocation = costAllocation.filter(cost => {
       // Check if this is a drilling LC
       const lcNumber = String(cost.lcNumber || '').trim();
       const isDrillingLC = drillingLCs.has(lcNumber);
+      const isProductionLC = productionLCs.has(lcNumber);
+      
+      // Exclude if it's a production LC
+      if (isProductionLC) {
+        console.log(`🚫 Excluding production LC: ${lcNumber} (facility: ${cost.rigLocation || cost.locationReference})`);
+        return false;
+      }
       
       // Include if:
       // 1. It's a drilling LC number
       // 2. OR it's marked as Drilling department
       // 3. OR it's a Drilling/Completions project type
-      // 4. OR it's at a drilling location
+      // 4. AND it's NOT a production location
       const isDrillingDept = cost.department === 'Drilling';
       const isDrillingProject = cost.projectType === 'Drilling' || cost.projectType === 'Completions';
-      const isDrillingLocation = cost.rigLocation?.toLowerCase().includes('drilling') ||
-                                cost.locationReference?.toLowerCase().includes('drilling') ||
-                                (cost.rigLocation?.toLowerCase().includes('thunder') && cost.rigLocation?.toLowerCase().includes('horse')) ||
-                                (cost.locationReference?.toLowerCase().includes('thunder') && cost.locationReference?.toLowerCase().includes('horse'));
       
-      const shouldInclude = isDrillingLC || isDrillingDept || isDrillingProject || isDrillingLocation;
+      // Check if location is explicitly a drilling location
+      const locationName = cost.rigLocation || cost.locationReference || '';
+      const mappedFacility = mapCostAllocationLocation(cost.rigLocation, cost.locationReference);
+      const isDrillingLocation = mappedFacility ? 
+        mappedFacility.facilityType === 'Drilling' : 
+        locationName.toLowerCase().includes('drilling');
       
-      if (!shouldInclude && lcNumber) {
-        console.log(`🚫 Excluding non-drilling LC: ${lcNumber} (dept: ${cost.department}, project: ${cost.projectType}, location: ${cost.rigLocation || cost.locationReference})`);
+      const shouldInclude = (isDrillingLC || isDrillingDept || isDrillingProject) && 
+                           !locationName.toLowerCase().includes('production') &&
+                           !locationName.toLowerCase().includes(' prod');
+      
+      if (!shouldInclude && lcNumber && isDrillingLocation) {
+        console.log(`🚫 Excluding non-drilling LC: ${lcNumber} (dept: ${cost.department}, project: ${cost.projectType}, location: ${locationName})`);
       }
       
       return shouldInclude;
     });
     
     console.log(`💰 Drilling Cost Allocations: ${drillingCostAllocation.length} (excluded ${costAllocation.length - drillingCostAllocation.length} production LCs)`);
+    
+    // Debug manifest filtering
+    const manifestDebug = {
+      totalManifests: vesselManifests.length,
+      manifestsWithCostCode: vesselManifests.filter(m => m.costCode).length,
+      manifestsWithDrillingLC: vesselManifests.filter(m => m.costCode && drillingLCs.has(String(m.costCode).trim())).length,
+      manifestsWithProductionLC: vesselManifests.filter(m => m.costCode && productionLCs.has(String(m.costCode).trim())).length,
+      manifestsNoCostCode: vesselManifests.filter(m => !m.costCode).length,
+      filteredDrillingManifests: filteredVesselManifests.length
+    };
+    console.log('📦 Manifest Filtering Debug:', manifestDebug);
     
     // Apply location filter to cost allocation
     const filteredDrillingCosts = drillingCostAllocation.filter(cost => {
@@ -975,20 +1069,32 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           }
           
           // Get manifests for this vessel at this location during the time period
-          let vesselManifestsAtLocation;
-          if (filters.selectedLocation.toLowerCase().includes('drilling')) {
-            vesselManifestsAtLocation = vesselManifests.filter(m => {
-              const manifestLocation = m.mappedLocation || 'Unknown';
-              return m.transporter === vesselName && 
-                     filterByLocation(manifestLocation) && 
-                     filterByDate(m.manifestDate);
-            });
-          } else {
-            vesselManifestsAtLocation = filteredVesselManifests.filter(m => {
-              const manifestLocation = m.mappedLocation || 'Unknown';
-              return m.transporter === vesselName && filterByLocation(manifestLocation);
-            });
-          }
+          // Apply same LC-based filtering logic
+          const vesselManifestsAtLocation = vesselManifests.filter(m => {
+            if (m.transporter !== vesselName) return false;
+            
+            const manifestLocation = m.mappedLocation || m.offshoreLocation || 'Unknown';
+            const locationMatch = filterByLocation(manifestLocation);
+            const dateMatch = filterByDate(m.manifestDate);
+            
+            if (!locationMatch || !dateMatch) return false;
+            
+            // Apply LC-based filtering for drilling manifests
+            if (m.costCode) {
+              const costCodeStr = String(m.costCode).trim();
+              // Include if it's a drilling LC
+              if (drillingLCs.has(costCodeStr)) return true;
+              // Exclude if it's a production LC
+              if (productionLCs.has(costCodeStr)) return false;
+            }
+            
+            // Check facility type
+            const facility = mapCostAllocationLocation(m.offshoreLocation, m.mappedLocation);
+            if (facility && facility.facilityType === 'Drilling') return true;
+            
+            // Fallback to department
+            return m.finalDepartment === 'Drilling';
+          });
           
           return {
             name: vesselName,
@@ -1082,10 +1188,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
     const months = ['All Months', ...sortedMonths.map(item => item.label)];
     
-    // Get drilling locations from master facilities data
+    // Get drilling locations from master facilities data - exclude integrated facilities
     const drillingFacilities = getAllDrillingCapableLocations();
     const locations = ['All Locations', ...drillingFacilities
-      .filter(facility => !facility.displayName.toLowerCase().includes('production'))
+      .filter(facility => 
+        facility.facilityType === 'Drilling' && // Only pure drilling facilities
+        !facility.displayName.toLowerCase().includes('production') &&
+        !facility.displayName.toLowerCase().includes('(all)') // Exclude integrated facilities
+      )
       .map(facility => facility.displayName)];
 
     return { months, locations };
