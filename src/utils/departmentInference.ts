@@ -94,7 +94,9 @@ export const inferDepartmentFromDescription = (description: string | undefined):
       desc.includes('umbilical') || desc.includes('tree') || desc.includes('header') ||
       desc.includes('export') || desc.includes('gas') || desc.includes('oil') ||
       desc.includes('condensate') || desc.includes('hydrocarbon') || desc.includes('crude') ||
-      desc.includes('processing') || desc.includes('treating')) {
+      desc.includes('processing') || desc.includes('treating') || desc.includes('pdq') ||
+      desc.includes('pq') || desc.includes('atlantis') || desc.includes('na kika') ||
+      desc.includes('mad dog') || desc.includes('thunder horse') || desc.includes('argos')) {
     return "Production";
   }
   

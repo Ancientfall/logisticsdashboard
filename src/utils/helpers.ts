@@ -74,8 +74,8 @@ export const createStandardizedVoyageId = (voyageId: number, manifestDate: Date)
   return `${year}-${month}-UNKNOWN-${paddedVoyageId}`;
 };
 
-export const createStandardizedVoyageIdFromVoyage = (voyage: { Vessel: string; Month: string; Year: number; "Voyage Number": number }): string => {
-  const monthNumber = getMonthNumber(voyage.Month);
+export const createStandardizedVoyageIdFromVoyage = (voyage: { Vessel: string; Month?: string; Year: number; "Voyage Number": number }): string => {
+  const monthNumber = voyage.Month ? getMonthNumber(voyage.Month) : 1;
   const paddedMonth = String(monthNumber).padStart(2, '0');
   const vesselNoSpaces = voyage.Vessel.replace(/\s+/g, '');
   const paddedVoyageNumber = String(voyage["Voyage Number"]).padStart(3, '0');

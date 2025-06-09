@@ -8,7 +8,7 @@ import { DataProvider, useData } from './context/DataContext';
 import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
-import CostAllocationManager from './components/dashboard/CostAllocationManager';
+import CostAllocationManagerRedesigned from './components/dashboard/CostAllocationManagerRedesigned';
 import ProductionDashboard from './components/dashboard/ProductionDashboard';
 
 // Main application content component
@@ -204,7 +204,7 @@ const AppContent: React.FC = () => {
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
         >
-          <CostAllocationManager onNavigateToUpload={() => setCurrentView('upload')} />
+          <CostAllocationManagerRedesigned onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
       )}
     </>

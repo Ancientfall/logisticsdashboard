@@ -2,7 +2,7 @@
 import { CostAllocation } from '../../types';
 import { parseCostAllocationMonthYear } from '../dateUtils';
 import { getVesselDailyRate } from '../vesselCost';
-import { extractRigLocationFromDescription } from '../departmentInference';
+import { extractRigLocationFromDescription, inferDepartmentFromDescription, inferDepartmentFromLCNumber } from '../departmentInference';
 
 /**
  * Cost allocation data processor - Enhanced with flexible date handling
@@ -346,7 +346,13 @@ export const processCostAllocation = (
       }
 
       // Process location info
-      const locationInfo = processRigLocation(costAlloc);
+      const locationInfo = processRigLocation(costAlloc, lcNumber);
+      
+      // Normalize project type first
+      const normalizedProjectType = normalizeProjectType(costAlloc["Project Type"]);
+      
+      // Determine final department with fallback logic
+      const finalDepartment = locationInfo.department || inferDepartmentFromProjectType(normalizedProjectType);
 
       // Create the processed record
       const processedRecord: CostAllocation = {
@@ -357,7 +363,7 @@ export const processCostAllocation = (
         costElement: costAlloc["Cost Element"]?.trim(),
         
         // Project Information
-        projectType: normalizeProjectType(costAlloc["Project Type"]),
+        projectType: normalizedProjectType,
         
         // Time Information
         monthYear,
@@ -383,7 +389,7 @@ export const processCostAllocation = (
         
         // Additional fields
         mission: costAlloc.Mission?.trim(),
-        department: locationInfo.department,
+        department: finalDepartment,
         isActive: true,
         
         // Enhanced location flags
@@ -515,11 +521,57 @@ export const processCostAllocation = (
         totalAllocatedDays: record.totalAllocatedDays
       });
     });
+    
+    // Department distribution analysis
+    const deptCounts = processed.reduce((acc, record) => {
+      const dept = record.department || 'Unknown';
+      acc[dept] = (acc[dept] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    console.log('\n📊 DEPARTMENT DISTRIBUTION:');
+    Object.entries(deptCounts).forEach(([dept, count]) => {
+      const percentage = (count / processed.length * 100).toFixed(1);
+      console.log(`  ${dept}: ${count} records (${percentage}%)`);
+    });
+    
+    // Show sample of Unknown department records
+    const unknownRecords = processed.filter(r => !r.department);
+    if (unknownRecords.length > 0) {
+      console.log('\n🔍 Sample Unknown Department Records:');
+      unknownRecords.slice(0, 10).forEach(record => {
+        console.log(`  LC ${record.lcNumber}:`);
+        console.log(`    Location: ${record.rigLocation || record.locationReference || 'No location'}`);
+        console.log(`    Project Type: ${record.projectType || 'No project type'}`);
+        console.log(`    Description: ${record.description || 'No description'}`);
+        console.log(`    -----`);
+      });
+    }
   }
   
   console.log('\n========== COST ALLOCATION PROCESSING END ==========\n');
   
   return processed;
+};
+
+/**
+ * Infer department from project type
+ */
+const inferDepartmentFromProjectType = (projectType: 'Drilling' | 'Completions' | 'Production' | 'Maintenance' | 'Operator Sharing' | undefined): 'Drilling' | 'Production' | 'Logistics' | undefined => {
+  if (!projectType) return undefined;
+  
+  switch (projectType) {
+    case 'Drilling':
+    case 'Completions':
+      return 'Drilling';
+    case 'Production':
+    case 'Maintenance':
+      return 'Production';
+    case 'Operator Sharing':
+      return 'Logistics';
+    default:
+      return undefined;
+  }
 };
 
 /**
@@ -551,7 +603,7 @@ const normalizeProjectType = (projectType: string | undefined): 'Drilling' | 'Co
 /**
  * Process rig location information
  */
-const processRigLocation = (costAlloc: RawCostAllocation): {
+const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   rigLocation: string;
   isDrilling: boolean;
   isThunderHorse: boolean;
@@ -579,18 +631,46 @@ const processRigLocation = (costAlloc: RawCostAllocation): {
   const isDrilling = allLocationText.includes('drilling') || 
                     allLocationText.includes('drill');
   
-  // Determine department
+  // Determine department - use multiple sources for better accuracy
   let department: 'Drilling' | 'Production' | 'Logistics' | undefined;
   
-  if (isDrilling) {
+  // Debug logging for department assignment
+  const debugDepartment = lcNumber.startsWith('7') || lcNumber.startsWith('8') || Math.random() < 0.1;
+  
+  // First try LC-based inference (most reliable)
+  const lcDepartment = inferDepartmentFromLCNumber(lcNumber);
+  if (lcDepartment) {
+    department = lcDepartment;
+    if (debugDepartment) console.log(`  LC ${lcNumber}: Department from LC mapping = ${department}`);
+  } else if (isDrilling) {
+    // Check if it's explicitly drilling
     department = 'Drilling';
-  } else if (allLocationText.includes('prod')) {
+  } else if (allLocationText.includes('prod') || allLocationText.includes('production')) {
     department = 'Production';
   } else if (allLocationText.includes('logistics') || allLocationText.includes('fourchon')) {
     department = 'Logistics';
   } else if (isThunderHorse || isMadDog) {
-    // Default integrated facilities to Production if not drilling
-    department = 'Production';
+    // For integrated facilities, check description for better context
+    if (description.toLowerCase().includes('drill')) {
+      department = 'Drilling';
+    } else {
+      department = 'Production';
+    }
+  } else {
+    // If still undefined, try to infer from description
+    const inferredDept = inferDepartmentFromDescription(description);
+    if (inferredDept) {
+      department = inferredDept;
+      if (debugDepartment) console.log(`  LC ${lcNumber}: Department from description = ${department}`);
+    } else {
+      if (debugDepartment) {
+        console.log(`  LC ${lcNumber}: NO DEPARTMENT FOUND!`);
+        console.log(`    - Rig Location: "${rigLocation}"`);
+        console.log(`    - Location Reference: "${locationReference}"`);
+        console.log(`    - Description: "${description}"`);
+        console.log(`    - All location text: "${allLocationText}"`);
+      }
+    }
   }
   
   // Determine final rig location

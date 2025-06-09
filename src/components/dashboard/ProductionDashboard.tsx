@@ -3,6 +3,7 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName } from '../../data/vesselClassification';
 import { getProductionFacilities } from '../../data/masterFacilities';
 import KPICard from './KPICard';
+import { Calendar, MapPin, Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign } from 'lucide-react';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -13,8 +14,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
     voyageEvents, 
     vesselManifests, 
     costAllocation,
-    voyageList,
-    isDataReady
+    voyageList
   } = useData();
 
   // Filters state - matching PowerBI layout
@@ -166,6 +166,96 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       .reduce((sum, event) => sum + (event.finalHours || 0), 0);
     const weatherImpactPercentage = totalOffshoreHours > 0 ? (weatherWaitingHours / totalOffshoreHours) * 100 : 0;
 
+    // 11. Production Facility Cost Analysis
+    const productionFacilityCosts = (() => {
+      if (!costAllocation || costAllocation.length === 0) return {};
+      
+      const productionFacilities = getProductionFacilities();
+      const facilityCosts: Record<string, { 
+        totalCost: number; 
+        allocatedDays: number; 
+        budgetedCost: number;
+        voyageCount: number;
+        avgDailyCost: number;
+        displayName: string;
+      }> = {};
+      
+      // Filter cost allocation for production facilities
+      const filteredCostAllocation = costAllocation.filter(cost => {
+        // Check if this is a production facility
+        const isProductionFacility = productionFacilities.some(facility => 
+          cost.locationReference === facility.locationName ||
+          cost.locationReference === facility.displayName ||
+          cost.rigLocation === facility.locationName ||
+          cost.rigLocation === facility.displayName
+        );
+        
+        if (!isProductionFacility) return false;
+        
+        // Apply date filter
+        if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
+          if (cost.costAllocationDate) {
+            const costDate = new Date(cost.costAllocationDate);
+            const monthLabel = `${costDate.toLocaleString('default', { month: 'long' })} ${costDate.getFullYear()}`;
+            if (monthLabel !== filters.selectedMonth) return false;
+          }
+        }
+        
+        // Apply location filter
+        if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+          const facility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
+          if (facility) {
+            const matchesLocation = cost.locationReference === facility.locationName ||
+                                   cost.locationReference === facility.displayName ||
+                                   cost.rigLocation === facility.locationName ||
+                                   cost.rigLocation === facility.displayName;
+            if (!matchesLocation) return false;
+          }
+        }
+        
+        return true;
+      });
+      
+      // Aggregate costs by facility
+      filteredCostAllocation.forEach(cost => {
+        const location = cost.rigLocation || cost.locationReference || 'Unknown';
+        
+        // Find the matching production facility
+        const facility = productionFacilities.find(f => 
+          location === f.locationName || location === f.displayName
+        );
+        
+        if (facility) {
+          const key = facility.displayName;
+          
+          if (!facilityCosts[key]) {
+            facilityCosts[key] = {
+              totalCost: 0,
+              allocatedDays: 0,
+              budgetedCost: 0,
+              voyageCount: 0,
+              avgDailyCost: 0,
+              displayName: facility.displayName
+            };
+          }
+          
+          facilityCosts[key].totalCost += Number(cost.totalCost || cost.budgetedVesselCost || 0);
+          facilityCosts[key].allocatedDays += Number(cost.totalAllocatedDays || 0);
+          facilityCosts[key].budgetedCost += Number(cost.budgetedVesselCost || 0);
+          facilityCosts[key].voyageCount += 1;
+        }
+      });
+      
+      // Calculate average daily costs
+      Object.keys(facilityCosts).forEach(key => {
+        if (facilityCosts[key].allocatedDays > 0) {
+          facilityCosts[key].avgDailyCost = facilityCosts[key].totalCost / facilityCosts[key].allocatedDays;
+        }
+      });
+      
+      return facilityCosts;
+    })();
+
     // Calculate trends (mock data for now - in production, compare with previous period)
     const calculateTrend = (current: number, previous: number) => {
       if (previous === 0) return 0;
@@ -276,9 +366,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         ].filter(activity => activity.hours > 0);
         
         return activities.sort((a, b) => b.hours - a.hours);
-      })()
+      })(),
+      
+      // Production facility costs
+      productionFacilityCosts
     };
-  }, [voyageEvents, vesselManifests, voyageList, filters]);
+  }, [voyageEvents, vesselManifests, voyageList, costAllocation, filters]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
@@ -357,34 +450,51 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         </button>
       </div>
 
-      {/* Filter Bar - Matching PowerBI Layout */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">CURRENT MONTH</label>
-            <select 
-              className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent min-w-[120px]"
-              value={filters.selectedMonth}
-              onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
-            >
-              {filterOptions.months.map(month => (
-                <option key={month} value={month}>{month}</option>
-              ))}
-            </select>
+      {/* Enhanced Filter Bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <Calendar className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Period</label>
+                <select 
+                  className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-w-[180px]"
+                  value={filters.selectedMonth}
+                  onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
+                >
+                  {filterOptions.months.map(month => (
+                    <option key={month} value={month}>{month}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-50 rounded-lg">
+                <MapPin className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Production Location</label>
+                <select 
+                  className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
+                  value={filters.selectedLocation}
+                  onChange={(e) => setFilters(prev => ({ ...prev, selectedLocation: e.target.value }))}
+                >
+                  {filterOptions.locations.map(location => (
+                    <option key={location} value={location}>{location}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">PRODUCTION LOCATION</label>
-          <select 
-            className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent min-w-[160px]"
-            value={filters.selectedLocation}
-            onChange={(e) => setFilters(prev => ({ ...prev, selectedLocation: e.target.value }))}
-          >
-            {filterOptions.locations.map(location => (
-              <option key={location} value={location}>{location}</option>
-            ))}
-          </select>
+          
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Activity className="w-4 h-4" />
+            <span>Live data refresh every 5 minutes</span>
+          </div>
         </div>
       </div>
 
@@ -397,6 +507,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.cargoTons.trend}
           isPositive={productionMetrics.cargoTons.isPositive}
           unit="tons"
+          color="blue"
         />
         <KPICard 
           title="Lifts per Hour" 
@@ -404,6 +515,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.liftsPerHour.trend}
           isPositive={productionMetrics.liftsPerHour.isPositive}
           unit="lifts/hr"
+          color="green"
         />
         <KPICard 
           title="Productive Hours" 
@@ -411,6 +523,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.osvProductiveHours.trend}
           isPositive={productionMetrics.osvProductiveHours.isPositive}
           unit="hrs"
+          color="purple"
         />
         <KPICard 
           title="Waiting Time" 
@@ -418,6 +531,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.waitingTime.trend}
           isPositive={productionMetrics.waitingTime.isPositive}
           unit="hrs"
+          color="orange"
         />
         <KPICard 
           title="Vessel Utilization" 
@@ -425,6 +539,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.vesselUtilization.trend}
           isPositive={productionMetrics.vesselUtilization.isPositive}
           unit="%"
+          color="red"
         />
         
         {/* Second Row - Efficiency & Performance Metrics */}
@@ -434,6 +549,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.rtCargoTons.trend}
           isPositive={productionMetrics.rtCargoTons.isPositive}
           unit="tons"
+          color="indigo"
         />
         <KPICard 
           title="NPT Percentage" 
@@ -441,6 +557,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.nptPercentage?.trend}
           isPositive={productionMetrics.nptPercentage?.isPositive}
           unit="%"
+          color="pink"
         />
         <KPICard 
           title="Weather Impact" 
@@ -448,6 +565,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.weatherImpact?.trend}
           isPositive={productionMetrics.weatherImpact?.isPositive}
           unit="%"
+          color="yellow"
         />
         <KPICard 
           title="Production Voyages" 
@@ -455,6 +573,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.fsvRuns.trend}
           isPositive={productionMetrics.fsvRuns.isPositive}
           unit="voyages"
+          color="blue"
         />
         <KPICard 
           title="Maneuvering Hours" 
@@ -462,6 +581,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           trend={productionMetrics.maneuveringHours.trend}
           isPositive={productionMetrics.maneuveringHours.isPositive}
           unit="hrs"
+          color="green"
         />
       </div>
 
@@ -501,88 +621,448 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         </div>
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vessels Split by Type */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">VESSELS</h3>
-            <div className="text-sm text-gray-500">SPLIT BY TYPE</div>
-          </div>
-          <div className="h-64">
-            {productionMetrics.vesselTypeData.length > 0 ? (
-              <div className="space-y-4 h-full flex flex-col justify-center">
-                {productionMetrics.vesselTypeData.map((item, index) => {
-                  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500'];
-                  return (
-                    <div key={item.type}>
-                      <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
-                        <span>{item.type}</span>
-                        <span>{item.count} vessels ({item.percentage.toFixed(0)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-4">
-                        <div 
-                          className={`${colors[index % colors.length]} h-4 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium`}
-                          style={{ width: `${Math.max(10, item.percentage)}%` }}
-                        >
-                          {item.count}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <p className="text-gray-600 font-medium">No vessel data available</p>
+      {/* Analytics Dashboard Section - Enhanced Design */}
+      <div className="space-y-6">
+        {/* Production Analytics Row */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Vessel Fleet Analysis - Enhanced Design */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <Ship className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Vessel Fleet Analysis</h3>
+                    <p className="text-sm text-purple-100 mt-0.5">Distribution by Type</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-white">{productionMetrics.vesselTypeData.reduce((sum, v) => sum + v.count, 0)}</div>
+                  <div className="text-xs text-purple-100">Total Vessels</div>
                 </div>
               </div>
-            )}
+            </div>
+            
+            <div className="p-6">
+              {productionMetrics.vesselTypeData.length > 0 ? (
+                <div className="space-y-4">
+                  {productionMetrics.vesselTypeData.map((item, index) => {
+                    const colors = [
+                      { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
+                      { bg: 'bg-green-500', light: 'bg-green-50', ring: 'ring-green-200' },
+                      { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
+                      { bg: 'bg-orange-500', light: 'bg-orange-50', ring: 'ring-orange-200' },
+                      { bg: 'bg-red-500', light: 'bg-red-50', ring: 'ring-red-200' }
+                    ];
+                    const color = colors[index % colors.length];
+                    
+                    return (
+                      <div key={item.type} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                            <span className="text-sm font-semibold text-gray-800">{item.type}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg font-bold text-gray-900">{item.count}</span>
+                            <span className="text-sm text-gray-500">vessels</span>
+                          </div>
+                        </div>
+                        <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                          <div 
+                            className={`${color.bg} h-4 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                            style={{ width: `${Math.max(15, item.percentage)}%` }}
+                          >
+                            <span className="text-xs font-medium text-white">
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="p-4 bg-purple-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
+                      <Ship className="w-10 h-10 text-purple-400" />
+                    </div>
+                    <p className="text-gray-700 font-semibold">No Vessel Data</p>
+                    <p className="text-sm text-gray-500 mt-2">Vessel information will appear here</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Activity Breakdown - Enhanced Design */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <BarChart3 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Activity Breakdown</h3>
+                    <p className="text-sm text-orange-100 mt-0.5">Operational Time Distribution</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-white">{Math.round(productionMetrics.totalHours).toLocaleString()}</div>
+                  <div className="text-xs text-orange-100">Total Hours</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {productionMetrics.activityData.length > 0 ? (
+                <div className="space-y-4">
+                  {productionMetrics.activityData.map((activity, index) => {
+                    const percentage = (activity.hours / productionMetrics.totalHours) * 100;
+                    
+                    return (
+                      <div key={activity.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className={`w-3 h-3 rounded-full ${activity.color} ring-4 ring-opacity-30`} 
+                                 style={{ boxShadow: `0 0 0 4px ${activity.color}30` }}></div>
+                            <span className="text-sm font-semibold text-gray-800 truncate">{activity.name}</span>
+                          </div>
+                          <div className="text-right ml-4 flex-shrink-0">
+                            <div className="text-lg font-bold text-gray-900">{Math.round(activity.hours).toLocaleString()}</div>
+                            <div className="text-xs text-gray-500">hours</div>
+                          </div>
+                        </div>
+                        <div className="relative w-full bg-gray-100 rounded-full h-6 overflow-hidden">
+                          <div 
+                            className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out`}
+                            style={{ width: `${Math.max(2, percentage)}%` }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-between px-3">
+                            <span className="text-xs font-medium text-gray-700">{percentage.toFixed(1)}%</span>
+                            {percentage > 20 && (
+                              <span className="text-xs font-medium text-white">
+                                {Math.round(activity.hours).toLocaleString()} hrs
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="p-4 bg-orange-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
+                      <BarChart3 className="w-10 h-10 text-orange-400" />
+                    </div>
+                    <p className="text-gray-700 font-semibold">No Activity Data</p>
+                    <p className="text-sm text-gray-500 mt-2">Activity breakdown will appear here</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Activity Breakdown */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">ACTIVITY</h3>
-            <div className="text-sm text-gray-500">BREAKDOWN BY TYPE</div>
-          </div>
-          <div className="h-64">
-            {productionMetrics.activityData.length > 0 ? (
-              <div className="space-y-3 h-full flex flex-col justify-center">
-                {productionMetrics.activityData.map((activity, index) => (
-                  <div key={activity.name}>
-                    <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
-                      <span>{activity.name}</span>
-                      <span>{Math.round(activity.hours).toLocaleString()} hrs</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-4">
-                      <div 
-                        className={`${activity.color} h-4 rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium`}
-                        style={{ width: `${Math.max(5, (activity.hours / productionMetrics.totalHours) * 100)}%` }}
-                      >
-                        {activity.hours > 10 ? Math.round(activity.hours).toLocaleString() : ''}
-                      </div>
-                    </div>
+        {/* Additional Production-Specific Analytics */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Production Time Analysis */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <Clock className="w-5 h-5 text-white" />
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <p className="text-gray-600 font-medium">No activity data available</p>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Production Time Analysis</h3>
+                    <p className="text-sm text-green-100 mt-0.5">{productionMetrics.totalHours.toFixed(0)} Total Hours</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 items-end">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                    <span className="text-xs text-white font-medium">Productive</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-red-200 rounded-full"></div>
+                    <span className="text-xs text-green-100">Non-Productive</span>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
+            
+            <div className="p-6">
+              <div className="space-y-4">
+                {/* Productive Hours */}
+                <div className="group hover:bg-green-50 p-3 rounded-lg transition-colors duration-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full ring-4 ring-green-100"></div>
+                      <span className="text-sm font-semibold text-gray-800">Productive Hours</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.osvProductiveHours.value).toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">hours</div>
+                    </div>
+                  </div>
+                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" 
+                      style={{ width: `${Math.max(2, (productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100)}%` }}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
+                      {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Non-Productive Hours */}
+                <div className="group hover:bg-red-50 p-3 rounded-lg transition-colors duration-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full ring-4 ring-red-100"></div>
+                      <span className="text-sm font-semibold text-gray-800">Non-Productive Hours</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.nonProductiveHours).toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">hours</div>
+                    </div>
+                  </div>
+                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out" 
+                      style={{ width: `${Math.max(2, (productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100)}%` }}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
+                      {((productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cargo Operations */}
+                <div className="group hover:bg-blue-50 p-3 rounded-lg transition-colors duration-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full ring-4 ring-blue-100"></div>
+                      <span className="text-sm font-semibold text-gray-800">Cargo Operations</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.cargoOpsHours).toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">hours</div>
+                    </div>
+                  </div>
+                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" 
+                      style={{ width: `${Math.max(2, (productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100)}%` }}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
+                      {((productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Waiting Time */}
+                <div className="group hover:bg-orange-50 p-3 rounded-lg transition-colors duration-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full ring-4 ring-orange-100"></div>
+                      <span className="text-sm font-semibold text-gray-800">Waiting Time</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.waitingTime.value).toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">hours</div>
+                    </div>
+                  </div>
+                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out" 
+                      style={{ width: `${Math.max(2, (productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100)}%` }}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
+                      {((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cargo Movement Analysis */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <Anchor className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Cargo Movement Analysis</h3>
+                    <p className="text-sm text-blue-100 mt-0.5">Volume & Efficiency Metrics</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                  {productionMetrics.cargoTons.value.toLocaleString()} tons
+                </span>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Main Metric Display */}
+                <div className="text-center py-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
+                  <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                    {productionMetrics.cargoTons.value.toLocaleString()}
+                  </div>
+                  <div className="text-lg font-medium text-gray-600 mt-2">Total Cargo Moved</div>
+                  <div className={`flex items-center justify-center gap-2 mt-4 ${productionMetrics.cargoTons.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                    {productionMetrics.cargoTons.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                    <span className="text-sm font-medium">{productionMetrics.cargoTons.trend}%</span>
+                    <span className="text-xs">vs previous period</span>
+                  </div>
+                </div>
+                
+                {/* Quick Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {productionMetrics.liftsPerHour.value}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Lifts/Hour</div>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {productionMetrics.vesselVisits.value}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Vessel Visits</div>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {productionMetrics.rtCargoTons.value.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">RT Tons</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+        
+        {/* Production Facility Cost Analysis */}
+        {Object.keys(productionMetrics.productionFacilityCosts).length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <DollarSign className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Production Facility Cost Analysis</h3>
+                    <p className="text-sm text-indigo-100 mt-0.5">Cost allocation by production location</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-white">
+                    ${Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, facility: any) => sum + facility.totalCost, 0) / 1000000)}M
+                  </div>
+                  <div className="text-xs text-indigo-100">Total Cost</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="space-y-4">
+                {Object.entries(productionMetrics.productionFacilityCosts)
+                  .sort(([,a]: any, [,b]: any) => b.totalCost - a.totalCost)
+                  .map(([facility, data]: [string, any], index) => {
+                    const maxCost = Math.max(...Object.values(productionMetrics.productionFacilityCosts).map((f: any) => f.totalCost));
+                    const percentage = maxCost > 0 ? (data.totalCost / maxCost) * 100 : 0;
+                    const colors = [
+                      { bg: 'bg-indigo-500', light: 'bg-indigo-50', ring: 'ring-indigo-200' },
+                      { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
+                      { bg: 'bg-pink-500', light: 'bg-pink-50', ring: 'ring-pink-200' },
+                      { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
+                      { bg: 'bg-teal-500', light: 'bg-teal-50', ring: 'ring-teal-200' }
+                    ];
+                    const color = colors[index % colors.length];
+                    
+                    return (
+                      <div key={facility} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200 border border-gray-100`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                            <div>
+                              <span className="text-sm font-semibold text-gray-800">{data.displayName}</span>
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                {data.voyageCount} voyages • {Math.round(data.allocatedDays)} days
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-gray-900">
+                              ${Math.round(data.totalCost / 1000000)}M
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              ${Math.round(data.avgDailyCost).toLocaleString()}/day
+                            </div>
+                          </div>
+                        </div>
+                        <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                          <div 
+                            className={`${color.bg} h-4 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                            style={{ width: `${Math.max(15, percentage)}%` }}
+                          >
+                            <span className="text-xs font-medium text-white">
+                              ${(data.totalCost / 1000000).toFixed(1)}M
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              
+              {/* Summary Statistics */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {Object.keys(productionMetrics.productionFacilityCosts).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Active Facilities</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    ${Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0) / 1000000)}M
+                  </div>
+                  <div className="text-sm text-gray-600">Total Cost</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-pink-600">
+                    {Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.allocatedDays, 0))}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Days</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    ${Math.round(
+                      Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0) /
+                      Math.max(1, Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.allocatedDays, 0))
+                    ).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-gray-600">Avg Cost/Day</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

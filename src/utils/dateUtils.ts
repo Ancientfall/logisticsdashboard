@@ -299,9 +299,9 @@ export const parseCostAllocationMonthYear = (monthYearStr: string | number | Dat
 /**
  * Convert month name to number
  */
-export const getMonthNumber = (month: string): number => {
+export const getMonthNumber = (month: string | undefined | null): number => {
   if (!month || typeof month !== 'string') {
-    console.warn(`⚠️ Invalid month value: ${month}, defaulting to 1`);
+    // Don't warn for undefined/null values - just return default silently
     return 1;
   }
   

@@ -13,7 +13,7 @@ interface RawVoyageList {
   Vessel: string;
   "Voyage Number": number;
   Year: number;
-  Month: string;
+  Month?: string;
   "Start Date": string;
   "End Date"?: string;
   Type?: string;
@@ -42,10 +42,10 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
       const standardizedVoyageId = createStandardizedVoyageIdFromVoyage(voyage);
       
       // Unique voyage ID for deduplication
-      const uniqueVoyageId = `${voyage.Year}_${voyage.Month}_${voyage.Vessel.replace(/\s+/g, '')}_${voyage["Voyage Number"]}`;
+      const uniqueVoyageId = `${voyage.Year}_${voyage.Month || 'January'}_${voyage.Vessel.replace(/\s+/g, '')}_${voyage["Voyage Number"]}`;
       
-      // Month number conversion
-      const monthNumber = getMonthNumber(voyage.Month);
+      // Month number conversion - handle undefined month gracefully
+      const monthNumber = voyage.Month ? getMonthNumber(voyage.Month) : 1;
       
       // Voyage purpose analysis
       const voyagePurpose = determineVoyagePurpose(locations);
@@ -65,7 +65,7 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
         standardizedVesselName: voyage.Vessel.trim(),
         voyageNumber: voyage["Voyage Number"],
         year: voyage.Year,
-        month: voyage.Month,
+        month: voyage.Month || 'January',
         monthNumber,
         startDate,
         endDate,
@@ -97,8 +97,8 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
         standardizedVesselName: voyage.Vessel?.trim() || 'Unknown',
         voyageNumber: voyage["Voyage Number"] || 0,
         year: voyage.Year || 2024, // Default to 2024 for missing year
-        month: voyage.Month || 'Unknown',
-        monthNumber: voyage.Month ? getMonthNumber(voyage.Month) : 1,
+        month: voyage.Month || 'January',
+        monthNumber: 1,
         startDate: voyage["Start Date"] ? parseDate(voyage["Start Date"]) : new Date(2024, 0, 1), // Default to Jan 1, 2024
         endDate: undefined,
         voyageDate: voyage["Start Date"] ? parseDate(voyage["Start Date"]) : new Date(2024, 0, 1), // Default to Jan 1, 2024
