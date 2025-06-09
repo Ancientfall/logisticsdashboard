@@ -383,6 +383,8 @@ export const mapCostAllocationLocation = (rigLocation?: string, locationReferenc
       'thunder horse pdq': 'Thunder Horse PDQ',
       'thunder horse drilling': 'Thunder Horse Drilling',
       'thunder horse drill': 'Thunder Horse Drilling',
+      'thunder horse prod': 'Thunder Horse Prod',
+      'thunder horse production': 'Thunder Horse Prod',
       'thunder horse': 'Thunder Horse PDQ',
       'thunderhorse': 'Thunder Horse PDQ',
       'argos': 'Argos',
@@ -390,6 +392,8 @@ export const mapCostAllocationLocation = (rigLocation?: string, locationReferenc
       'mad dog': 'Mad Dog',
       'mad dog drilling': 'Mad Dog Drilling',
       'mad dog drill': 'Mad Dog Drilling',
+      'mad dog prod': 'Mad Dog Prod',
+      'mad dog production': 'Mad Dog Prod',
       'na kika': 'Na Kika',
       'atlantis': 'Atlantis'
     };

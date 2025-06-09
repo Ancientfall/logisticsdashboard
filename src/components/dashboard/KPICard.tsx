@@ -1,4 +1,5 @@
 import React from 'react';
+import { Info } from 'lucide-react';
 
 interface KPICardProps {
   title: string;
@@ -8,9 +9,10 @@ interface KPICardProps {
   unit?: string;
   subtitle?: string;
   color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | 'pink' | 'yellow';
+  tooltip?: string;
 }
 
-const KPICard: React.FC<KPICardProps> = ({ title, value, trend, isPositive, unit, subtitle, color = 'blue' }) => {
+const KPICard: React.FC<KPICardProps> = ({ title, value, trend, isPositive, unit, subtitle, color = 'blue', tooltip }) => {
   const colorClasses = {
     blue: 'bg-blue-500',
     green: 'bg-green-500',
@@ -27,7 +29,22 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, trend, isPositive, unit
       <div className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
+            <div className="flex items-center gap-1 group">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
+              {tooltip && (
+                <>
+                  <Info className="w-3 h-3 text-gray-400" />
+                  <div className="absolute z-10 bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="max-w-xs whitespace-normal">
+                      {tooltip}
+                    </div>
+                    <div className="absolute top-full left-4 -mt-1">
+                      <div className="border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             {subtitle && <p className="text-xs text-gray-400 mb-2">{subtitle}</p>}
             <div className="flex items-baseline gap-1">
               {trend !== null && trend !== undefined && (

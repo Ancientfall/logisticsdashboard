@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
-import { getVesselTypeFromName } from '../../data/vesselClassification';
+import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation, getAllProductionLCs } from '../../data/masterFacilities';
 import type { VoyageEvent } from '../../types';
-import { TrendingUp, TrendingDown, Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Info } from 'lucide-react';
+import KPICard from './KPICard';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -930,13 +931,20 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       rigLocationAnalysis,
       totalCostAllocations: dateFilteredDrillingCosts.length,
       
-      // Vessel type breakdown
+      // Vessel type breakdown - show companies when location/time is filtered
       vesselTypeData: (() => {
         const vessels = [...new Set(filteredVoyageEvents.map(event => event.vessel))];
+        
+        // Determine whether to show companies or types based on filters
+        const showCompanies = (filters.selectedLocation !== 'All Locations') || 
+                             (filters.selectedMonth !== 'All Months');
+        
         const vesselCounts = vessels.reduce((acc, vessel) => {
-          // Use vessel classification data for accurate type detection
-          const type = getVesselTypeFromName(vessel);
-          acc[type] = (acc[type] || 0) + 1;
+          // Use company or type based on filter state
+          const groupBy = showCompanies 
+            ? getVesselCompanyFromName(vessel) 
+            : getVesselTypeFromName(vessel);
+          acc[groupBy] = (acc[groupBy] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
         
@@ -1206,53 +1214,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     );
   }
 
-  const KPICard: React.FC<{
-    title: string;
-    value: string | number;
-    trend?: number | null;
-    isPositive?: boolean | null;
-    unit?: string;
-    color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | 'pink' | 'yellow';
-  }> = ({ title, value, trend, isPositive, unit, color = 'blue' }) => {
-    const colorClasses = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-      red: 'bg-red-500',
-      indigo: 'bg-indigo-500',
-      pink: 'bg-pink-500',
-      yellow: 'bg-yellow-500'
-    };
-    
-    return (
-      <div className="relative overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100">
-        <div className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
-            {trend !== null && trend !== undefined && (
-              <div className={`flex items-center gap-1 text-xs font-medium ${
-                isPositive ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {isPositive ? (
-                  <TrendingUp className="w-3 h-3" />
-                ) : (
-                  <TrendingDown className="w-3 h-3" />
-                )}
-                <span>{Math.abs(trend)}%</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-baseline gap-1">
-            <p className="text-lg font-bold text-gray-900">{value}</p>
-            {unit && <span className="text-sm font-normal text-gray-500">{unit}</span>}
-          </div>
-        </div>
-        <div className={`absolute bottom-0 left-0 right-0 h-1 ${colorClasses[color]}`} />
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="p-6 space-y-6">
@@ -1346,6 +1307,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.liftsPerHour.isPositive}
             unit="lifts/hr"
             color="green"
+            tooltip="Average number of cargo lifts performed per hour during active cargo operations at drilling locations."
           />
           <KPICard 
             title="Productive Hours" 
@@ -1370,6 +1332,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.vesselUtilization.isPositive}
             unit="%"
             color="red"
+            tooltip="Percentage of rig time spent on productive activities. Calculated as productive hours divided by total rig hours."
           />
           
           {/* Second Row - Efficiency & Performance Metrics */}
@@ -1388,6 +1351,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.nptPercentage?.isPositive}
             unit="%"
             color="pink"
+            tooltip="Non-Productive Time as a percentage of total hours at drilling locations. Lower is better."
           />
           <KPICard 
             title="Weather Impact" 
@@ -1495,13 +1459,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         <div className="text-xs text-gray-500">hours</div>
                       </div>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                       <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" 
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                         style={{ width: `${Math.max(2, (drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100)}%` }}
-                      />
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                        {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                      >
+                        <span className="text-sm font-bold text-white">
+                          {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1518,13 +1483,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         <div className="text-xs text-gray-500">hours</div>
                       </div>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                       <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out" 
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                         style={{ width: `${Math.max(2, (drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100)}%` }}
-                      />
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                        {((drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                      >
+                        <span className="text-sm font-bold text-white">
+                          {((drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1541,13 +1507,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         <div className="text-xs text-gray-500">hours</div>
                       </div>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                       <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" 
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                         style={{ width: `${Math.max(2, (drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100)}%` }}
-                      />
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                        {((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                      >
+                        <span className="text-sm font-bold text-white">
+                          {((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1564,13 +1531,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         <div className="text-xs text-gray-500">hours</div>
                       </div>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                       <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out" 
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                         style={{ width: `${Math.max(2, (drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100)}%` }}
-                      />
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                        {((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                      >
+                        <span className="text-sm font-bold text-white">
+                          {((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1667,7 +1635,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-white">Vessel Fleet Analysis</h3>
-                      <p className="text-sm text-purple-100 mt-0.5">Distribution by Type</p>
+                      <p className="text-sm text-purple-100 mt-0.5">
+                        Distribution by {(filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months') ? 'Company' : 'Type'}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -1702,12 +1672,12 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                               <span className="text-sm text-gray-500">vessels</span>
                             </div>
                           </div>
-                          <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                          <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                             <div 
-                              className={`${color.bg} h-4 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                              className={`${color.bg} h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
                               style={{ width: `${Math.max(15, item.percentage)}%` }}
                             >
-                              <span className="text-xs font-medium text-white">
+                              <span className="text-sm font-bold text-white">
                                 {item.percentage.toFixed(1)}%
                               </span>
                             </div>
@@ -1769,18 +1739,12 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                               <div className="text-xs text-gray-500">hours</div>
                             </div>
                           </div>
-                          <div className="relative w-full bg-gray-100 rounded-full h-6 overflow-hidden">
+                          <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                             <div 
-                              className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out`}
+                              className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
                               style={{ width: `${Math.max(2, percentage)}%` }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-between px-3">
-                              <span className="text-xs font-medium text-gray-700">{percentage.toFixed(1)}%</span>
-                              {percentage > 20 && (
-                                <span className="text-xs font-medium text-white">
-                                  {Math.round(activity.hours).toLocaleString()} hrs
-                                </span>
-                              )}
+                            >
+                              <span className="text-sm font-bold text-white">{percentage.toFixed(1)}%</span>
                             </div>
                           </div>
                         </div>

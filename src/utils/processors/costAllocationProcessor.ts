@@ -676,12 +676,31 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   // Determine final rig location
   let finalRigLocation = rigLocation || rigReference || locationReference || '';
   
+  // Debug logging for Thunder Horse and Mad Dog LC numbers
+  const thunderHorseLCs = ['9360', '10099', '10081', '10074', '10052'];
+  const madDogLCs = ['9358', '10097', '10084', '10072', '10067'];
+  
+  if (thunderHorseLCs.includes(lcNumber) || madDogLCs.includes(lcNumber)) {
+    console.log(`🔍 Processing LC ${lcNumber}:`);
+    console.log(`   - Rig Location: "${rigLocation}"`);
+    console.log(`   - Location Reference: "${locationReference}"`);
+    console.log(`   - Rig Reference: "${rigReference}"`);
+    console.log(`   - Description: "${description}"`);
+    console.log(`   - Is Thunder Horse: ${isThunderHorse}`);
+    console.log(`   - Is Mad Dog: ${isMadDog}`);
+    console.log(`   - Department: ${department}`);
+  }
+  
   if (isThunderHorse) {
     // Better logic for Thunder Horse location determination
     if (isDrilling || allLocationText.includes('drilling') || description.toLowerCase().includes('drill')) {
       finalRigLocation = 'Thunder Horse Drilling';
     } else if (allLocationText.includes('prod')) {
       finalRigLocation = 'Thunder Horse Prod';
+    } else if (department === 'Production' || thunderHorseLCs.includes(lcNumber)) {
+      // If it's a Production LC, set it to Thunder Horse Prod
+      finalRigLocation = 'Thunder Horse Prod';
+      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod based on Production LC`);
     } else {
       // Default Thunder Horse to drilling if we can't determine
       finalRigLocation = 'Thunder Horse Drilling';
@@ -692,6 +711,10 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
       finalRigLocation = 'Mad Dog Drilling';
     } else if (allLocationText.includes('prod')) {
       finalRigLocation = 'Mad Dog Prod';
+    } else if (department === 'Production' || madDogLCs.includes(lcNumber)) {
+      // If it's a Production LC, set it to Mad Dog Prod
+      finalRigLocation = 'Mad Dog Prod';
+      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod based on Production LC`);
     } else {
       // Default Mad Dog to drilling if we can't determine
       finalRigLocation = 'Mad Dog Drilling';
@@ -701,6 +724,17 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
     const extractedLocation = extractRigLocationFromDescription(description);
     if (extractedLocation) {
       finalRigLocation = extractedLocation;
+    }
+  }
+  
+  // Special handling for production LCs without explicit location
+  if (!finalRigLocation || finalRigLocation === 'Unknown' || finalRigLocation === '') {
+    if (thunderHorseLCs.includes(lcNumber)) {
+      finalRigLocation = 'Thunder Horse Prod';
+      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod based on LC mapping`);
+    } else if (madDogLCs.includes(lcNumber)) {
+      finalRigLocation = 'Mad Dog Prod';
+      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod based on LC mapping`);
     }
   }
   

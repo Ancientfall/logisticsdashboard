@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
-import { getVesselTypeFromName } from '../../data/vesselClassification';
+import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getProductionFacilities } from '../../data/masterFacilities';
 import KPICard from './KPICard';
-import { Calendar, MapPin, Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign } from 'lucide-react';
+import { Calendar, MapPin, Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign, Info } from 'lucide-react';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -168,9 +168,69 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
 
     // 11. Production Facility Cost Analysis
     const productionFacilityCosts = (() => {
-      if (!costAllocation || costAllocation.length === 0) return {};
+      if (!costAllocation || costAllocation.length === 0) {
+        console.log('🚨 No cost allocation data available');
+        return {};
+      }
+      
+      // Debug: Log sample cost allocation record to check field names
+      if (costAllocation.length > 0) {
+        console.log('📊 Sample cost allocation record:', costAllocation[0]);
+        console.log('📊 Available fields in cost allocation:', Object.keys(costAllocation[0]));
+        
+        // Check for LC field variations
+        const lcFields = Object.keys(costAllocation[0]).filter(key => 
+          key.toLowerCase().includes('lc') || 
+          key.toLowerCase().includes('location') ||
+          key.toLowerCase().includes('rig')
+        );
+        console.log('📊 LC/Location related fields:', lcFields);
+      }
       
       const productionFacilities = getProductionFacilities();
+      console.log('🏭 Production Facilities:', productionFacilities.map(f => ({
+        displayName: f.displayName,
+        locationName: f.locationName,
+        productionLCs: f.productionLCs
+      })));
+      
+      // Debug: Check all unique locations in cost allocation data
+      const uniqueLocations = new Set<string>();
+      costAllocation.forEach(cost => {
+        if (cost.rigLocation) uniqueLocations.add(cost.rigLocation);
+        if (cost.locationReference) uniqueLocations.add(cost.locationReference);
+      });
+      console.log('📍 Unique locations in cost allocation:', Array.from(uniqueLocations));
+      
+      // Debug: Check LC numbers in cost allocation for Thunder Horse and Mad Dog
+      const thunderHorseLCs = ['9360', '10099', '10081', '10074', '10052'];
+      const madDogLCs = ['9358', '10097', '10084', '10072', '10067'];
+      
+      const thunderHorseCosts = costAllocation.filter(cost => 
+        thunderHorseLCs.includes(cost.lcNumber)
+      );
+      const madDogCosts = costAllocation.filter(cost => 
+        madDogLCs.includes(cost.lcNumber)
+      );
+      
+      console.log(`🌩️ Thunder Horse costs by LC: ${thunderHorseCosts.length} records`);
+      console.log('Thunder Horse LC details:', thunderHorseCosts.slice(0, 5).map(c => ({
+        lcNumber: c.lcNumber,
+        rigLocation: c.rigLocation,
+        locationReference: c.locationReference,
+        totalCost: c.totalCost,
+        allocatedDays: c.totalAllocatedDays
+      })));
+      
+      console.log(`🐕 Mad Dog costs by LC: ${madDogCosts.length} records`);
+      console.log('Mad Dog LC details:', madDogCosts.slice(0, 5).map(c => ({
+        lcNumber: c.lcNumber,
+        rigLocation: c.rigLocation,
+        locationReference: c.locationReference,
+        totalCost: c.totalCost,
+        allocatedDays: c.totalAllocatedDays
+      })));
+      
       const facilityCosts: Record<string, { 
         totalCost: number; 
         allocatedDays: number; 
@@ -180,18 +240,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         displayName: string;
       }> = {};
       
-      // Filter cost allocation for production facilities
+      // Process cost allocation using LC-based approach
       const filteredCostAllocation = costAllocation.filter(cost => {
-        // Check if this is a production facility
-        const isProductionFacility = productionFacilities.some(facility => 
-          cost.locationReference === facility.locationName ||
-          cost.locationReference === facility.displayName ||
-          cost.rigLocation === facility.locationName ||
-          cost.rigLocation === facility.displayName
-        );
-        
-        if (!isProductionFacility) return false;
-        
         // Apply date filter
         if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
           if (cost.costAllocationDate) {
@@ -201,29 +251,69 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           }
         }
         
+        // Check if this LC belongs to any production facility
+        const facility = productionFacilities.find(f => {
+          if (f.productionLCs) {
+            const lcNumbers = f.productionLCs.split(',').map(lc => lc.trim());
+            return lcNumbers.includes(cost.lcNumber);
+          }
+          return false;
+        });
+        
+        if (!facility) {
+          // Also check by location name matching
+          const isProductionFacility = productionFacilities.some(f => 
+            cost.locationReference === f.locationName ||
+            cost.locationReference === f.displayName ||
+            cost.rigLocation === f.locationName ||
+            cost.rigLocation === f.displayName
+          );
+          
+          if (!isProductionFacility) return false;
+        }
+        
         // Apply location filter
         if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-          const facility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
-          if (facility) {
-            const matchesLocation = cost.locationReference === facility.locationName ||
-                                   cost.locationReference === facility.displayName ||
-                                   cost.rigLocation === facility.locationName ||
-                                   cost.rigLocation === facility.displayName;
-            if (!matchesLocation) return false;
+          const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
+          if (selectedFacility) {
+            // Check if this cost belongs to the selected facility by LC
+            if (selectedFacility.productionLCs) {
+              const lcNumbers = selectedFacility.productionLCs.split(',').map(lc => lc.trim());
+              if (!lcNumbers.includes(cost.lcNumber)) {
+                // Also check by location name
+                const matchesLocation = cost.locationReference === selectedFacility.locationName ||
+                                       cost.locationReference === selectedFacility.displayName ||
+                                       cost.rigLocation === selectedFacility.locationName ||
+                                       cost.rigLocation === selectedFacility.displayName;
+                if (!matchesLocation) return false;
+              }
+            }
           }
         }
         
         return true;
       });
       
-      // Aggregate costs by facility
+      console.log(`📊 Filtered cost allocation: ${filteredCostAllocation.length} records`);
+      
+      // Aggregate costs by facility using LC-based approach
       filteredCostAllocation.forEach(cost => {
-        const location = cost.rigLocation || cost.locationReference || 'Unknown';
+        // First try to find facility by LC number
+        let facility = productionFacilities.find(f => {
+          if (f.productionLCs) {
+            const lcNumbers = f.productionLCs.split(',').map(lc => lc.trim());
+            return lcNumbers.includes(cost.lcNumber);
+          }
+          return false;
+        });
         
-        // Find the matching production facility
-        const facility = productionFacilities.find(f => 
-          location === f.locationName || location === f.displayName
-        );
+        // If not found by LC, try by location name
+        if (!facility) {
+          const location = cost.rigLocation || cost.locationReference || 'Unknown';
+          facility = productionFacilities.find(f => 
+            location === f.locationName || location === f.displayName
+          );
+        }
         
         if (facility) {
           const key = facility.displayName;
@@ -251,7 +341,10 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         if (facilityCosts[key].allocatedDays > 0) {
           facilityCosts[key].avgDailyCost = facilityCosts[key].totalCost / facilityCosts[key].allocatedDays;
         }
+        console.log(`💰 ${key}: ${facilityCosts[key].voyageCount} voyages, ${facilityCosts[key].allocatedDays} days, $${facilityCosts[key].totalCost.toFixed(0)}`);
       });
+      
+      console.log('🏁 Final facility costs:', Object.keys(facilityCosts));
       
       return facilityCosts;
     })();
@@ -297,7 +390,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         isPositive: waitingTimeOffshore < mockPreviousPeriod.waitingTime // Lower waiting time is better
       },
       rtCargoTons: { 
-        value: Number((Number(rtTons) || 0).toFixed(2)), 
+        value: Math.round(rtTons || 0), 
         trend: Number(calculateTrend(Number(rtTons) || 0, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
         isPositive: (Number(rtTons) || 0) < mockPreviousPeriod.rtCargoTons // Lower RT cargo might be better
       },
@@ -338,13 +431,20 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       cargoOpsHours,
       nonProductiveHours: totalHours - osvProductiveHours,
       
-      // Vessel type breakdown
+      // Vessel type breakdown - show companies when location/time is filtered
       vesselTypeData: (() => {
         const vessels = [...new Set(filteredVoyageEvents.map(event => event.vessel))];
+        
+        // Determine whether to show companies or types based on filters
+        const showCompanies = (filters.selectedLocation !== 'All Locations') || 
+                             (filters.selectedMonth !== 'All Months');
+        
         const vesselCounts = vessels.reduce((acc, vessel) => {
-          // Use vessel classification data for accurate type detection
-          const type = getVesselTypeFromName(vessel);
-          acc[type] = (acc[type] || 0) + 1;
+          // Use company or type based on filter state
+          const groupBy = showCompanies 
+            ? getVesselCompanyFromName(vessel) 
+            : getVesselTypeFromName(vessel);
+          acc[groupBy] = (acc[groupBy] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
         
@@ -516,10 +616,11 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.liftsPerHour.isPositive}
           unit="lifts/hr"
           color="green"
+          tooltip="Average number of cargo lifts performed per hour during active cargo operations. Higher values indicate better operational efficiency."
         />
         <KPICard 
           title="Productive Hours" 
-          value={productionMetrics.osvProductiveHours.value}
+          value={productionMetrics.osvProductiveHours.value.toLocaleString()}
           trend={productionMetrics.osvProductiveHours.trend}
           isPositive={productionMetrics.osvProductiveHours.isPositive}
           unit="hrs"
@@ -527,7 +628,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         />
         <KPICard 
           title="Waiting Time" 
-          value={productionMetrics.waitingTime.value}
+          value={productionMetrics.waitingTime.value.toLocaleString()}
           trend={productionMetrics.waitingTime.trend}
           isPositive={productionMetrics.waitingTime.isPositive}
           unit="hrs"
@@ -540,6 +641,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.vesselUtilization.isPositive}
           unit="%"
           color="red"
+          tooltip="Percentage of offshore time spent on productive activities. Calculated as productive hours divided by total offshore hours."
         />
         
         {/* Second Row - Efficiency & Performance Metrics */}
@@ -558,6 +660,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.nptPercentage?.isPositive}
           unit="%"
           color="pink"
+          tooltip="Non-Productive Time as a percentage of total hours. Includes waiting time, breakdowns, and other non-productive activities."
         />
         <KPICard 
           title="Weather Impact" 
@@ -569,15 +672,16 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         />
         <KPICard 
           title="Production Voyages" 
-          value={productionMetrics.fsvRuns.value}
+          value={productionMetrics.fsvRuns.value.toLocaleString()}
           trend={productionMetrics.fsvRuns.trend}
           isPositive={productionMetrics.fsvRuns.isPositive}
           unit="voyages"
           color="blue"
+          tooltip="Complete round-trip voyages with Production or Mixed purpose. A voyage may include multiple vessel visits to different locations."
         />
         <KPICard 
           title="Maneuvering Hours" 
-          value={productionMetrics.maneuveringHours.value}
+          value={productionMetrics.maneuveringHours.value.toLocaleString()}
           trend={productionMetrics.maneuveringHours.trend}
           isPositive={productionMetrics.maneuveringHours.isPositive}
           unit="hrs"
@@ -591,8 +695,22 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           <h3 className="text-lg font-semibold text-gray-900">Performance Summary</h3>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 relative group">
               {productionMetrics.totalEvents.toLocaleString()} events | {productionMetrics.totalManifests.toLocaleString()} manifests | {productionMetrics.fsvRuns.value.toLocaleString()} voyages
+              <Info className="inline-block w-3 h-3 text-gray-400 ml-1" />
+              <div className="absolute z-10 bottom-full right-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                <div className="max-w-xs whitespace-normal">
+                  <div className="font-semibold mb-1">Data Breakdown:</div>
+                  <div className="space-y-1">
+                    <div>• Events: Individual vessel activities recorded</div>
+                    <div>• Manifests: Vessel visits (port calls) at locations</div>
+                    <div>• Voyages: Complete round-trip journeys</div>
+                  </div>
+                </div>
+                <div className="absolute top-full right-4 -mt-1">
+                  <div className="border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
             </span>
           </div>
         </div>
@@ -635,7 +753,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-white">Vessel Fleet Analysis</h3>
-                    <p className="text-sm text-purple-100 mt-0.5">Distribution by Type</p>
+                    <p className="text-sm text-purple-100 mt-0.5">
+                      Distribution by {(filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months') ? 'Company' : 'Type'}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -670,12 +790,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                             <span className="text-sm text-gray-500">vessels</span>
                           </div>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                           <div 
-                            className={`${color.bg} h-4 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                            className={`${color.bg} h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
                             style={{ width: `${Math.max(15, item.percentage)}%` }}
                           >
-                            <span className="text-xs font-medium text-white">
+                            <span className="text-sm font-bold text-white">
                               {item.percentage.toFixed(1)}%
                             </span>
                           </div>
@@ -737,18 +857,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                             <div className="text-xs text-gray-500">hours</div>
                           </div>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-6 overflow-hidden">
+                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                           <div 
-                            className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out`}
+                            className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
                             style={{ width: `${Math.max(2, percentage)}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-between px-3">
-                            <span className="text-xs font-medium text-gray-700">{percentage.toFixed(1)}%</span>
-                            {percentage > 20 && (
-                              <span className="text-xs font-medium text-white">
-                                {Math.round(activity.hours).toLocaleString()} hrs
-                              </span>
-                            )}
+                          >
+                            <span className="text-sm font-bold text-white">{percentage.toFixed(1)}%</span>
                           </div>
                         </div>
                       </div>
@@ -782,7 +896,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-white">Production Time Analysis</h3>
-                    <p className="text-sm text-green-100 mt-0.5">{productionMetrics.totalHours.toFixed(0)} Total Hours</p>
+                    <p className="text-sm text-green-100 mt-0.5">{Math.round(productionMetrics.totalHours).toLocaleString()} Total Hours</p>
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 items-end">
@@ -812,13 +926,14 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                       <div className="text-xs text-gray-500">hours</div>
                     </div>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                     <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                       style={{ width: `${Math.max(2, (productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100)}%` }}
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                      {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    >
+                      <span className="text-sm font-bold text-white">
+                        {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -835,13 +950,14 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                       <div className="text-xs text-gray-500">hours</div>
                     </div>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                     <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out" 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                       style={{ width: `${Math.max(2, (productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100)}%` }}
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                      {((productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    >
+                      <span className="text-sm font-bold text-white">
+                        {((productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -858,13 +974,14 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                       <div className="text-xs text-gray-500">hours</div>
                     </div>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                     <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                       style={{ width: `${Math.max(2, (productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100)}%` }}
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                      {((productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    >
+                      <span className="text-sm font-bold text-white">
+                        {((productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -881,13 +998,14 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                       <div className="text-xs text-gray-500">hours</div>
                     </div>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                     <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out" 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
                       style={{ width: `${Math.max(2, (productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100)}%` }}
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-700">
-                      {((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}%
+                    >
+                      <span className="text-sm font-bold text-white">
+                        {((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -937,11 +1055,22 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                     </div>
                     <div className="text-xs text-gray-600 mt-1">Lifts/Hour</div>
                   </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg relative group">
                     <div className="text-2xl font-bold text-gray-900">
                       {productionMetrics.vesselVisits.value}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Vessel Visits</div>
+                    <div className="text-xs text-gray-600 mt-1 flex items-center justify-center gap-1">
+                      Vessel Visits
+                      <Info className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">
+                      <div className="max-w-xs">
+                        Individual port calls at the selected location. A single voyage may include multiple visits.
+                      </div>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">
@@ -971,7 +1100,16 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-white">
-                    ${Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, facility: any) => sum + facility.totalCost, 0) / 1000000)}M
+                    {(() => {
+                      const totalCost = Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, facility: any) => sum + facility.totalCost, 0);
+                      if (totalCost >= 1000000) {
+                        return `$${(totalCost / 1000000).toFixed(1)}M`;
+                      } else if (totalCost >= 1000) {
+                        return `$${Math.round(totalCost / 1000).toLocaleString()}K`;
+                      } else {
+                        return `$${Math.round(totalCost).toLocaleString()}`;
+                      }
+                    })()}
                   </div>
                   <div className="text-xs text-indigo-100">Total Cost</div>
                 </div>
@@ -1002,26 +1140,42 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                             <div>
                               <span className="text-sm font-semibold text-gray-800">{data.displayName}</span>
                               <div className="text-xs text-gray-500 mt-0.5">
-                                {data.voyageCount} voyages • {Math.round(data.allocatedDays)} days
+                                {data.voyageCount.toLocaleString()} voyages • {Math.round(data.allocatedDays).toLocaleString()} days
                               </div>
                             </div>
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-gray-900">
-                              ${Math.round(data.totalCost / 1000000)}M
+                              {(() => {
+                                if (data.totalCost >= 1000000) {
+                                  return `$${(data.totalCost / 1000000).toFixed(1)}M`;
+                                } else if (data.totalCost >= 1000) {
+                                  return `$${Math.round(data.totalCost / 1000).toLocaleString()}K`;
+                                } else {
+                                  return `$${Math.round(data.totalCost).toLocaleString()}`;
+                                }
+                              })()}
                             </div>
                             <div className="text-xs text-gray-500">
                               ${Math.round(data.avgDailyCost).toLocaleString()}/day
                             </div>
                           </div>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                           <div 
-                            className={`${color.bg} h-4 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                            className={`${color.bg} h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
                             style={{ width: `${Math.max(15, percentage)}%` }}
                           >
-                            <span className="text-xs font-medium text-white">
-                              ${(data.totalCost / 1000000).toFixed(1)}M
+                            <span className="text-sm font-bold text-white">
+                              {(() => {
+                                if (data.totalCost >= 1000000) {
+                                  return `$${(data.totalCost / 1000000).toFixed(1)}M`;
+                                } else if (data.totalCost >= 1000) {
+                                  return `$${Math.round(data.totalCost / 1000).toLocaleString()}K`;
+                                } else {
+                                  return `$${Math.round(data.totalCost).toLocaleString()}`;
+                                }
+                              })()}
                             </span>
                           </div>
                         </div>
@@ -1040,13 +1194,22 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
-                    ${Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0) / 1000000)}M
+                    {(() => {
+                      const totalCost = Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0);
+                      if (totalCost >= 1000000) {
+                        return `$${(totalCost / 1000000).toFixed(1)}M`;
+                      } else if (totalCost >= 1000) {
+                        return `$${Math.round(totalCost / 1000).toLocaleString()}K`;
+                      } else {
+                        return `$${Math.round(totalCost).toLocaleString()}`;
+                      }
+                    })()}
                   </div>
                   <div className="text-sm text-gray-600">Total Cost</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-pink-600">
-                    {Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.allocatedDays, 0))}
+                    {Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.allocatedDays, 0)).toLocaleString()}
                   </div>
                   <div className="text-sm text-gray-600">Total Days</div>
                 </div>

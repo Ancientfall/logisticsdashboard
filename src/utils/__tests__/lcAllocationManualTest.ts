@@ -1,95 +1,179 @@
-import { parseLCAllocationString } from '../lcAllocation';
+// src/utils/__tests__/lcAllocationManualTest.ts
+import { parseLCAllocationString, processLCAllocations } from '../lcAllocation';
+import { CostAllocation } from '../../types';
+import { getAllProductionLCs, getProductionFacilityByLC, mapCostAllocationLocation, getAllDrillingCapableLocations } from '../../data/masterFacilities';
+import { processCostAllocation } from '../processors/costAllocationProcessor';
+import { inferDepartmentFromLCNumber } from '../departmentInference';
 
-// Helper function to format output nicely
-const formatAllocation = (allocations: { lcNumber: string; percentage: number }[]) => {
-  return allocations.map(a => `${a.lcNumber}: ${a.percentage.toFixed(2)}%`).join(', ');
-};
+/**
+ * Manual tests for LC allocation logic and Thunder Horse/Mad Dog debugging
+ * Run with: npm test -- lcAllocationManualTest
+ */
 
-console.log('=== LC Allocation Parser Test Results ===\n');
+console.log('\n========== LC ALLOCATION & THUNDER HORSE/MAD DOG DEBUG ==========\n');
 
-// User-specified scenarios
-console.log('USER-SPECIFIED SCENARIOS:');
-console.log('-------------------------');
+// Test 1: Parse various LC allocation string formats
+console.log('TEST 1: Parsing LC allocation strings');
+console.log('=====================================');
 
-// Test 1
-const test1 = "9358";
-console.log(`1. Input: "${test1}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(test1))}`);
-console.log(`   Expected: 9358: 100%\n`);
+const testStrings = [
+  '9358 45, 10137 12, 10101',
+  '9360',
+  '10099 50, 10081 50',
+  '10097 33, 10084 33, 10072 34',
+  '9358',
+  '10137;10101;10102',
+  '9358 100',
+  ''
+];
 
-// Test 2
-const test2 = "9358, 9360, 10139";
-console.log(`2. Input: "${test2}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(test2))}`);
-console.log(`   Expected: 33.33% to each\n`);
+testStrings.forEach(str => {
+  console.log(`\nInput: "${str}"`);
+  const result = parseLCAllocationString(str);
+  console.log('Output:', result);
+  const total = result.reduce((sum, r) => sum + r.percentage, 0);
+  console.log(`Total percentage: ${total.toFixed(2)}%`);
+});
 
-// Test 3
-const test3 = "9358, 10123";
-console.log(`3. Input: "${test3}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(test3))}`);
-console.log(`   Expected: 50% to each\n`);
+// Test 2: Production LC mapping
+console.log('\n\nTEST 2: Production LC Mapping');
+console.log('==============================');
 
-// Test 4
-const test4 = "9358 12, 10123 64, 9876 12, 91023 12";
-console.log(`4. Input: "${test4}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(test4))}`);
-console.log(`   Expected: Use specific percentages (12%, 64%, 12%, 12%)\n`);
+const productionLCs = getAllProductionLCs();
+console.log('\nTotal Production LCs:', Object.keys(productionLCs).length);
+console.log('\nProduction LC mapping:');
+Object.entries(productionLCs).forEach(([lc, facility]) => {
+  console.log(`  ${lc} -> ${facility}`);
+});
 
-console.log('\nEDGE CASES:');
-console.log('------------');
+// Test Thunder Horse and Mad Dog LCs specifically
+console.log('\n\nTEST 3: Thunder Horse & Mad Dog LC Verification');
+console.log('================================================');
 
-// Edge case 1: Total not 100%
-const edge1 = "9358 30, 10123 40, 9876 20";
-console.log(`1. Total ≠ 100% - Input: "${edge1}" (Total: 90%)`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(edge1))}`);
-console.log(`   Expected: Normalize to 100%\n`);
+const thunderHorseLCs = ['9360', '10099', '10081', '10074', '10052'];
+const madDogLCs = ['9358', '10097', '10084', '10072', '10067'];
 
-// Edge case 2: Mixed formats
-const edge2 = "9358 40, 10123, 9876 30, 91023";
-console.log(`2. Mixed formats - Input: "${edge2}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(edge2))}`);
-console.log(`   Expected: 9358: 40%, 10123: 15%, 9876: 30%, 91023: 15%\n`);
+console.log('\nThunder Horse Production LCs:');
+thunderHorseLCs.forEach(lc => {
+  const facility = getProductionFacilityByLC(lc);
+  const dept = inferDepartmentFromLCNumber(lc);
+  console.log(`  ${lc}: Facility=${facility ? facility.displayName : 'NOT FOUND'}, Department=${dept || 'NONE'}`);
+});
 
-// Edge case 3: Different delimiters
-const edge3a = "9358; 9360; 10139";
-console.log(`3a. Semicolon delimiter - Input: "${edge3a}"`);
-console.log(`    Output: ${formatAllocation(parseLCAllocationString(edge3a))}\n`);
+console.log('\nMad Dog Production LCs:');
+madDogLCs.forEach(lc => {
+  const facility = getProductionFacilityByLC(lc);
+  const dept = inferDepartmentFromLCNumber(lc);
+  console.log(`  ${lc}: Facility=${facility ? facility.displayName : 'NOT FOUND'}, Department=${dept || 'NONE'}`);
+});
 
-const edge3b = "9358 | 9360 | 10139";
-console.log(`3b. Pipe delimiter - Input: "${edge3b}"`);
-console.log(`    Output: ${formatAllocation(parseLCAllocationString(edge3b))}\n`);
+// Test 4: Location mapping
+console.log('\n\nTEST 4: Location Mapping Test');
+console.log('==============================');
 
-// Edge case 4: Empty/whitespace
-const edge4a = "";
-console.log(`4a. Empty string - Input: "${edge4a}"`);
-console.log(`    Output: ${formatAllocation(parseLCAllocationString(edge4a)) || '(empty array)'}\n`);
+const testLocations = [
+  { rigLocation: 'Thunder Horse Prod', locationReference: undefined },
+  { rigLocation: 'Thunder Horse', locationReference: 'Thunder Horse Prod' },
+  { rigLocation: undefined, locationReference: 'Thunder Horse Prod' },
+  { rigLocation: 'Mad Dog Prod', locationReference: undefined },
+  { rigLocation: 'Mad Dog', locationReference: 'Mad Dog Prod' },
+  { rigLocation: undefined, locationReference: 'Mad Dog Prod' },
+  { rigLocation: 'Thunder Horse Drilling', locationReference: undefined },
+  { rigLocation: 'Mad Dog Drilling', locationReference: undefined }
+];
 
-const edge4b = "   ";
-console.log(`4b. Whitespace only - Input: "${edge4b}"`);
-console.log(`    Output: ${formatAllocation(parseLCAllocationString(edge4b)) || '(empty array)'}\n`);
+console.log('\nTesting location mapping:');
+testLocations.forEach(test => {
+  const mapped = mapCostAllocationLocation(test.rigLocation, test.locationReference);
+  console.log(`  Rig: "${test.rigLocation || 'N/A'}", Ref: "${test.locationReference || 'N/A'}" -> ${mapped ? mapped.displayName : 'UNMAPPED'}`);
+});
 
-// Edge case 5: Percentages over 100%
-const edge5 = "9358 60, 10123 80";
-console.log(`5. Percentages > 100% - Input: "${edge5}" (Total: 140%)`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(edge5))}`);
-console.log(`   Expected: Normalize to 100%\n`);
+// Test 5: Drilling facilities check
+console.log('\n\nTEST 5: Drilling Facilities Check');
+console.log('==================================');
 
-// Edge case 6: Invalid percentage
-const edge6 = "9358 abc, 10123 50";
-console.log(`6. Invalid percentage - Input: "${edge6}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(edge6))}`);
-console.log(`   Expected: Treat 'abc' as no percentage\n`);
+const drillingFacilities = getAllDrillingCapableLocations();
+console.log('\nAll drilling capable locations:');
+drillingFacilities.forEach(facility => {
+  console.log(`  ${facility.displayName} (${facility.facilityType}):`);
+  console.log(`    - Location Name: ${facility.locationName}`);
+  console.log(`    - Drilling LCs: ${facility.drillingLCs || 'None'}`);
+  console.log(`    - Production LCs: ${facility.productionLCs || 'None'}`);
+});
 
-// Edge case 7: With percentage symbols
-const edge7 = "9358 40%, 10123 60%";
-console.log(`7. With % symbols - Input: "${edge7}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(edge7))}`);
-console.log(`   Note: Current implementation may not handle % symbol\n`);
+// Test 6: Cost Allocation Processing for Thunder Horse/Mad Dog
+console.log('\n\nTEST 6: Cost Allocation Processing Test');
+console.log('========================================');
 
-// Edge case 8: Complex spacing
-const edge8 = "  9358  40  ,   10123   ,  9876   60  ";
-console.log(`8. Complex spacing - Input: "${edge8}"`);
-console.log(`   Output: ${formatAllocation(parseLCAllocationString(edge8))}`);
-console.log(`   Expected: Parse correctly despite spacing\n`);
+const mockRawData = [
+  {
+    "LC Number": "9360",
+    "Rig Location": "Thunder Horse Prod",
+    "Location Reference": "Thunder Horse Production",
+    "Description": "Thunder Horse Production Operations",
+    "Project Type": "Production",
+    "Month-Year": "Jan-24",
+    "Total Allocated Days": 30,
+    "Total Cost": 1000000
+  },
+  {
+    "LC Number": "10099",
+    "Rig Location": "Thunder Horse Prod",
+    "Description": "Thunder Horse Production Support",
+    "Project Type": "Production",
+    "Month-Year": "Jan-24",
+    "Alloc (days)": 25,
+    "Total Cost": 850000
+  },
+  {
+    "LC Number": "9358",
+    "Location Reference": "Mad Dog Prod",
+    "Description": "Mad Dog Production Operations",
+    "Project Type": "Production",
+    "Month-Year": "Jan-24",
+    "Total Allocated Days": 28,
+    "Total Cost": 920000
+  },
+  {
+    "LC Number": "10097",
+    "Rig Location": "Mad Dog Prod",
+    "Location Reference": "Mad Dog Production",
+    "Description": "Mad Dog Production Support",
+    "Project Type": "Production",
+    "Month-Year": "Jan-24",
+    "Alloc (days)": 26,
+    "Total Cost": 880000
+  }
+];
 
-console.log('=== End of Test Results ===');
+console.log('\nProcessing mock cost allocation data:');
+const processed = processCostAllocation(mockRawData as any, { minYear: 2020, maxYear: 2030 });
+
+console.log(`\nProcessed ${processed.length} records:`);
+processed.forEach(record => {
+  console.log(`\n  LC ${record.lcNumber}:`);
+  console.log(`    - Rig Location: ${record.rigLocation}`);
+  console.log(`    - Location Reference: ${record.locationReference}`);
+  console.log(`    - Department: ${record.department}`);
+  console.log(`    - Project Type: ${record.projectType}`);
+  console.log(`    - Month/Year: ${record.monthYear}`);
+  console.log(`    - Allocated Days: ${record.totalAllocatedDays}`);
+  console.log(`    - Total Cost: $${record.totalCost?.toLocaleString() || 'N/A'}`);
+  console.log(`    - Is Thunder Horse: ${record.isThunderHorse}`);
+  console.log(`    - Is Mad Dog: ${record.isMadDog}`);
+  console.log(`    - Is Drilling: ${record.isDrilling}`);
+});
+
+// Test 7: Department assignment logic
+console.log('\n\nTEST 7: Department Assignment Logic');
+console.log('====================================');
+
+console.log('\nChecking if Production LCs are being excluded from Drilling dashboard:');
+const allProductionLCs = new Set(Object.keys(productionLCs));
+thunderHorseLCs.concat(madDogLCs).forEach(lc => {
+  const isProduction = allProductionLCs.has(lc);
+  const dept = inferDepartmentFromLCNumber(lc);
+  console.log(`  LC ${lc}: Is Production LC = ${isProduction}, Department = ${dept || 'NONE'}`);
+});
+
+console.log('\n========== END OF DEBUG TESTS ==========\n');
