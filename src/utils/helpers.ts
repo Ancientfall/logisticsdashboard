@@ -88,7 +88,7 @@ export const createStandardizedVoyageIdFromVoyage = (voyage: { Vessel: string; M
 export const includesProductionLocation = (locations: string[]): boolean => {
   const productionLocations = [
     "Atlantis PQ", "Na Kika", "Mad Dog Prod", 
-    "Thunder Horse PDQ", "Thunder Horse Prod", "Mad Dog"
+    "Thunder Horse PDQ", "Thunder Horse Prod", "Mad Dog", "Argos"
   ];
   
   return locations.some(location => 
@@ -100,7 +100,7 @@ export const includesDrillingLocation = (locations: string[]): boolean => {
   const drillingLocations = [
     "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean BlackHornet",
     "Ocean BlackLion", "Stena IceMAX", "Ocean Blacktip", "Island Venture",
-    "Argos", "Deepwater Invictus"
+    "Deepwater Invictus"
   ];
   
   return locations.some(location => 

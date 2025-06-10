@@ -238,6 +238,16 @@ export interface ProcessedVesselManifest {
   quarter: string;
   department: "Drilling" | "Production" | "Logistics" | null;
   cargoType: "Deck Cargo" | "Below Deck Cargo" | "Liquid Bulk" | "Lift Only" | "Other/Mixed";
+  
+  // New fields for voyage segment integration
+  voyageSegmentId?: string;
+  segmentDestination?: string;
+  segmentDepartment?: string;
+  manifestTimeOffset?: number;
+  matchConfidence?: number;
+  matchType?: 'exact' | 'fuzzy' | 'temporal' | 'voyageOnly' | 'none';
+  suggestedLocation?: string;
+  validatedDepartment?: string;
 }
 
 export interface MasterFacility {

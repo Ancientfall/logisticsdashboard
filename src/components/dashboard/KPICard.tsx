@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Info } from 'lucide-react';
 
 interface KPICardProps {
@@ -13,6 +13,11 @@ interface KPICardProps {
 }
 
 const KPICard: React.FC<KPICardProps> = ({ title, value, trend, isPositive, unit, subtitle, color = 'blue', tooltip }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+
   const colorClasses = {
     blue: 'bg-blue-500',
     green: 'bg-green-500',
@@ -24,25 +29,49 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, trend, isPositive, unit
     yellow: 'bg-yellow-500'
   };
 
+  useEffect(() => {
+    if (showTooltip && tooltipRef.current && triggerRef.current) {
+      const tooltipRect = tooltipRef.current.getBoundingClientRect();
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      
+      // Check if tooltip would go above viewport
+      if (triggerRect.top - tooltipRect.height - 8 < 0) {
+        setTooltipPosition('bottom');
+      } else {
+        setTooltipPosition('top');
+      }
+    }
+  }, [showTooltip]);
+
   return (
-    <div className="relative overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100">
+    <div className="relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100">
       <div className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-1 group">
+            <div className="flex items-center gap-1">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
               {tooltip && (
-                <>
-                  <Info className="w-3 h-3 text-gray-400" />
-                  <div className="absolute z-10 bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <div className="max-w-xs whitespace-normal">
-                      {tooltip}
+                <div className="relative" ref={triggerRef}>
+                  <Info 
+                    className="w-3 h-3 text-gray-400 cursor-help hover:text-gray-600 transition-colors" 
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                  />
+                  {showTooltip && (
+                    <div 
+                      ref={tooltipRef}
+                      className={`absolute z-50 ${tooltipPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-1/2 transform -translate-x-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg transition-opacity duration-200 pointer-events-none`}
+                      style={{ minWidth: '200px', maxWidth: '300px' }}
+                    >
+                      <div className="whitespace-normal">
+                        {tooltip}
+                      </div>
+                      <div className={`absolute ${tooltipPosition === 'top' ? 'top-full -mt-1' : 'bottom-full -mb-1'} left-1/2 transform -translate-x-1/2`}>
+                        <div className={`border-4 border-transparent ${tooltipPosition === 'top' ? 'border-t-gray-900' : 'border-b-gray-900'}`}></div>
+                      </div>
                     </div>
-                    <div className="absolute top-full left-4 -mt-1">
-                      <div className="border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
-                </>
+                  )}
+                </div>
               )}
             </div>
             {subtitle && <p className="text-xs text-gray-400 mb-2">{subtitle}</p>}
@@ -75,4 +104,4 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, trend, isPositive, unit
   );
 };
 
-export default KPICard; 
+export default KPICard;

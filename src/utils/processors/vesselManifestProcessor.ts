@@ -1,7 +1,8 @@
-import { VesselManifest, MasterFacility, CostAllocation } from '../../types';
+import { VesselManifest, MasterFacility, CostAllocation, VoyageSegment } from '../../types';
 import { parseDate } from '../dateUtils';
 import { inferCompanyFromVessel, inferVesselType } from '../activityClassification';
 import { createStandardizedVoyageId, createEmptyManifest, safeNumeric } from '../helpers';
+import { enhanceManifestWithSegmentData } from '../manifestVoyageIntegration';
 
 /**
  * Vessel manifest data processor
@@ -280,6 +281,83 @@ export const processVesselManifests = (
     } catch (error) {
       console.error(`❌ Error processing vessel manifest ${index + 1}:`, error, manifest);
       return createEmptyManifest(index, manifest);
+    }
+  });
+};
+
+/**
+ * Process Vessel Manifests with voyage segment integration
+ * Enhanced version that matches manifests to voyage segments for better cost allocation
+ */
+export const processVesselManifestsWithSegments = (
+  rawManifests: RawVesselManifest[],
+  facilitiesMap: Map<string, MasterFacility>,
+  costAllocationMap: Map<string, CostAllocation>,
+  voyageSegments: VoyageSegment[]
+): VesselManifest[] => {
+  
+  console.log(`🚢 Processing ${rawManifests.length} vessel manifests with voyage segment integration...`);
+  
+  // First process manifests normally
+  const baseManifests = processVesselManifests(rawManifests, facilitiesMap, costAllocationMap);
+  
+  // Group segments by voyage ID for efficient lookup
+  const segmentsByVoyage = new Map<string, VoyageSegment[]>();
+  voyageSegments.forEach(segment => {
+    const voyageIds = [segment.uniqueVoyageId, segment.standardizedVoyageId];
+    voyageIds.forEach(id => {
+      if (!segmentsByVoyage.has(id)) {
+        segmentsByVoyage.set(id, []);
+      }
+      segmentsByVoyage.get(id)!.push(segment);
+    });
+  });
+  
+  // Enhance each manifest with segment data
+  return baseManifests.map(manifest => {
+    try {
+      // Find segments for this manifest's voyage
+      const relevantSegments = segmentsByVoyage.get(manifest.voyageId) || 
+                              segmentsByVoyage.get(manifest.standardizedVoyageId) || 
+                              [];
+      
+      if (relevantSegments.length === 0) {
+        return manifest;
+      }
+      
+      // Enhance manifest with segment data
+      const enhanced = enhanceManifestWithSegmentData(manifest, relevantSegments);
+      
+      // Log improvements
+      if (enhanced.matchConfidence && enhanced.matchConfidence > 50) {
+        console.log(`✅ Enhanced manifest ${manifest.manifestNumber}:`, {
+          originalLocation: manifest.offshoreLocation,
+          segmentDestination: enhanced.segmentDestination,
+          originalDepartment: manifest.finalDepartment,
+          validatedDepartment: enhanced.validatedDepartment,
+          confidence: enhanced.matchConfidence,
+          matchType: enhanced.matchType
+        });
+      }
+      
+      // Apply validated department if confidence is high
+      if (enhanced.validatedDepartment && enhanced.matchConfidence && enhanced.matchConfidence > 70) {
+        // Only update if validated department is one of the allowed values
+        if (['Drilling', 'Production', 'Logistics'].includes(enhanced.validatedDepartment)) {
+          enhanced.finalDepartment = enhanced.validatedDepartment as 'Drilling' | 'Production' | 'Logistics';
+        }
+        
+        // Update mapped location if suggested
+        if (enhanced.suggestedLocation && enhanced.matchType !== 'exact') {
+          console.log(`📍 Suggesting location update for manifest ${manifest.manifestNumber}: ${manifest.offshoreLocation} → ${enhanced.suggestedLocation}`);
+        }
+      }
+      
+      return enhanced;
+      
+    } catch (error) {
+      console.error(`❌ Error enhancing manifest ${manifest.manifestNumber}:`, error);
+      return manifest;
     }
   });
 }; 

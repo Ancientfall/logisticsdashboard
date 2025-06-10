@@ -350,14 +350,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       return sum + getDrillingAllocatedHours(event);
     }, 0);
     
-    // 4. Waiting Time Offshore - Specific offshore waiting events with cost allocation
+    // 4. Waiting Time Offshore - Specific offshore waiting events with cost allocation (excluding weather)
     const waitingEvents = filteredVoyageEvents.filter(event => 
       event.portType === 'rig' && (
         event.parentEvent === 'Waiting on Installation' ||
-        event.parentEvent === 'Waiting on Weather' ||
         (event.activityCategory === 'Non-Productive' && 
          (event.event?.toLowerCase().includes('waiting') ||
-          event.event?.toLowerCase().includes('standby')))
+          event.event?.toLowerCase().includes('standby')) &&
+         !event.parentEvent?.includes('Weather'))
       )
     );
     
@@ -1299,6 +1299,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.cargoTons.isPositive}
             unit="tons"
             color="blue"
+            tooltip="Total cargo weight moved (Deck Tons + RT Tons) at drilling locations. Indicates material supply intensity."
           />
           <KPICard 
             title="Lifts per Hour" 
@@ -1316,6 +1317,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.osvProductiveHours.isPositive}
             unit="hrs"
             color="purple"
+            tooltip="Hours spent on productive activities classified by operational category. Higher values indicate better time utilization."
           />
           <KPICard 
             title="Waiting Time" 
@@ -1324,6 +1326,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.waitingTime.isPositive}
             unit="hrs"
             color="orange"
+            tooltip="Time spent waiting on rig operations (excludes weather). Lower values indicate better operational efficiency."
           />
           <KPICard 
             title="Vessel Utilization" 
@@ -1343,6 +1346,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.fluidMovement.isPositive}
             unit={drillingMetrics.fluidMovement.value !== 'N/A' ? "bbls" : undefined}
             color="indigo"
+            tooltip="Total wet bulk cargo movement in barrels. Includes bbls and converted gallons for comprehensive fluid tracking."
           />
           <KPICard 
             title="NPT Percentage" 
@@ -1360,6 +1364,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.weatherImpact?.isPositive}
             unit="%"
             color="yellow"
+            tooltip="Percentage of rig time spent waiting due to weather conditions. Lower values indicate less weather disruption."
           />
           <KPICard 
             title="Drilling Voyages" 
@@ -1368,6 +1373,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.fsvRuns.isPositive}
             unit="voyages"
             color="blue"
+            tooltip="Complete round-trip voyages to drilling locations, including mixed-purpose trips. Higher counts indicate increased drilling support activity."
           />
           <KPICard 
             title="Maneuvering Hours" 
@@ -1376,6 +1382,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.maneuveringHours.isPositive}
             unit="hrs"
             color="green"
+            tooltip="Time spent on vessel positioning, anchor handling, and rig moves. Lower values indicate efficient positioning operations."
           />
         </div>
 

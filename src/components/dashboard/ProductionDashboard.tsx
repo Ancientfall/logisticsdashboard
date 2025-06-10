@@ -108,9 +108,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       .filter(event => event.activityCategory === 'Productive')
       .reduce((sum, event) => sum + (event.finalHours || 0), 0);
     
-    // 4. Waiting Time - Non-productive time offshore
+    // 4. Waiting Time - Non-productive time offshore (excluding weather)
     const waitingTimeOffshore = filteredVoyageEvents
-      .filter(event => event.parentEvent === 'Waiting on Weather' || event.parentEvent === 'Waiting on Installation')
+      .filter(event => event.parentEvent === 'Waiting on Installation')
       .reduce((sum, event) => sum + (event.finalHours || 0), 0);
     
     // 5. Vessel Utilization - Productive hours vs total offshore time
@@ -125,7 +125,45 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       
       // Apply location filter if not "All Locations"
       if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-        const locationMatch = filterByLocation(voyage.mainDestination || voyage.originPort || voyage.locations || '');
+        // Check multiple location fields and the location list array
+        let locationMatch = false;
+        
+        // Check main destination
+        if (voyage.mainDestination) {
+          locationMatch = filterByLocation(voyage.mainDestination) || false;
+        }
+        
+        // Check origin port if main destination didn't match
+        if (!locationMatch && voyage.originPort) {
+          locationMatch = filterByLocation(voyage.originPort) || false;
+        }
+        
+        // Check full locations string if still no match
+        if (!locationMatch && voyage.locations) {
+          locationMatch = filterByLocation(voyage.locations) || false;
+        }
+        
+        // Check individual locations in locationList array
+        if (!locationMatch && voyage.locationList && voyage.locationList.length > 0) {
+          locationMatch = voyage.locationList.some(loc => filterByLocation(loc) || false);
+        }
+        
+        // Debug logging for Argos
+        if (filters.selectedLocation === 'Argos' && voyage.locations && voyage.locations.toLowerCase().includes('argos')) {
+          console.log('🔍 Argos voyage debug:', {
+            vessel: voyage.vessel,
+            voyageNumber: voyage.voyageNumber,
+            startDate: voyage.startDate,
+            voyagePurpose: voyage.voyagePurpose,
+            locations: voyage.locations,
+            locationList: voyage.locationList,
+            mainDestination: voyage.mainDestination,
+            originPort: voyage.originPort,
+            locationMatch,
+            isProduction
+          });
+        }
+        
         if (!locationMatch) return false;
       }
       
@@ -138,6 +176,20 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       return isProduction;
     });
     const fsvRuns = productionVoyages.length;
+    
+    // Debug logging for voyage counts
+    if (filters.selectedLocation === 'Argos') {
+      console.log('📊 Argos Voyage Analysis:', {
+        totalVoyages: voyageList.length,
+        argosVoyages: voyageList.filter(v => v.locations && v.locations.toLowerCase().includes('argos')).length,
+        productionOrMixedArgosVoyages: voyageList.filter(v => 
+          v.locations && v.locations.toLowerCase().includes('argos') && 
+          (v.voyagePurpose === 'Production' || v.voyagePurpose === 'Mixed')
+        ).length,
+        filteredProductionVoyages: fsvRuns,
+        selectedMonth: filters.selectedMonth
+      });
+    }
     
     // 7. Vessel Visits - Unique manifest entries (actual visits)
     const vesselVisits = filteredVesselManifests.length;
@@ -296,6 +348,37 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       
       console.log(`📊 Filtered cost allocation: ${filteredCostAllocation.length} records`);
       
+      // Get the actual voyage count from the production voyages that match the same filters
+      // This ensures we count unique voyages, not cost allocation records
+      const getVoyageCountForFacility = (facility: any) => {
+        const facilityVoyages = productionVoyages.filter(voyage => {
+          // Check if voyage includes this facility location
+          const locationMatch = voyage.locations && (
+            voyage.locations.toLowerCase().includes(facility.locationName.toLowerCase()) ||
+            voyage.locations.toLowerCase().includes(facility.displayName.toLowerCase())
+          );
+          
+          // For specific location filter, ensure it matches
+          if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+            return locationMatch && filters.selectedLocation === facility.displayName;
+          }
+          
+          return locationMatch;
+        });
+        
+        console.log(`🚢 Voyage count for ${facility.displayName}: ${facilityVoyages.length} voyages (from voyage list)`);
+        if (facilityVoyages.length > 0) {
+          console.log(`   Sample voyages:`, facilityVoyages.slice(0, 3).map(v => ({
+            vessel: v.vessel,
+            voyageNumber: v.voyageNumber,
+            locations: v.locations,
+            startDate: v.startDate
+          })));
+        }
+        
+        return facilityVoyages.length;
+      };
+      
       // Aggregate costs by facility using LC-based approach
       filteredCostAllocation.forEach(cost => {
         // First try to find facility by LC number
@@ -332,7 +415,15 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           facilityCosts[key].totalCost += Number(cost.totalCost || cost.budgetedVesselCost || 0);
           facilityCosts[key].allocatedDays += Number(cost.totalAllocatedDays || 0);
           facilityCosts[key].budgetedCost += Number(cost.budgetedVesselCost || 0);
-          facilityCosts[key].voyageCount += 1;
+          // Don't increment voyageCount here - we'll set it after processing all costs
+        }
+      });
+      
+      // Now set the actual voyage counts based on voyage list data
+      Object.keys(facilityCosts).forEach(key => {
+        const facility = productionFacilities.find(f => f.displayName === key);
+        if (facility) {
+          facilityCosts[key].voyageCount = getVoyageCountForFacility(facility);
         }
       });
       
@@ -341,7 +432,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         if (facilityCosts[key].allocatedDays > 0) {
           facilityCosts[key].avgDailyCost = facilityCosts[key].totalCost / facilityCosts[key].allocatedDays;
         }
-        console.log(`💰 ${key}: ${facilityCosts[key].voyageCount} voyages, ${facilityCosts[key].allocatedDays} days, $${facilityCosts[key].totalCost.toFixed(0)}`);
+        console.log(`💰 ${key}: ${facilityCosts[key].voyageCount} voyages, ${facilityCosts[key].allocatedDays.toFixed(1)} days, $${facilityCosts[key].totalCost.toFixed(0)}`);
       });
       
       console.log('🏁 Final facility costs:', Object.keys(facilityCosts));
@@ -608,6 +699,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.cargoTons.isPositive}
           unit="tons"
           color="blue"
+          tooltip="Total cargo weight moved (Deck Tons + RT Tons) at production facilities. Higher values indicate increased operational activity."
         />
         <KPICard 
           title="Lifts per Hour" 
@@ -625,6 +717,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.osvProductiveHours.isPositive}
           unit="hrs"
           color="purple"
+          tooltip="Total hours classified as productive based on activity categorization. Includes cargo operations, loading, discharge, and other value-adding activities."
         />
         <KPICard 
           title="Waiting Time" 
@@ -633,6 +726,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.waitingTime.isPositive}
           unit="hrs"
           color="orange"
+          tooltip="Hours spent waiting on installation at production locations (excludes weather). Lower values indicate better operational efficiency."
         />
         <KPICard 
           title="Vessel Utilization" 
@@ -652,6 +746,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.rtCargoTons.isPositive}
           unit="tons"
           color="indigo"
+          tooltip="Round-trip cargo tonnage. Lower values may indicate more efficient one-way operations and better logistics planning."
         />
         <KPICard 
           title="NPT Percentage" 
@@ -669,6 +764,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.weatherImpact?.isPositive}
           unit="%"
           color="yellow"
+          tooltip="Percentage of offshore time lost to weather-related delays. Lower values indicate less weather disruption to operations."
         />
         <KPICard 
           title="Production Voyages" 
@@ -686,6 +782,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.maneuveringHours.isPositive}
           unit="hrs"
           color="green"
+          tooltip="Time spent on vessel positioning, setup, and shifting operations. Lower values indicate more efficient vessel handling."
         />
       </div>
 

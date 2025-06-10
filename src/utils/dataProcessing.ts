@@ -17,10 +17,11 @@ import { masterFacilitiesData } from '../data/masterFacilities';
 import { readExcelFile } from './excel/excelReader';
 import { processCostAllocation } from './processors/costAllocationProcessor';
 import { processVoyageEvents } from './processors/voyageEventProcessor';
-import { processVesselManifests } from './processors/vesselManifestProcessor';
+import { processVesselManifestsWithSegments } from './processors/vesselManifestProcessor';
 import { processVoyageList } from './processors/voyageListProcessor';
 import { calculateMetrics } from './metricsCalculation';
 import { createFacilitiesMap, createCostAllocationMap } from './helpers';
+import { createVoyageSegments } from './voyageProcessing';
 
 // ===================== RAW DATA INTERFACES =====================
 // These represent the data as it comes from Excel files
@@ -268,8 +269,19 @@ const processFiles = async (files: {
 
     // Process main data entities using new modular functions
     const voyageEvents = processVoyageEvents(rawVoyageEvents, facilitiesMap, costAllocationMap);
-    const vesselManifests = processVesselManifests(rawVesselManifests, facilitiesMap, costAllocationMap);
     const voyageList = processVoyageList(rawVoyageList);
+    
+    // Create voyage segments from voyage list
+    const voyageSegments = voyageList.flatMap(voyage => createVoyageSegments(voyage));
+    console.log(`Created ${voyageSegments.length} voyage segments from ${voyageList.length} voyages`);
+    
+    // Process vessel manifests with segment integration
+    const vesselManifests = processVesselManifestsWithSegments(
+      rawVesselManifests, 
+      facilitiesMap, 
+      costAllocationMap,
+      voyageSegments
+    );
 
     console.log('Main data processed:', {
       voyageEvents: voyageEvents.length,

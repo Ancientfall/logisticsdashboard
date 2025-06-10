@@ -92,14 +92,14 @@ export function getMainDestination(locationList: string[]): string | null {
 
 // Production platforms (matching PowerQuery list)
 const PRODUCTION_PLATFORMS = [
-  "Atlantis PQ", "Na Kika", "Mad Dog Prod", "Thunder Horse PDQ", "Mad Dog"
+  "Atlantis PQ", "Na Kika", "Mad Dog Prod", "Thunder Horse PDQ", "Thunder Horse Prod", "Mad Dog", "Argos"
 ];
 
 // Drilling locations (matching PowerQuery list)
 const DRILLING_LOCATIONS = [
   "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean Blackhornet", 
   "Ocean BlackLion", "Stena IceMAX", "Ocean Blacktip", "Island Venture",
-  "Argos", "Deepwater Invictus"
+  "Deepwater Invictus"
 ];
 
 // Integrated facilities

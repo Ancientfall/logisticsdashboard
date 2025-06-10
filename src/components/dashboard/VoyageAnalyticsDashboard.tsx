@@ -252,6 +252,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
           trend={voyageAnalytics.avgVoyageDurationMoMChange}
           isPositive={voyageAnalytics.avgVoyageDurationMoMChange < 0} // Shorter is better
           color="green"
+          tooltip="Average voyage duration in hours from port departure to final return. Shorter durations indicate better efficiency."
         />
         <KPICard 
           title="Active Vessels" 
@@ -262,18 +263,21 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
           title="Voyages/Vessel" 
           value={voyageAnalytics.voyagesPerVessel.toFixed(2)}
           color="orange"
+          tooltip="Average number of voyages per active vessel in the period. Higher values indicate better vessel utilization."
         />
         <KPICard 
           title="Multi-Stop %" 
           value={voyageAnalytics.multiStopPercentage.toFixed(2)}
           unit="%"
           color="red"
+          tooltip="Percentage of voyages with more than 2 stops. Higher values indicate complex routes serving multiple locations."
         />
         <KPICard 
           title="On-Time %" 
           value={voyageAnalytics.onTimeVoyagePercentage.toFixed(2)}
           unit="%"
           color="indigo"
+          tooltip="Percentage of voyages completed within 2 hours of scheduled time. Higher values indicate better schedule reliability."
         />
       </div>
 
@@ -283,29 +287,34 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
           title="Route Efficiency" 
           value={voyageAnalytics.routeEfficiencyScore.toFixed(2)}
           color="pink"
+          tooltip="Stops per day ratio. Higher values indicate more efficient route planning with better stop consolidation."
         />
         <KPICard 
           title="Drilling Voyages" 
           value={voyageAnalytics.drillingVoyagePercentage.toFixed(2)}
           unit="%"
           color="yellow"
+          tooltip="Percentage of total voyages dedicated to drilling operations. Indicates fleet allocation to drilling support."
         />
         <KPICard 
           title="Mixed Efficiency" 
           value={voyageAnalytics.mixedVoyageEfficiency.toFixed(2)}
           unit="%"
           color="blue"
+          tooltip="Percentage of voyages serving multiple purposes (drilling + production). Higher values show better trip consolidation."
         />
         <KPICard 
           title="Fourchon Routes" 
           value={voyageAnalytics.routeConcentration.toFixed(2)}
           unit="%"
           color="green"
+          tooltip="Percentage of voyages originating from Fourchon port. Shows operational concentration from this key hub."
         />
         <KPICard 
           title="Consolidation Benefit" 
           value={voyageAnalytics.consolidationBenefit.toFixed(2)}
           color="purple"
+          tooltip="Efficiency gain from consolidating multiple deliveries into single voyages. Higher values indicate better logistics optimization."
         />
       </div>
 

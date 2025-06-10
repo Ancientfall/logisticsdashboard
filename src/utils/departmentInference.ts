@@ -125,13 +125,13 @@ export const inferDepartmentFromLocation = (location: string, portType: string):
   // Known drilling locations
   const drillingLocations = [
     'drilling', 'drill', 'rig', 'blackhawk', 'blackhorse', 'blacklion', 'blacktip',
-    'stena', 'ocean', 'deepwater', 'invictus', 'island', 'argos', 'venture'
+    'stena', 'ocean', 'deepwater', 'invictus', 'island', 'venture'
   ];
   
   // Known production locations  
   const productionLocations = [
     'atlantis', 'na kika', 'mad dog', 'thunder horse', 'production', 'prod',
-    'pdq', 'pq', 'facility', 'platform'
+    'pdq', 'pq', 'facility', 'platform', 'argos'
   ];
   
   // Known logistics locations
