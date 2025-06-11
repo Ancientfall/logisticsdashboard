@@ -3,7 +3,7 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation, getAllProductionLCs } from '../../data/masterFacilities';
 import type { VoyageEvent } from '../../types';
-import { TrendingUp, TrendingDown, Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Info } from 'lucide-react';
+import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3 } from 'lucide-react';
 import KPICard from './KPICard';
 
 interface DrillingDashboardProps {
@@ -365,10 +365,13 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       return sum + getDrillingAllocatedHours(event);
     }, 0);
     
-    // 5. Fluid Movement - Wet bulk cargo (bbls + gals converted to bbls)
+    // 5. Fluid Movement - Drilling fluids only (muds, premix, brines, base oils)
+    // Excluding Diesel and gallon-based measurements as per requirements
+    // Note: Since we don't have material-level breakdown in the current data model,
+    // we'll only count wetBulkBbls which typically represents drilling fluids in barrels
     const wetBulkBbls = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkBbls || 0), 0);
-    const wetBulkGals = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkGals || 0), 0);
-    const fluidMovement = wetBulkBbls + (wetBulkGals / 42); // Convert gallons to barrels
+    // Intentionally excluding wetBulkGals which often includes Diesel and other non-drilling fluids
+    const fluidMovement = wetBulkBbls; // Only count barrel measurements for drilling fluids
     
     // 6. Vessel Utilization - Productive hours vs total offshore time with LC allocation
     const totalOffshoreHours = filteredVoyageEvents
@@ -821,7 +824,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       osvProductiveHours: (osvProductiveHours || 0) * 0.92,
       waitingTime: (waitingTimeOffshore || 0) * 1.15,
       rtCargoTons: (rtTons || 0) * 1.08,
-      fluidMovement: (fluidMovement || 0) * 0.88,
+      fluidMovement: (fluidMovement || 0) * 0.88, // Now only drilling fluids in bbls
       vesselUtilization: (vesselUtilization || 0) * 0.98,
       fsvRuns: (fsvRuns || 0) * 0.91,
       vesselVisits: (vesselVisits || 0) * 0.95,
@@ -1346,7 +1349,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.fluidMovement.isPositive}
             unit={drillingMetrics.fluidMovement.value !== 'N/A' ? "bbls" : undefined}
             color="indigo"
-            tooltip="Total wet bulk cargo movement in barrels. Includes bbls and converted gallons for comprehensive fluid tracking."
+            tooltip="Drilling fluid movements in barrels (muds, premix, brines, base oils). Excludes Diesel and gallon-based measurements."
           />
           <KPICard 
             title="NPT Percentage" 

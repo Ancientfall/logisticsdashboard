@@ -11,11 +11,12 @@ import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDash
 import CostAllocationManagerRedesigned from './components/dashboard/CostAllocationManagerRedesigned';
 import ProductionDashboard from './components/dashboard/ProductionDashboard';
 import ComparisonDashboard from './components/dashboard/ComparisonDashboard';
+import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard';
 
 // Main application content component
 const AppContent: React.FC = () => {
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
@@ -31,7 +32,7 @@ const AppContent: React.FC = () => {
     if (isDataReady && currentView === 'upload') {
       console.log('🎯 App: Data is ready, navigating to dashboard...');
       setCurrentView('dashboard');
-    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'production' || currentView === 'comparison' || currentView === 'voyage' || currentView === 'cost')) {
+    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'production' || currentView === 'comparison' || currentView === 'voyage' || currentView === 'cost' || currentView === 'bulk')) {
       console.log('❌ App: Data not ready, redirecting to upload...');
       setCurrentView('upload');
     }
@@ -118,6 +119,14 @@ const AppContent: React.FC = () => {
     setCurrentView('cost');
   };
 
+  const handleNavigateToBulk = () => {
+    if (isDataReady) {
+      setCurrentView('bulk');
+    } else {
+      setCurrentView('upload');
+    }
+  };
+
   return (
     <>
       {currentView === 'landing' && (
@@ -137,6 +146,7 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         >
           <MainDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -149,6 +159,7 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         />
       )}
       {currentView === 'drilling' && (
@@ -161,6 +172,7 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         >
           <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -175,6 +187,7 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         >
           <ProductionDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -189,6 +202,7 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         >
           <VoyageAnalyticsDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -203,6 +217,7 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         >
           <ComparisonDashboard onNavigateToUpload={() => setCurrentView('upload')} />
         </DashboardLayout>
@@ -217,8 +232,24 @@ const AppContent: React.FC = () => {
           onNavigateToComparison={handleNavigateToComparison}
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
         >
           <CostAllocationManagerRedesigned onNavigateToUpload={() => setCurrentView('upload')} />
+        </DashboardLayout>
+      )}
+      {currentView === 'bulk' && (
+        <DashboardLayout 
+          currentView="bulk"
+          onNavigateHome={handleNavigateHome}
+          onNavigateToDashboard={handleNavigateToDashboard}
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
+          onNavigateToBulk={handleNavigateToBulk}
+        >
+          <BulkActionsDashboard />
         </DashboardLayout>
       )}
     </>

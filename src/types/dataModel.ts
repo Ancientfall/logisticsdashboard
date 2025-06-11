@@ -8,7 +8,19 @@ export interface RawVesselClassification {
 }
 
 export interface RawBulkAction {
-  [key: string]: any; // Placeholder - structure to be defined
+  "Port Type": string;
+  "Vessel Name": string;
+  "Start Date": string; // Will be converted to Date
+  "Action": string;
+  "Qty": number;
+  "Unit": string;
+  "Pound Per Gallon": string;
+  "Bulk Type": string;
+  "Bulk Description": string;
+  "At Port": string;
+  "Destination Port": string;
+  "Remarks": string;
+  "Tank": string;
 }
 
 export interface RawVoyageEvent {

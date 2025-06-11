@@ -369,34 +369,82 @@ const processVesselClassifications = (rawData: any[]): VesselClassification[] =>
 };
 
 const processBulkActions = (rawData: any[]): BulkAction[] => {
-  return rawData.map((item, index) => ({
-    id: `bulk-${index}`,
-    portType: item["Port Type"] || 'base',
-    vesselName: item["Vessel Name"] || 'Unknown',
-    startDate: parseDate(item["Start Date"]) || new Date(),
-    action: item.Action || 'Unknown',
-    qty: item.Qty || 0,
-    unit: item.Unit || 'bbl',
-    ppg: item.PPG,
-    bulkType: item["Bulk Type"] || 'Unknown',
-    bulkDescription: item["Bulk Description"],
-    fluidClassification: 'Other',
-    fluidCategory: 'Other',
-    productionChemicalType: undefined,
-    atPort: item["At Port"] || 'Unknown',
-    standardizedOrigin: (item["At Port"] || 'Unknown').trim(),
-    destinationPort: item["Destination Port"],
-    standardizedDestination: item["Destination Port"] ? item["Destination Port"].trim() : undefined,
-    productionPlatform: undefined,
-    volumeBbls: item.Unit === 'gal' ? (item.Qty || 0) / 42 : (item.Qty || 0),
-    isReturn: (item.Remarks || '').toLowerCase().includes('return'),
-    monthNumber: (parseDate(item["Start Date"]) || new Date()).getMonth() + 1,
-    year: (parseDate(item["Start Date"]) || new Date()).getFullYear(),
-    monthName: (parseDate(item["Start Date"]) || new Date()).toLocaleString('default', { month: 'long' }),
-    monthYear: (parseDate(item["Start Date"]) || new Date()).toISOString().substring(0, 7),
-    remarks: item.Remarks,
-    tank: item.Tank
-  }));
+  return rawData.map((item, index) => {
+    // Parse date once for efficiency
+    const startDate = parseDate(item["Start Date"]) || new Date();
+    
+    // Determine fluid classification based on bulk type
+    let fluidClassification = 'Other';
+    let fluidCategory = 'Other';
+    const bulkTypeLower = (item["Bulk Type"] || '').toLowerCase();
+    
+    if (bulkTypeLower.includes('chemical') || bulkTypeLower.includes('chem')) {
+      fluidClassification = 'Chemical';
+      fluidCategory = 'Production Chemical';
+    } else if (bulkTypeLower.includes('mud') || bulkTypeLower.includes('drilling')) {
+      fluidClassification = 'Drilling Fluid';
+      fluidCategory = 'Drilling';
+    } else if (bulkTypeLower.includes('water')) {
+      fluidClassification = 'Water';
+      fluidCategory = 'Utility';
+    } else if (bulkTypeLower.includes('oil') || bulkTypeLower.includes('fuel')) {
+      fluidClassification = 'Oil/Fuel';
+      fluidCategory = 'Petroleum';
+    }
+    
+    // Calculate volume in barrels
+    let volumeBbls = 0;
+    const qty = parseFloat(item.Qty) || 0;
+    const unit = (item.Unit || '').toLowerCase();
+    const ppg = parseFloat(item["Pound Per Gallon"]) || 8.34; // Default to water density if not provided
+    
+    if (unit === 'gal' || unit === 'gals' || unit === 'gallons') {
+      volumeBbls = qty / 42; // Convert gallons to barrels
+    } else if (unit === 'bbl' || unit === 'bbls' || unit === 'barrels') {
+      volumeBbls = qty;
+    } else if (unit === 'ton' || unit === 'tons' || unit === 'mt') {
+      // Convert tons to barrels using PPG
+      // 1 ton = 2000 lbs, 1 barrel = 42 gallons
+      // pounds / (ppg * 42) = barrels
+      volumeBbls = (qty * 2000) / (ppg * 42);
+    } else if (unit === 'lbs' || unit === 'pounds') {
+      // Convert pounds to barrels using PPG
+      volumeBbls = qty / (ppg * 42);
+    } else if (unit === 'kg' || unit === 'kilograms') {
+      // Convert kg to barrels (1 kg = 2.20462 lbs)
+      volumeBbls = (qty * 2.20462) / (ppg * 42);
+    }
+    
+    return {
+      id: `bulk-${index}`,
+      portType: item["Port Type"] || 'base',
+      vesselName: item["Vessel Name"] || 'Unknown',
+      startDate,
+      action: item["Action"] || 'Unknown',
+      qty,
+      unit: item.Unit || 'bbl',
+      ppg: item["Pound Per Gallon"],
+      bulkType: item["Bulk Type"] || 'Unknown',
+      bulkDescription: item["Bulk Description"],
+      fluidClassification,
+      fluidCategory,
+      productionChemicalType: fluidCategory === 'Production Chemical' ? item["Bulk Type"] : undefined,
+      atPort: item["At Port"] || 'Unknown',
+      standardizedOrigin: (item["At Port"] || 'Unknown').trim(),
+      destinationPort: item["Destination Port"],
+      standardizedDestination: item["Destination Port"] ? item["Destination Port"].trim() : undefined,
+      productionPlatform: item["Destination Port"], // Assume destination is the platform
+      volumeBbls,
+      isReturn: (item.Remarks || '').toLowerCase().includes('return') || 
+                (item["Action"] || '').toLowerCase().includes('return'),
+      monthNumber: startDate.getMonth() + 1,
+      year: startDate.getFullYear(),
+      monthName: startDate.toLocaleString('default', { month: 'long' }),
+      monthYear: startDate.toISOString().substring(0, 7),
+      remarks: item.Remarks,
+      tank: item.Tank
+    } as BulkAction;
+  });
 };
 
 // ===================== HELPER FUNCTIONS =====================

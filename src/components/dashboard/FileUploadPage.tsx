@@ -1,10 +1,9 @@
 // src/components/dashboard/FileUploadPage.tsx
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Upload, Database, Plus, RefreshCw, CheckCircle, FileText } from 'lucide-react';
+import { Upload, Plus, RefreshCw, CheckCircle, FileText, BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, Home, Package } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
 import { VoyageEvent, VesselManifest, MasterFacility, CostAllocation, VoyageList, VesselClassification, BulkAction } from '../../types';
-import DataManagementLayout from '../layout/DataManagementLayout';
 
 interface ProcessingLogEntry {
   id: number;
@@ -39,6 +38,7 @@ interface DataManagementSystemProps {
   onNavigateToComparison?: () => void;
   onNavigateToVoyage?: () => void;
   onNavigateToCost?: () => void;
+  onNavigateToBulk?: () => void;
 }
 
 const DataManagementSystem: React.FC<DataManagementSystemProps> = ({ 
@@ -47,7 +47,8 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   onNavigateToProduction, 
   onNavigateToComparison,
   onNavigateToVoyage,
-  onNavigateToCost
+  onNavigateToCost,
+  onNavigateToBulk
 }) => {
   const { 
     voyageEvents,
@@ -69,9 +70,17 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     setIsDataReady,
     setIsLoading,
     setError,
-    clearAllData,
-    forceRefreshFromStorage
+    clearAllData
   } = useData();
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Create a computed dataStore from the DataContext data
   const dataStore: DataStore = useMemo(() => {
@@ -167,11 +176,13 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     vesselManifests: File | null;
     costAllocation: File | null;
     voyageList: File | null;
+    bulkActions: File | null;
   }>({
     voyageEvents: null,
     vesselManifests: null,
     costAllocation: null,
-    voyageList: null
+    voyageList: null,
+    bulkActions: null
   });
   
   // Load data from localStorage on component mount (only if not already loaded)
@@ -240,7 +251,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         vesselManifestsFile: files.vesselManifests,
         costAllocationFile: files.costAllocation,
         vesselClassificationsFile: null,
-        bulkActionsFile: null,
+        bulkActionsFile: files.bulkActions,
         useMockData: false
       });
       console.log('✅ processExcelFiles completed:', dataStoreResult);
@@ -614,27 +625,32 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
   
   
   const ProcessingLog = () => (
-    <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Processing Log</h3>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gray-100 rounded-lg">
+            <FileText className="w-5 h-5 text-gray-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900">Processing Log</h3>
+        </div>
         <button
           onClick={() => {
             setProcessingLog([]);
             localStorage.removeItem('bp-logistics-processing-log');
           }}
-          className="text-sm text-gray-600 hover:text-gray-800"
+          className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1 hover:bg-gray-100 rounded-lg transition-colors"
         >
           Clear Log
         </button>
       </div>
       
-      <div className="max-h-64 overflow-y-auto space-y-2">
+      <div className="max-h-64 overflow-y-auto space-y-2 bg-gray-50 rounded-lg p-4">
         {processingLog.length === 0 ? (
-          <p className="text-gray-500 text-sm">No processing activity yet</p>
+          <p className="text-gray-500 text-sm text-center py-8">No processing activity yet</p>
         ) : (
           processingLog.map((log, index) => (
-            <div key={`${log.id}-${index}`} className="flex items-start gap-3 text-sm">
-              <span className="text-gray-500 font-mono text-xs mt-0.5">
+            <div key={`${log.id}-${index}`} className="flex items-start gap-3 text-sm p-2 hover:bg-white rounded transition-colors">
+              <span className="text-gray-500 font-mono text-xs mt-0.5 min-w-[80px]">
                 {log.timestamp}
               </span>
               <span className={`flex-1 ${
@@ -643,6 +659,9 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
                 log.type === 'warning' ? 'text-yellow-700' :
                 'text-gray-700'
               }`}>
+                {log.type === 'success' && '✓ '}
+                {log.type === 'error' && '✗ '}
+                {log.type === 'warning' && '⚠ '}
                 {log.message}
               </span>
             </div>
@@ -661,35 +680,174 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     hasRequiredFiles
   });
   
+  const handleResetData = () => {
+    if (window.confirm('Are you sure you want to reset all data? This will clear the dashboard and return to upload mode.')) {
+      clearAllData();
+    }
+  };
+
   return (
-    <DataManagementLayout 
-      onNavigateHome={onNavigateHome}
-      onNavigateToDrilling={onNavigateToDrilling}
-      onNavigateToProduction={onNavigateToProduction}
-      onNavigateToComparison={onNavigateToComparison}
-      onNavigateToVoyage={onNavigateToVoyage}
-      onNavigateToCost={onNavigateToCost}
-    >
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Database className="text-white" size={24} />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+      {/* Header */}
+      <header className="bg-gray-900 relative z-20">
+        {/* Top Bar */}
+        <div className="border-b border-gray-800">
+          <div className="max-w-screen-2xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              {/* Left Section - Logo & Title */}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center shadow-lg">
+                    <span className="text-white font-bold text-lg">bp</span>
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-semibold text-white">Logistics Analytics</h1>
+                    <p className="text-xs text-gray-400">Data Upload & Management</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Section - Date/Time & Notifications */}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2 text-gray-300">
+                  <Clock size={16} />
+                  <span className="text-sm">
+                    {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} • 
+                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <button className="relative p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                  <Bell size={18} className="text-gray-300" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                </button>
+              </div>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Data Upload & Management</h1>
-          <p className="text-gray-600">Upload and manage your offshore logistics data with incremental updates</p>
+        </div>
+
+        {/* Navigation Bar */}
+        <div className="bg-gray-850 border-b border-gray-800">
+          <div className="max-w-screen-2xl mx-auto px-6">
+            <nav className="flex items-center justify-between">
+              <div className="flex items-center">
+                {/* Navigation Items */}
+                <button
+                  onClick={onNavigateToDrilling}
+                  className="flex items-center gap-3 px-6 py-4 border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30 transition-all duration-200"
+                >
+                  <Factory size={20} />
+                  <span className="font-medium">Drilling</span>
+                </button>
+
+                <button
+                  onClick={onNavigateToProduction}
+                  className="flex items-center gap-3 px-6 py-4 border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30 transition-all duration-200"
+                >
+                  <BarChart2 size={20} />
+                  <span className="font-medium">Production</span>
+                </button>
+
+                <button
+                  onClick={onNavigateToComparison}
+                  className="flex items-center gap-3 px-6 py-4 border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30 transition-all duration-200"
+                >
+                  <GitBranch size={20} />
+                  <span className="font-medium">Comparison</span>
+                </button>
+
+                <button
+                  onClick={onNavigateToVoyage}
+                  className="flex items-center gap-3 px-6 py-4 border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30 transition-all duration-200"
+                >
+                  <Ship size={20} />
+                  <span className="font-medium">Voyage</span>
+                </button>
+
+                <button
+                  onClick={onNavigateToCost}
+                  className="flex items-center gap-3 px-6 py-4 border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30 transition-all duration-200"
+                >
+                  <DollarSign size={20} />
+                  <span className="font-medium">Cost</span>
+                </button>
+
+                <button
+                  onClick={onNavigateToBulk}
+                  className="flex items-center gap-3 px-6 py-4 border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30 transition-all duration-200"
+                >
+                  <Package size={20} />
+                  <span className="font-medium">Bulk Actions</span>
+                </button>
+
+                <div className="flex items-center gap-3 px-6 py-4 border-b-2 border-green-500 text-white bg-gray-800/50">
+                  <Upload size={20} />
+                  <span className="font-medium">Data Upload</span>
+                </div>
+              </div>
+
+              {/* Right Navigation */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onNavigateHome}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-white hover:bg-gray-800/30 rounded-lg transition-all duration-200"
+                >
+                  <Home size={16} />
+                  <span className="text-sm font-medium">Home</span>
+                </button>
+                <button
+                  onClick={handleResetData}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-white hover:bg-gray-800/30 rounded-lg transition-all duration-200"
+                >
+                  <Settings2 size={16} />
+                  <span className="text-sm font-medium">Reset Data</span>
+                </button>
+              </div>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1">
+        <div className="max-w-screen-2xl mx-auto px-6 py-8">
+          <div className="max-w-6xl mx-auto space-y-6">
+        {/* Page Header */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Data Upload & Management</h1>
+              <p className="text-gray-600">Upload and manage your offshore logistics data with incremental updates</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {dataStore.metadata.totalRecords > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-green-700">
+                      {dataStore.metadata.totalRecords.toLocaleString()} records loaded
+                    </span>
+                  </div>
+                  {lastUpdated && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Last updated: {lastUpdated.toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       
       {/* Mode Selection */}
-      <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Mode</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => setUploadMode('initial')}
             className={`p-4 border-2 rounded-xl text-left transition-all duration-200 ${
               uploadMode === 'initial' 
-                ? 'border-green-500 bg-green-50/50 backdrop-blur-sm shadow-sm' 
-                : 'border-gray-200/50 hover:border-green-300 hover:bg-green-50/20'
+                ? 'border-green-500 bg-green-50 shadow-sm' 
+                : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
             }`}
           >
             <div className="flex items-center gap-3 mb-2">
@@ -705,8 +863,8 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
             onClick={() => setUploadMode('incremental')}
             className={`p-4 border-2 rounded-xl text-left transition-all duration-200 ${
               uploadMode === 'incremental' 
-                ? 'border-green-500 bg-green-50/50 backdrop-blur-sm shadow-sm' 
-                : 'border-gray-200/50 hover:border-green-300 hover:bg-green-50/20'
+                ? 'border-green-500 bg-green-50 shadow-sm' 
+                : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
             }`}
           >
             <div className="flex items-center gap-3 mb-2">
@@ -721,7 +879,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       </div>
       
       {/* File Upload */}
-      <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           {uploadMode === 'initial' ? 'Upload Initial Data Files' : 'Upload Monthly Update Files'}
         </h3>
@@ -730,6 +888,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
           <FileUploadZone label="Cost Allocation" fileType="costAllocation" required />
           <FileUploadZone label="Voyage List" fileType="voyageList" />
           <FileUploadZone label="Vessel Manifests" fileType="vesselManifests" />
+          <FileUploadZone label="Bulk Actions" fileType="bulkActions" />
         </div>
         
         <div className="mt-6 flex justify-center gap-4 flex-wrap">
@@ -761,7 +920,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         )}
         
         {processingState === 'error' && (
-          <div className="mt-4 p-4 bg-red-50/50 backdrop-blur-sm border border-red-200/50 rounded-xl">
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
             <h4 className="font-semibold text-red-800 mb-2">Storage or File Processing Issue Detected</h4>
             <div className="text-sm text-red-700 space-y-2">
               
@@ -816,8 +975,27 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         <ProcessingLog />
       </div>
       
-      </div>
-    </DataManagementLayout>
+          </div>
+        </div>
+      </main>
+      
+      {/* Footer */}
+      <footer className="bg-white/60 backdrop-blur-sm border-t border-gray-200/50 mt-auto">
+        <div className="max-w-screen-2xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center gap-6">
+              <span>© 2024 BP p.l.c.</span>
+              <span className="text-gray-400">•</span>
+              <span>Offshore Logistics Dashboard</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>System operational</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 };
 
