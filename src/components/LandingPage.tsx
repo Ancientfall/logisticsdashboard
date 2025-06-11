@@ -12,7 +12,6 @@ import {
   Activity,
   Layers,
   Target,
-  Award,
   ChevronRight,
   FileText,
   Sparkles
@@ -114,19 +113,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       description: 'Access powerful dashboards with real-time insights and actionable intelligence',
       icon: BarChart3,
       color: 'text-green-500'
-    }
-  ];
-
-  const testimonials = [
-    {
-      quote: "This platform transformed how we track vessel operations. The cost allocation accuracy is phenomenal.",
-      author: "Operations Manager",
-      company: "Gulf of Mexico Operations"
-    },
-    {
-      quote: "The drilling analytics helped us identify $2.4M in cost savings opportunities within the first quarter.",
-      author: "Finance Director",
-      company: "Offshore Division"
     }
   ];
 
@@ -363,23 +349,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
         </div>
       </div>
 
-      {/* Testimonials */}
-      <div className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-gradient-to-br from-gray-50 to-green-50 rounded-2xl p-8 border border-gray-100">
-                <Award className="text-green-500 mb-4" size={32} />
-                <p className="text-lg text-gray-700 mb-6 italic">"{testimonial.quote}"</p>
-                <div>
-                  <div className="font-semibold text-gray-900">{testimonial.author}</div>
-                  <div className="text-sm text-gray-600">{testimonial.company}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* CTA Section */}
       <div className="py-24 bg-gradient-to-r from-green-600 to-blue-600">

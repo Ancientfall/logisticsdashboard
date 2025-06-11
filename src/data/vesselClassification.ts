@@ -32,6 +32,15 @@ export const vesselClassificationData: VesselClassification[] = [
     status: 'Active'
   },
   {
+    vesselName: 'Robin',
+    company: 'Edison Chouest Offshore',
+    size: 280,
+    vesselType: 'OSV',
+    category: 'Supply',
+    operationalArea: ['Gulf of Mexico'],
+    status: 'Active'
+  },
+  {
     vesselName: 'Claire Comeaux',
     company: 'Edison Chouest Offshore',
     size: 299,
@@ -247,7 +256,7 @@ export const vesselClassificationData: VesselClassification[] = [
 
   // Hornbeck Offshore Vessels
   {
-    vesselName: 'HOS Black Fort',
+    vesselName: 'HOS Black Foot',
     company: 'Hornbeck Offshore',
     size: 310,
     vesselType: 'OSV',

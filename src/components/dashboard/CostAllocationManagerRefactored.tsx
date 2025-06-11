@@ -212,22 +212,6 @@ const CostAllocationManagerRefactored: React.FC<CostAllocationManagerProps> = ({
             />
           )}
           
-          {/* Other tabs would be rendered here */}
-          {activeTab === 'rigs' && (
-            <div className="text-gray-500">Rigs tab component to be implemented</div>
-          )}
-          {activeTab === 'projects' && (
-            <div className="text-gray-500">Projects tab component to be implemented</div>
-          )}
-          {activeTab === 'monthly' && (
-            <div className="text-gray-500">Monthly tracking tab component to be implemented</div>
-          )}
-          {activeTab === 'trends' && (
-            <div className="text-gray-500">Trends tab component to be implemented</div>
-          )}
-          {activeTab === 'export' && (
-            <div className="text-gray-500">Export tab component to be implemented</div>
-          )}
         </div>
       </div>
 

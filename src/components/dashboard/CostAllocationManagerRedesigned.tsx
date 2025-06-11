@@ -17,13 +17,10 @@ import {
 import { useData } from '../../context/DataContext';
 import { 
   formatLargeCurrency,
-  formatCurrencyWhole,
-  formatDaysWhole
+  formatCurrencyWhole
 } from '../../utils/formatters';
 import { useCostAnalysisRedesigned } from './cost-allocation/hooks/useCostAnalysis';
 import { useFilteredCostAllocation } from './cost-allocation/hooks/useFilteredCostAllocation';
-import { TabNavigation } from './cost-allocation/TabNavigation';
-import { COST_ALLOCATION_TABS, TabId } from './cost-allocation/constants';
 
 interface CostAllocationManagerRedesignedProps {
   onNavigateToUpload?: () => void;
@@ -67,8 +64,6 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     selectedProjectType: 'All Types'
   });
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
 
   // Get unique filter options
   const filterOptions = useMemo(() => {
@@ -179,7 +174,8 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     isPositive?: boolean | null;
     unit?: string;
     color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | 'pink' | 'yellow';
-  }> = ({ title, value, trend, isPositive, unit, color = 'blue' }) => {
+    tooltip?: string;
+  }> = ({ title, value, trend, isPositive, unit, color = 'blue', tooltip }) => {
     const colorClasses = {
       blue: 'bg-blue-500',
       green: 'bg-green-500',
@@ -192,7 +188,8 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     };
     
     return (
-      <div className="relative overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100">
+      <div className="relative overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 group"
+           title={tooltip}>
         <div className="p-4">
           <div className="flex items-start justify-between mb-2">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
@@ -312,18 +309,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <TabNavigation
-            tabs={COST_ALLOCATION_TABS}
-            activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
-          />
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === 'dashboard' && (
-          <>
+        {/* Dashboard Content */}
             {/* Debug Info - Temporary */}
             {costMetrics.totalAllocatedCost === 0 && costMetrics.totalBudget === 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
@@ -350,6 +336,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             trend={costMetrics.costTrend}
             isPositive={costMetrics.costTrend < 0}
             color="blue"
+            tooltip="Total budgeted vessel cost across all allocations in the selected period"
           />
           <KPICard 
             title="Efficiency Score" 
@@ -358,6 +345,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             isPositive={costMetrics.costEfficiency > 90}
             unit="%"
             color="purple"
+            tooltip="Budget efficiency percentage - how well actual costs align with budgeted amounts (higher is better)"
           />
           <KPICard 
             title="Active Locations" 
@@ -365,6 +353,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             trend={null}
             unit="sites"
             color="orange"
+            tooltip="Number of unique rig locations with cost allocations in the selected period"
           />
         </div>
 
@@ -372,10 +361,11 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             <div className="grid grid-cols-5 gap-4">
           <KPICard 
             title="Total Days" 
-            value={formatDaysWhole(costMetrics.totalAllocatedDays)}
+            value={costMetrics.totalAllocatedDays.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             trend={null}
             unit="days"
             color="green"
+            tooltip="Sum of all vessel days allocated across all voyages in the selected period"
           />
           <KPICard 
             title="Cost per Day" 
@@ -383,12 +373,14 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             trend={costMetrics.dailyCostTrend}
             isPositive={costMetrics.dailyCostTrend < 0}
             color="pink"
+            tooltip="Average cost per allocated vessel day (Total Cost ÷ Total Days)"
           />
           <KPICard 
             title="Daily Rate (Avg)" 
             value={formatCurrencyWhole(costMetrics.avgDailyRate)}
             trend={null}
             color="yellow"
+            tooltip="Average vessel daily rate used for cost calculations"
           />
           <KPICard 
             title="Utilization Rate" 
@@ -397,6 +389,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             isPositive={costMetrics.utilizationTrend > 0}
             unit="%"
             color="blue"
+            tooltip="Percentage of potential vessel days that were actually utilized"
           />
           <KPICard 
             title="Voyages Covered" 
@@ -404,6 +397,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             trend={null}
             unit={filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months' ? 'filtered' : 'total'}
             color="red"
+            tooltip="Number of cost allocation records in the current view"
           />
         </div>
 
@@ -419,28 +413,28 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-            <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="bg-white rounded-lg p-3 shadow-sm" title="Percentage of total budget that has been allocated to vessel costs">
               <div className="text-gray-600">Budget Utilization</div>
               <div className="text-2xl font-bold text-blue-600">
                 {costMetrics.totalBudget > 0 ? ((costMetrics.totalAllocatedCost / costMetrics.totalBudget) * 100).toFixed(1) : '0'}%
               </div>
               <div className="text-xs text-gray-500">of total budget</div>
             </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="bg-white rounded-lg p-3 shadow-sm" title="Average cost per voyage calculated from manifest and voyage data">
               <div className="text-gray-600">Cost per Voyage</div>
               <div className="text-2xl font-bold text-purple-600">
                 {formatLargeCurrency(costMetrics.avgCostPerVoyage)}
               </div>
               <div className="text-xs text-gray-500">average per trip</div>
             </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="bg-white rounded-lg p-3 shadow-sm" title="Number of unique departments with cost allocations">
               <div className="text-gray-600">Department Count</div>
               <div className="text-2xl font-bold text-green-600">
                 {costMetrics.departmentBreakdown.length}
               </div>
               <div className="text-xs text-gray-500">active departments</div>
             </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm">
+            <div className="bg-white rounded-lg p-3 shadow-sm" title="Number of different project types identified in cost allocations">
               <div className="text-gray-600">Project Types</div>
               <div className="text-2xl font-bold text-orange-600">
                 {costMetrics.projectTypeBreakdown.length}
@@ -841,36 +835,8 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             </div>
           )}
             </div>
-          </>
-        )}
 
 
-        {/* Other tabs placeholder */}
-        {activeTab === 'rigs' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="text-gray-500 text-center py-12">Rigs tab - Coming soon</div>
-          </div>
-        )}
-        {activeTab === 'projects' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="text-gray-500 text-center py-12">Projects tab - Coming soon</div>
-          </div>
-        )}
-        {activeTab === 'monthly' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="text-gray-500 text-center py-12">Monthly Tracking tab - Coming soon</div>
-          </div>
-        )}
-        {activeTab === 'trends' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="text-gray-500 text-center py-12">Monthly Trends tab - Coming soon</div>
-          </div>
-        )}
-        {activeTab === 'export' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="text-gray-500 text-center py-12">Export & Templates tab - Coming soon</div>
-          </div>
-        )}
       </div>
     </div>
   );

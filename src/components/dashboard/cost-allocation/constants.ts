@@ -1,16 +1,11 @@
-import { BarChart3, MapPin, FileText, Calendar, TrendingUp, Download } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { Tab } from './TabNavigation';
 
 export const COST_ALLOCATION_TABS: Tab[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { id: 'rigs', label: 'Rigs', icon: MapPin },
-  { id: 'projects', label: 'Projects', icon: FileText },
-  { id: 'monthly', label: 'Monthly Tracking', icon: Calendar },
-  { id: 'trends', label: 'Monthly Trends', icon: TrendingUp },
-  { id: 'export', label: 'Export & Templates', icon: Download }
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 }
 ];
 
-export type TabId = 'dashboard' | 'rigs' | 'projects' | 'monthly' | 'trends' | 'export';
+export type TabId = 'dashboard';
 
 export const PROJECT_TYPE_CONFIG = {
   drilling: {

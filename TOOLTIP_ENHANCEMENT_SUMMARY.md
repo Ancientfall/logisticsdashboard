@@ -9,7 +9,7 @@ Added intuitive tooltips to complex KPI metrics across all operational dashboard
 Added tooltips to 6 KPI metrics:
 1. **Cargo Tons** - "Total cargo weight moved (Deck Tons + RT Tons) at production facilities. Higher values indicate increased operational activity."
 2. **Productive Hours** - "Total hours classified as productive based on activity categorization. Includes cargo operations, loading, discharge, and other value-adding activities."
-3. **Waiting Time** - "Hours spent waiting on installation or weather at production locations. Lower values indicate better operational efficiency."
+3. **Waiting Time** - "Hours spent waiting on installation at production locations. Lower values indicate better operational efficiency."
 4. **RT Cargo Tons** - "Round-trip cargo tonnage. Lower values may indicate more efficient one-way operations and better logistics planning."
 5. **Weather Impact** - "Percentage of offshore time lost to weather-related delays. Lower values indicate less weather disruption to operations."
 6. **Maneuvering Hours** - "Time spent on vessel positioning, setup, and shifting operations. Lower values indicate more efficient vessel handling."
