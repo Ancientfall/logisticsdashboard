@@ -248,6 +248,9 @@ export interface BulkAction {
   bulkDescription?: string;
   fluidClassification: string;
   fluidCategory: string;
+  fluidSpecificType?: string;
+  isDrillingFluid: boolean;
+  isCompletionFluid: boolean;
   productionChemicalType?: string;
   
   // Location Information
@@ -259,6 +262,7 @@ export interface BulkAction {
   
   // Calculated Fields
   volumeBbls: number;
+  volumeGals: number;
   isReturn: boolean;
   
   // Time Intelligence

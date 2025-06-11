@@ -3,8 +3,10 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation, getAllProductionLCs } from '../../data/masterFacilities';
 import type { VoyageEvent } from '../../types';
-import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3 } from 'lucide-react';
+import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Droplet } from 'lucide-react';
 import KPICard from './KPICard';
+import DrillingBulkInsights from './DrillingBulkInsights';
+import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -16,6 +18,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     vesselManifests, 
     costAllocation,
     voyageList,
+    bulkActions,
     isDataReady
   } = useData();
 
@@ -24,6 +27,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     selectedMonth: 'All Months',
     selectedLocation: 'All Locations'
   });
+  
+  // State for showing/hiding bulk insights
+  const [showBulkInsights, setShowBulkInsights] = useState(true);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   // Calculate drilling-specific KPIs
   const drillingMetrics = useMemo(() => {
@@ -365,13 +372,38 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       return sum + getDrillingAllocatedHours(event);
     }, 0);
     
-    // 5. Fluid Movement - Drilling fluids only (muds, premix, brines, base oils)
-    // Excluding Diesel and gallon-based measurements as per requirements
-    // Note: Since we don't have material-level breakdown in the current data model,
-    // we'll only count wetBulkBbls which typically represents drilling fluids in barrels
-    const wetBulkBbls = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.wetBulkBbls || 0), 0);
-    // Intentionally excluding wetBulkGals which often includes Diesel and other non-drilling fluids
-    const fluidMovement = wetBulkBbls; // Only count barrel measurements for drilling fluids
+    // 5. Fluid Movement - Calculate from bulkActions for accurate drilling & completion fluid tracking
+    // Filter bulk actions based on location and date, then sum drilling and completion fluids
+    const filteredBulkActions = bulkActions.filter(action => {
+      // Only include drilling and completion fluids
+      if (!action.isDrillingFluid && !action.isCompletionFluid) return false;
+      
+      // Apply location filter
+      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+        const locationMatch = filterByLocation(action.standardizedDestination || '') || 
+                            filterByLocation(action.standardizedOrigin || '');
+        if (!locationMatch) return false;
+      }
+      
+      // Apply date filter
+      if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
+        const dateMatch = filterByDate(action.startDate);
+        if (!dateMatch) return false;
+      }
+      
+      return true;
+    });
+    
+    const fluidMovement = filteredBulkActions.reduce((sum, action) => sum + action.volumeBbls, 0);
+    
+    // Separate drilling and completion fluid counts for additional insight
+    const drillingFluidVolume = filteredBulkActions
+      .filter(action => action.isDrillingFluid)
+      .reduce((sum, action) => sum + action.volumeBbls, 0);
+    
+    const completionFluidVolume = filteredBulkActions
+      .filter(action => action.isCompletionFluid)
+      .reduce((sum, action) => sum + action.volumeBbls, 0);
     
     // 6. Vessel Utilization - Productive hours vs total offshore time with LC allocation
     const totalOffshoreHours = filteredVoyageEvents
@@ -711,6 +743,25 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const rigLocationAnalysis = dateFilteredDrillingCosts.reduce((acc, cost) => {
       const rigLocation = cost.rigLocation || cost.locationReference || 'Unknown';
       
+      // Map the location to check if it's actually a drilling facility
+      const mappedFacility = mapCostAllocationLocation(cost.rigLocation, cost.locationReference);
+      
+      // Only include if it's a drilling facility or has drilling in the name
+      const isDrillingFacility = mappedFacility ? 
+        mappedFacility.facilityType === 'Drilling' : 
+        rigLocation.toLowerCase().includes('drilling') || 
+        rigLocation.toLowerCase().includes('ocean') || 
+        rigLocation.toLowerCase().includes('deepwater') ||
+        rigLocation.toLowerCase().includes('stena') ||
+        rigLocation.toLowerCase().includes('island') ||
+        rigLocation.toLowerCase().includes('seadrill');
+      
+      // Skip non-drilling facilities like Atlantis
+      if (!isDrillingFacility && rigLocation !== 'Unknown') {
+        console.log(`🚫 Excluding non-drilling facility from rig analysis: ${rigLocation}`);
+        return acc;
+      }
+      
       if (!acc[rigLocation]) {
         acc[rigLocation] = {
           rigLocation,
@@ -865,7 +916,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       fluidMovement: { 
         value: fluidMovement > 0 ? Math.round(fluidMovement) : 'N/A', 
         trend: fluidMovement > 0 ? Number(calculateTrend(fluidMovement, mockPreviousPeriod.fluidMovement).toFixed(1)) : null, 
-        isPositive: fluidMovement > 0 ? fluidMovement > mockPreviousPeriod.fluidMovement : null 
+        isPositive: fluidMovement > 0 ? fluidMovement > mockPreviousPeriod.fluidMovement : null,
+        drillingFluidVolume: Math.round(drillingFluidVolume),
+        completionFluidVolume: Math.round(completionFluidVolume),
+        totalTransfers: filteredBulkActions.length
       },
       vesselUtilization: { 
         value: Math.round(Number(vesselUtilization) || 0), 
@@ -1148,7 +1202,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       // Additional cost allocation data
       dateFilteredDrillingCosts
     };
-  }, [voyageEvents, vesselManifests, costAllocation, voyageList, filters]);
+  }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions, filters]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
@@ -1592,27 +1646,23 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     
                     {/* Quick Stats */}
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-gray-50 rounded-lg">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {drillingMetrics.fsvRuns.value}
+                      <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-900">
+                          {drillingMetrics.fluidMovement.drillingFluidVolume.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600 mt-1">Total Runs</div>
+                        <div className="text-xs text-blue-700 mt-1">Drilling Fluids</div>
+                      </div>
+                      <div className="text-center p-4 bg-purple-50 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-900">
+                          {drillingMetrics.fluidMovement.completionFluidVolume.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-purple-700 mt-1">Completion Fluids</div>
                       </div>
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
                         <div className="text-2xl font-bold text-gray-900">
-                          {drillingMetrics.fluidMovement.value !== 'N/A' && drillingMetrics.fsvRuns.value > 0 
-                            ? Math.round(Number(drillingMetrics.fluidMovement.value) / drillingMetrics.fsvRuns.value).toLocaleString()
-                            : '0'}
+                          {drillingMetrics.fluidMovement.totalTransfers}
                         </div>
-                        <div className="text-xs text-gray-600 mt-1">Avg bbls/Run</div>
-                      </div>
-                      <div className="text-center p-4 bg-gray-50 rounded-lg">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {drillingMetrics.osvProductiveHours.value > 0 
-                            ? Math.round(Number(drillingMetrics.fluidMovement.value) / drillingMetrics.osvProductiveHours.value).toLocaleString()
-                            : '0'}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">bbls/Hour</div>
+                        <div className="text-xs text-gray-600 mt-1">Total Transfers</div>
                       </div>
                     </div>
                   </div>
@@ -1977,6 +2027,57 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             </div>
           </div>
         )}
+        
+        {/* Bulk Fluids Insights Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Droplet className="h-6 w-6 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">DRILLING & COMPLETION FLUIDS ANALYSIS</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDebugPanel(!showDebugPanel)}
+                className="text-sm text-red-600 hover:text-red-800 transition-colors"
+              >
+                {showDebugPanel ? 'Hide' : 'Show'} Debug
+              </button>
+              <button
+                onClick={() => setShowBulkInsights(!showBulkInsights)}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                {showBulkInsights ? 'Hide' : 'Show'} Bulk Insights
+              </button>
+            </div>
+          </div>
+          
+          {showDebugPanel && (
+            <div className="mb-4">
+              <BulkFluidDebugPanel bulkActions={bulkActions} />
+            </div>
+          )}
+          
+          {showBulkInsights && (
+            <DrillingBulkInsights
+              bulkActions={bulkActions}
+              selectedVessel={undefined} // Don't filter by vessel in drilling dashboard
+              selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
+              dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
+                // Parse the selected month to create a date range
+                const parts = filters.selectedMonth.split(' ');
+                if (parts.length >= 2) {
+                  const monthName = parts[0];
+                  const year = parseInt(parts[1]);
+                  const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
+                  const startDate = new Date(year, monthIndex, 1);
+                  const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
+                  return [startDate, endDate];
+                }
+                return undefined;
+              })()}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

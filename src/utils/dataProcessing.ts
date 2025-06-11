@@ -12,6 +12,7 @@ import {
   DashboardFilters 
 } from '../types';
 import { masterFacilitiesData } from '../data/masterFacilities';
+import { classifyBulkFluid, BulkFluidCategory } from './bulkFluidClassification';
 
 // Import new modular functions
 import { readExcelFile } from './excel/excelReader';
@@ -369,50 +370,68 @@ const processVesselClassifications = (rawData: any[]): VesselClassification[] =>
 };
 
 const processBulkActions = (rawData: any[]): BulkAction[] => {
+  // Log first few items to see the actual data structure
+  if (rawData.length > 0) {
+    console.log('🔍 Sample bulk action raw data:', rawData.slice(0, 5));
+    
+    // Log unique bulk types for debugging
+    const uniqueTypes = new Set(rawData.map(item => item["Bulk Type"]));
+    console.log('📊 Unique bulk types in data:', Array.from(uniqueTypes));
+  }
+  
   return rawData.map((item, index) => {
     // Parse date once for efficiency
     const startDate = parseDate(item["Start Date"]) || new Date();
     
-    // Determine fluid classification based on bulk type
-    let fluidClassification = 'Other';
-    let fluidCategory = 'Other';
-    const bulkTypeLower = (item["Bulk Type"] || '').toLowerCase();
+    // Use the new fluid classification system
+    const bulkType = item["Bulk Type"] || 'Unknown';
+    const bulkDescription = item["Bulk Description"] || '';
+    const classification = classifyBulkFluid(bulkType, bulkDescription);
     
-    if (bulkTypeLower.includes('chemical') || bulkTypeLower.includes('chem')) {
-      fluidClassification = 'Chemical';
-      fluidCategory = 'Production Chemical';
-    } else if (bulkTypeLower.includes('mud') || bulkTypeLower.includes('drilling')) {
-      fluidClassification = 'Drilling Fluid';
-      fluidCategory = 'Drilling';
-    } else if (bulkTypeLower.includes('water')) {
-      fluidClassification = 'Water';
-      fluidCategory = 'Utility';
-    } else if (bulkTypeLower.includes('oil') || bulkTypeLower.includes('fuel')) {
-      fluidClassification = 'Oil/Fuel';
-      fluidCategory = 'Petroleum';
+    // Log drilling/completion fluid detections
+    if (index < 10 && (classification.isDrillingFluid || classification.isCompletionFluid)) {
+      console.log(`✅ Detected ${classification.category}: Type="${bulkType}", Desc="${bulkDescription}"`);
     }
     
-    // Calculate volume in barrels
+    // Map new classification to existing fluid classification format
+    let fluidClassification = 'Other';
+    if (classification.category === BulkFluidCategory.PRODUCTION_CHEMICAL) {
+      fluidClassification = 'Chemical';
+    } else if (classification.category === BulkFluidCategory.DRILLING || classification.category === BulkFluidCategory.COMPLETION_INTERVENTION) {
+      fluidClassification = 'Drilling Fluid';
+    } else if (classification.category === BulkFluidCategory.UTILITY) {
+      fluidClassification = 'Water';
+    } else if (classification.category === BulkFluidCategory.PETROLEUM) {
+      fluidClassification = 'Oil/Fuel';
+    }
+    
+    // Calculate volume in barrels and gallons
     let volumeBbls = 0;
+    let volumeGals = 0;
     const qty = parseFloat(item.Qty) || 0;
     const unit = (item.Unit || '').toLowerCase();
     const ppg = parseFloat(item["Pound Per Gallon"]) || 8.34; // Default to water density if not provided
     
     if (unit === 'gal' || unit === 'gals' || unit === 'gallons') {
+      volumeGals = qty;
       volumeBbls = qty / 42; // Convert gallons to barrels
     } else if (unit === 'bbl' || unit === 'bbls' || unit === 'barrels') {
       volumeBbls = qty;
+      volumeGals = qty * 42; // Convert barrels to gallons
     } else if (unit === 'ton' || unit === 'tons' || unit === 'mt') {
       // Convert tons to barrels using PPG
       // 1 ton = 2000 lbs, 1 barrel = 42 gallons
       // pounds / (ppg * 42) = barrels
       volumeBbls = (qty * 2000) / (ppg * 42);
+      volumeGals = volumeBbls * 42;
     } else if (unit === 'lbs' || unit === 'pounds') {
       // Convert pounds to barrels using PPG
       volumeBbls = qty / (ppg * 42);
+      volumeGals = volumeBbls * 42;
     } else if (unit === 'kg' || unit === 'kilograms') {
       // Convert kg to barrels (1 kg = 2.20462 lbs)
       volumeBbls = (qty * 2.20462) / (ppg * 42);
+      volumeGals = volumeBbls * 42;
     }
     
     return {
@@ -427,14 +446,18 @@ const processBulkActions = (rawData: any[]): BulkAction[] => {
       bulkType: item["Bulk Type"] || 'Unknown',
       bulkDescription: item["Bulk Description"],
       fluidClassification,
-      fluidCategory,
-      productionChemicalType: fluidCategory === 'Production Chemical' ? item["Bulk Type"] : undefined,
+      fluidCategory: classification.category,
+      fluidSpecificType: classification.specificType,
+      isDrillingFluid: classification.isDrillingFluid,
+      isCompletionFluid: classification.isCompletionFluid,
+      productionChemicalType: classification.category === BulkFluidCategory.PRODUCTION_CHEMICAL ? item["Bulk Type"] : undefined,
       atPort: item["At Port"] || 'Unknown',
       standardizedOrigin: (item["At Port"] || 'Unknown').trim(),
       destinationPort: item["Destination Port"],
       standardizedDestination: item["Destination Port"] ? item["Destination Port"].trim() : undefined,
       productionPlatform: item["Destination Port"], // Assume destination is the platform
       volumeBbls,
+      volumeGals,
       isReturn: (item.Remarks || '').toLowerCase().includes('return') || 
                 (item["Action"] || '').toLowerCase().includes('return'),
       monthNumber: startDate.getMonth() + 1,

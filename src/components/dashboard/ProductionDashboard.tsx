@@ -3,7 +3,8 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getProductionFacilities } from '../../data/masterFacilities';
 import KPICard from './KPICard';
-import { Calendar, MapPin, Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign, Info } from 'lucide-react';
+import ProductionBulkInsights from './ProductionBulkInsights';
+import { Calendar, MapPin, Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign, Info, Droplet } from 'lucide-react';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -14,7 +15,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
     voyageEvents, 
     vesselManifests, 
     costAllocation,
-    voyageList
+    voyageList,
+    bulkActions
   } = useData();
 
   // Filters state - matching PowerBI layout
@@ -1322,6 +1324,36 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
             </div>
           </div>
         )}
+        
+        {/* Production Fluids Analysis Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Droplet className="h-6 w-6 text-green-600" />
+              <h3 className="text-lg font-semibold text-gray-900">PRODUCTION FLUIDS ANALYSIS</h3>
+            </div>
+            <div className="text-sm text-gray-500">Volume tracked in gallons</div>
+          </div>
+          
+          <ProductionBulkInsights
+            bulkActions={bulkActions}
+            selectedVessel={undefined} // Don't filter by vessel in production dashboard
+            selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
+            dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
+              // Parse the selected month to create a date range
+              const parts = filters.selectedMonth.split(' ');
+              if (parts.length >= 2) {
+                const monthName = parts[0];
+                const year = parseInt(parts[1]);
+                const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
+                const startDate = new Date(year, monthIndex, 1);
+                const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
+                return [startDate, endDate];
+              }
+              return undefined;
+            })()}
+          />
+        </div>
       </div>
     </div>
   );
