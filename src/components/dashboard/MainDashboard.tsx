@@ -1,7 +1,7 @@
 // src/components/dashboard/MainDashboard.tsx
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
-import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings } from 'lucide-react';
+import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings, Package } from 'lucide-react';
 import { getVesselTypeFromName, getVesselCompanyFromName, getVesselStatistics } from '../../data/vesselClassification';
 
 interface MainDashboardProps {
@@ -14,6 +14,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     vesselManifests, 
     costAllocation,
     voyageList,
+    bulkActions,
     isDataReady,
     forceRefreshFromStorage,
     clearAllData
@@ -29,6 +30,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       vesselManifestsLength: vesselManifests.length,
       costAllocationLength: costAllocation.length,
       voyageListLength: voyageList.length,
+      bulkActionsLength: bulkActions.length,
       shouldShowLoading: (!isDataReady || voyageEvents.length === 0),
       timestamp: new Date().toISOString()
     });
@@ -46,17 +48,18 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
         forceRefreshFromStorage();
       }, 1000);
     }
-  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, forceRefreshFromStorage]);
+  }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, bulkActions.length, forceRefreshFromStorage]);
 
   // Comprehensive data analysis
   const dataAnalysis = useMemo(() => {
     // Basic counts
-    const totalRecords = voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length;
+    const totalRecords = voyageEvents.length + vesselManifests.length + costAllocation.length + voyageList.length + bulkActions.length;
     
     // Date range analysis
     const allDates = [
       ...voyageEvents.map(e => new Date(e.eventDate)),
-      ...vesselManifests.map(m => new Date(m.manifestDate))
+      ...vesselManifests.map(m => new Date(m.manifestDate)),
+      ...bulkActions.map(b => new Date(b.startDate))
     ].filter(d => !isNaN(d.getTime()));
     
     const dateRange = allDates.length > 0 ? {
@@ -68,10 +71,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     const uniqueVesselsFromEvents = new Set(voyageEvents.map(e => e.vessel).filter(Boolean));
     const uniqueVesselsFromManifests = new Set(vesselManifests.map(m => m.transporter).filter(Boolean));
     const uniqueVesselsFromVoyageList = new Set(voyageList.map(v => v.vessel).filter(Boolean));
+    const uniqueVesselsFromBulkActions = new Set(bulkActions.map(b => b.vesselName).filter(Boolean));
     const allUniqueVessels = new Set([
       ...uniqueVesselsFromEvents,
       ...uniqueVesselsFromManifests,
-      ...uniqueVesselsFromVoyageList
+      ...uniqueVesselsFromVoyageList,
+      ...uniqueVesselsFromBulkActions
     ]);
     
     // Department breakdown
@@ -90,7 +95,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       voyageEventsWithMissingLocation: voyageEvents.filter(e => !e.location || e.location.trim() === '').length,
       manifestsWithMissingTransporter: vesselManifests.filter(m => !m.transporter || m.transporter.trim() === '').length,
       eventsWithZeroHours: voyageEvents.filter(e => e.finalHours === 0).length,
-      duplicateEventIds: voyageEvents.length - new Set(voyageEvents.map(e => e.id)).size
+      duplicateEventIds: voyageEvents.length - new Set(voyageEvents.map(e => e.id)).size,
+      bulkActionsWithMissingDestination: bulkActions.filter(b => !b.destinationPort || b.destinationPort.trim() === '').length,
+      bulkActionsWithZeroVolume: bulkActions.filter(b => b.volumeBbls === 0).length
     };
     
     // Monthly breakdown
@@ -107,6 +114,15 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       return acc;
     }, {} as Record<string, { key: string; label: string; events: number; hours: number }>);
     
+    // Bulk Actions analysis
+    const bulkActionsAnalysis = {
+      totalTransfers: bulkActions.length,
+      totalVolumeBbls: bulkActions.reduce((sum, action) => sum + action.volumeBbls, 0),
+      uniqueBulkTypes: new Set(bulkActions.map(b => b.bulkType)).size,
+      shorebaseToRig: bulkActions.filter(b => b.portType === 'base' && b.destinationPort).length,
+      rigToShorebase: bulkActions.filter(b => b.portType === 'rig' || b.isReturn).length
+    };
+    
     return {
       totalRecords,
       dateRange,
@@ -115,15 +131,17 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
         fromEvents: uniqueVesselsFromEvents.size,
         fromManifests: uniqueVesselsFromManifests.size,
         fromVoyageList: uniqueVesselsFromVoyageList.size,
+        fromBulkActions: uniqueVesselsFromBulkActions.size,
         list: Array.from(allUniqueVessels).sort()
       },
       departmentBreakdown,
       uniqueLocations: uniqueLocations.size,
       locationsList: Array.from(uniqueLocations).sort(),
       dataQuality,
-      monthlyData: Object.values(monthlyData).sort((a, b) => a.key.localeCompare(b.key))
+      monthlyData: Object.values(monthlyData).sort((a, b) => a.key.localeCompare(b.key)),
+      bulkActionsAnalysis
     };
-  }, [voyageEvents, vesselManifests, costAllocation, voyageList]);
+  }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions]);
 
   if (!isDataReady || voyageEvents.length === 0) {
     const readyButNoVoyageEvents = isDataReady && voyageEvents.length === 0;
@@ -144,6 +162,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             <div>Voyage Events: {voyageEvents.length}</div>
             <div>Vessel Manifests: {vesselManifests.length}</div>
             <div>Cost Allocation: {costAllocation.length}</div>
+            <div>Bulk Actions: {bulkActions.length}</div>
           </div>
           
           {/* Manual Actions */}
@@ -269,6 +288,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                 </div>
                 <span className="text-lg font-bold text-orange-700">{voyageList.length.toLocaleString()}</span>
               </div>
+              <div className="flex justify-between items-center p-3 bg-indigo-50/50 rounded-lg border border-indigo-100/50">
+                <div className="flex items-center gap-3">
+                  <Package size={20} className="text-indigo-600" />
+                  <span className="font-medium">Bulk Actions</span>
+                </div>
+                <span className="text-lg font-bold text-indigo-700">{bulkActions.length.toLocaleString()}</span>
+              </div>
             </div>
           </div>
 
@@ -313,7 +339,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                 { label: 'Events with missing location', count: dataAnalysis.dataQuality.voyageEventsWithMissingLocation, severity: 'medium' },
                 { label: 'Manifests with missing transporter', count: dataAnalysis.dataQuality.manifestsWithMissingTransporter, severity: 'high' },
                 { label: 'Events with zero hours', count: dataAnalysis.dataQuality.eventsWithZeroHours, severity: 'low' },
-                { label: 'Duplicate event IDs', count: dataAnalysis.dataQuality.duplicateEventIds, severity: 'high' }
+                { label: 'Duplicate event IDs', count: dataAnalysis.dataQuality.duplicateEventIds, severity: 'high' },
+                { label: 'Bulk actions with missing destination', count: dataAnalysis.dataQuality.bulkActionsWithMissingDestination, severity: 'medium' },
+                { label: 'Bulk actions with zero volume', count: dataAnalysis.dataQuality.bulkActionsWithZeroVolume, severity: 'low' }
               ].map((issue) => (
                 <div key={issue.label} className={`flex items-center justify-between p-3 rounded-lg border ${
                   issue.count === 0 ? 'bg-green-50/50 border-green-100/50' : 
@@ -357,6 +385,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
                   source: 'Vessel Manifests', 
                   completeness: ((vesselManifests.length - dataAnalysis.dataQuality.manifestsWithMissingTransporter) / Math.max(1, vesselManifests.length)) * 100,
                   total: vesselManifests.length
+                },
+                { 
+                  source: 'Bulk Actions', 
+                  completeness: ((bulkActions.length - dataAnalysis.dataQuality.bulkActionsWithMissingDestination - dataAnalysis.dataQuality.bulkActionsWithZeroVolume) / Math.max(1, bulkActions.length)) * 100,
+                  total: bulkActions.length
                 }
               ].map((item) => (
                 <div key={item.source} className="space-y-2">

@@ -2,13 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { formatNumber } from '../../utils/formatters';
 import { useData } from '../../context/DataContext';
 import KPICard from './KPICard';
+import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
 import { 
   Filter, 
   MapPin,
   Building,
   ArrowRight,
   BarChart3,
-  PieChart
+  PieChart,
+  Bug
 } from 'lucide-react';
 
 const BulkActionsDashboard: React.FC = () => {
@@ -19,6 +21,7 @@ const BulkActionsDashboard: React.FC = () => {
   const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
   const [selectedDestination, setSelectedDestination] = useState<string>('all');
   const [selectedAction, setSelectedAction] = useState<string>('all');
+  const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
 
   // Filter bulk actions
   const filteredBulkActions = useMemo(() => {
@@ -71,6 +74,12 @@ const BulkActionsDashboard: React.FC = () => {
     const rigToShorebase = filteredBulkActions.filter(a => 
       a.portType === 'rig' || a.isReturn
     ).length;
+    
+    // Calculate drilling and completion fluid metrics
+    const drillingFluids = filteredBulkActions.filter(a => a.isDrillingFluid);
+    const completionFluids = filteredBulkActions.filter(a => a.isCompletionFluid);
+    const drillingFluidVolume = drillingFluids.reduce((sum, a) => sum + a.volumeBbls, 0);
+    const completionFluidVolume = completionFluids.reduce((sum, a) => sum + a.volumeBbls, 0);
 
     // Calculate volume by bulk type
     const volumeByType = filteredBulkActions.reduce((acc, action) => {
@@ -94,7 +103,11 @@ const BulkActionsDashboard: React.FC = () => {
       rigToShorebase,
       volumeByType,
       transfersByVessel,
-      avgTransferSize
+      avgTransferSize,
+      drillingFluidVolume,
+      completionFluidVolume,
+      drillingFluidCount: drillingFluids.length,
+      completionFluidCount: completionFluids.length
     };
   }, [filteredBulkActions]);
 
@@ -126,8 +139,23 @@ const BulkActionsDashboard: React.FC = () => {
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Bulk Actions Dashboard</h1>
-        <p className="text-gray-600">Track and analyze bulk material transfers between shorebase and rigs</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Bulk Actions Dashboard</h1>
+            <p className="text-gray-600">Track and analyze bulk material transfers between shorebase and rigs</p>
+          </div>
+          <button
+            onClick={() => setShowDebugPanel(!showDebugPanel)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              showDebugPanel 
+                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Bug className="h-4 w-4" />
+            {showDebugPanel ? 'Hide Debug Panel' : 'Show Debug Panel'}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -227,7 +255,7 @@ const BulkActionsDashboard: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard
           title="Total Transfers"
           value={formatNumber(kpis.totalTransfers)}
@@ -251,6 +279,20 @@ const BulkActionsDashboard: React.FC = () => {
           value={`${formatNumber(kpis.avgTransferSize)} bbls`}
           trend={0}
           color="orange"
+        />
+        <KPICard
+          title="Drilling Fluids"
+          value={`${formatNumber(kpis.drillingFluidVolume)} bbls`}
+          subtitle={`${kpis.drillingFluidCount} transfers`}
+          trend={0}
+          color="blue"
+        />
+        <KPICard
+          title="Completion Fluids"
+          value={`${formatNumber(kpis.completionFluidVolume)} bbls`}
+          subtitle={`${kpis.completionFluidCount} transfers`}
+          trend={0}
+          color="purple"
         />
       </div>
 
@@ -423,6 +465,13 @@ const BulkActionsDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Debug Panel */}
+      {showDebugPanel && (
+        <div className="mt-6">
+          <BulkFluidDebugPanel bulkActions={bulkActions} />
+        </div>
+      )}
     </div>
   );
 };
