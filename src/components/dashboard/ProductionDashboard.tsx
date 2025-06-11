@@ -684,7 +684,6 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Activity className="w-4 h-4" />
-            <span>Live data refresh every 5 minutes</span>
           </div>
         </div>
       </div>

@@ -355,25 +355,30 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                     const color = colors[index % colors.length];
                     
                     return (
-                      <div key={item.name} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                      <div key={item.name} className={`group hover:${color.light} p-3 rounded-lg transition-colors duration-200`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 ${color.bg} rounded-full ring-4 ring-opacity-30`} 
+                                 style={{ boxShadow: `0 0 0 4px ${color.bg}30` }}></div>
                             <span className="text-sm font-semibold text-gray-800">{item.name}</span>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-lg font-bold text-gray-900">{item.value}</span>
-                            <span className="text-sm text-gray-500">voyages</span>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-gray-900">{item.value}</div>
+                            <div className="text-xs text-gray-500">voyages</div>
                           </div>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                           <div 
-                            className={`${color.bg} h-4 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
-                            style={{ width: `${Math.max(15, item.percentage)}%` }}
-                          >
-                            <span className="text-xs font-medium text-white">
-                              {item.percentage.toFixed(1)}%
-                            </span>
+                            className={`absolute top-0 left-0 h-full ${color.bg} rounded-full transition-all duration-700 ease-out`}
+                            style={{ width: `${Math.max(2, item.percentage)}%` }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-between px-3">
+                            <span className="text-xs font-medium text-white">{item.percentage.toFixed(1)}%</span>
+                            {item.percentage > 20 && (
+                              <span className="text-xs font-medium text-white">
+                                {item.value} voyages
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -421,24 +426,24 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                   
                   return (
                     <div key={item.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3 flex-1">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full ${item.color} ring-4 ring-opacity-30`} 
                                style={{ boxShadow: `0 0 0 4px ${item.color}30` }}></div>
                           <span className="text-sm font-semibold text-gray-800">{item.name}</span>
                         </div>
-                        <div className="text-right ml-4 flex-shrink-0">
+                        <div className="text-right">
                           <div className="text-lg font-bold text-gray-900">{item.value}</div>
                           <div className="text-xs text-gray-500">voyages</div>
                         </div>
                       </div>
-                      <div className="relative w-full bg-gray-100 rounded-full h-6 overflow-hidden">
+                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                         <div 
                           className={`absolute top-0 left-0 h-full ${item.color} rounded-full transition-all duration-700 ease-out`}
                           style={{ width: `${Math.max(2, percentage)}%` }}
                         />
                         <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-xs font-medium text-gray-700">{percentage.toFixed(1)}%</span>
+                          <span className="text-xs font-medium text-white">{percentage.toFixed(1)}%</span>
                           {percentage > 20 && (
                             <span className="text-xs font-medium text-white">
                               {item.value} voyages
@@ -546,24 +551,24 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                   
                   return (
                     <div key={item.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3 flex-1">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full ${item.color} ring-4 ring-opacity-30`} 
                                style={{ boxShadow: `0 0 0 4px ${item.color}30` }}></div>
                           <span className="text-sm font-semibold text-gray-800">{item.name}</span>
                         </div>
-                        <div className="text-right ml-4 flex-shrink-0">
+                        <div className="text-right">
                           <div className="text-lg font-bold text-gray-900">{item.value}</div>
                           <div className="text-xs text-gray-500">voyages</div>
                         </div>
                       </div>
-                      <div className="relative w-full bg-gray-100 rounded-full h-5 overflow-hidden">
+                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                         <div 
                           className={`absolute top-0 left-0 h-full ${item.color} rounded-full transition-all duration-700 ease-out`}
                           style={{ width: `${Math.max(2, percentage)}%` }}
                         />
                         <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-xs font-medium text-gray-700">{percentage.toFixed(1)}%</span>
+                          <span className="text-xs font-medium text-white">{percentage.toFixed(1)}%</span>
                           {percentage > 15 && (
                             <span className="text-xs font-medium text-white">
                               {item.value}

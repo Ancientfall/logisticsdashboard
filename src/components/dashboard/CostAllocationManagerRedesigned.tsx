@@ -22,6 +22,8 @@ import {
 } from '../../utils/formatters';
 import { useCostAnalysisRedesigned } from './cost-allocation/hooks/useCostAnalysis';
 import { useFilteredCostAllocation } from './cost-allocation/hooks/useFilteredCostAllocation';
+import { TabNavigation } from './cost-allocation/TabNavigation';
+import { COST_ALLOCATION_TABS, TabId } from './cost-allocation/constants';
 
 interface CostAllocationManagerRedesignedProps {
   onNavigateToUpload?: () => void;
@@ -64,6 +66,9 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     selectedLocation: 'All Locations',
     selectedProjectType: 'All Types'
   });
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
 
   // Get unique filter options
   const filterOptions = useMemo(() => {
@@ -307,27 +312,38 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
           </div>
         </div>
 
-        {/* Debug Info - Temporary */}
-        {costMetrics.totalAllocatedCost === 0 && costMetrics.totalBudget === 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <p className="text-yellow-800 font-semibold mb-2">Debug Info:</p>
-            <p className="text-sm text-yellow-700">
-              Original Records: {costAllocation.length} | 
-              Filtered Records: {filteredCostAllocation.length} | 
-              Has Metrics: {(costMetrics.totalAllocatedCost > 0 || costMetrics.totalBudget > 0) ? 'Yes' : 'No'}
-            </p>
-            {filteredCostAllocation.length > 0 && (
-              <p className="text-sm text-yellow-700 mt-1">
-                Sample: LC {filteredCostAllocation[0]?.lcNumber}, 
-                Cost: ${filteredCostAllocation[0]?.totalCost || 0}, 
-                Budget: ${filteredCostAllocation[0]?.budgetedVesselCost || 0}
-              </p>
-            )}
-          </div>
-        )}
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <TabNavigation
+            tabs={COST_ALLOCATION_TABS}
+            activeTab={activeTab}
+            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+          />
+        </div>
 
-        {/* KPI Cards Grid - First Row (Financial Overview) */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Tab Content */}
+        {activeTab === 'dashboard' && (
+          <>
+            {/* Debug Info - Temporary */}
+            {costMetrics.totalAllocatedCost === 0 && costMetrics.totalBudget === 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p className="text-yellow-800 font-semibold mb-2">Debug Info:</p>
+                <p className="text-sm text-yellow-700">
+                  Original Records: {costAllocation.length} | 
+                  Filtered Records: {filteredCostAllocation.length} | 
+                  Has Metrics: {(costMetrics.totalAllocatedCost > 0 || costMetrics.totalBudget > 0) ? 'Yes' : 'No'}
+                </p>
+                {filteredCostAllocation.length > 0 && (
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Sample: LC {filteredCostAllocation[0]?.lcNumber}, 
+                    Cost: ${filteredCostAllocation[0]?.totalCost || 0}, 
+                    Budget: ${filteredCostAllocation[0]?.budgetedVesselCost || 0}
+                  </p>
+                )}
+              </div>
+            )}
+            {/* KPI Cards Grid - First Row (Financial Overview) */}
+            <div className="grid grid-cols-3 gap-4">
           <KPICard 
             title="Total Cost" 
             value={formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}
@@ -352,8 +368,8 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
           />
         </div>
 
-        {/* KPI Cards Grid - Second Row (Operational Metrics) */}
-        <div className="grid grid-cols-5 gap-4">
+            {/* KPI Cards Grid - Second Row (Operational Metrics) */}
+            <div className="grid grid-cols-5 gap-4">
           <KPICard 
             title="Total Days" 
             value={formatDaysWhole(costMetrics.totalAllocatedDays)}
@@ -391,8 +407,8 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
           />
         </div>
 
-        {/* Budget Performance Summary */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+            {/* Budget Performance Summary */}
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Budget Performance Overview</h3>
             <div className="flex items-center gap-2">
@@ -434,8 +450,8 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
           </div>
         </div>
 
-        {/* Analytics Dashboard Section */}
-        <div className="space-y-6">
+            {/* Analytics Dashboard Section */}
+            <div className="space-y-6">
           {/* Department Cost Analysis & Location Breakdown Row */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Department Cost Analysis */}
@@ -467,13 +483,19 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
                       <div key={dept.department} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ring-4 ${
-                              color === 'blue' ? 'bg-blue-500 ring-blue-100' :
-                              color === 'green' ? 'bg-green-500 ring-green-100' :
-                              color === 'purple' ? 'bg-purple-500 ring-purple-100' :
-                              color === 'orange' ? 'bg-orange-500 ring-orange-100' :
-                              'bg-red-500 ring-red-100'
-                            }`}></div>
+                            <div className={`w-3 h-3 rounded-full ring-4 ring-opacity-30 ${
+                              color === 'blue' ? 'bg-blue-500' :
+                              color === 'green' ? 'bg-green-500' :
+                              color === 'purple' ? 'bg-purple-500' :
+                              color === 'orange' ? 'bg-orange-500' :
+                              'bg-red-500'
+                            }`} style={{ boxShadow: `0 0 0 4px ${
+                              color === 'blue' ? '#3b82f630' :
+                              color === 'green' ? '#10b98130' :
+                              color === 'purple' ? '#8b5cf630' :
+                              color === 'orange' ? '#f5970030' :
+                              '#ef444430'
+                            }` }}></div>
                             <span className="text-sm font-semibold text-gray-800">{dept.department}</span>
                           </div>
                           <div className="text-right">
@@ -481,17 +503,25 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
                             <div className="text-xs text-gray-500">{dept.percentage.toFixed(1)}%</div>
                           </div>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
                           <div 
-                            className={`absolute left-0 top-0 h-full transition-all duration-500 ${
+                            className={`absolute left-0 top-0 h-full rounded-full transition-all duration-700 ease-out ${
                               color === 'blue' ? 'bg-blue-500' :
                               color === 'green' ? 'bg-green-500' :
                               color === 'purple' ? 'bg-purple-500' :
                               color === 'orange' ? 'bg-orange-500' :
                               'bg-red-500'
                             }`}
-                            style={{ width: `${dept.percentage}%` }}
+                            style={{ width: `${Math.max(2, dept.percentage)}%` }}
                           />
+                          <div className="absolute inset-0 flex items-center justify-between px-3">
+                            <span className="text-xs font-medium text-white">{dept.percentage.toFixed(1)}%</span>
+                            {dept.percentage > 20 && (
+                              <span className="text-xs font-medium text-white">
+                                {formatLargeCurrency(dept.cost)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -616,7 +646,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium text-gray-900">{month.month}</div>
-                            <div className="text-xs text-gray-500">{month.days} days allocated</div>
+                            <div className="text-xs text-gray-500">{Math.round(month.days)} days allocated</div>
                           </div>
                           <div className="text-right">
                             <div className="font-bold text-gray-900">{formatLargeCurrency(month.cost)}</div>
@@ -800,7 +830,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
                             <span className="text-xs font-medium text-blue-600 uppercase">Total Vessel Days</span>
                           </div>
                           <div className="text-lg font-bold text-blue-900">
-                            {locationMonthlyData.reduce((sum, m) => sum + m.days, 0).toFixed(0)} days
+                            {Math.round(locationMonthlyData.reduce((sum, m) => sum + m.days, 0))} days
                           </div>
                         </div>
                       </div>
@@ -810,7 +840,37 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
               </div>
             </div>
           )}
-        </div>
+            </div>
+          </>
+        )}
+
+
+        {/* Other tabs placeholder */}
+        {activeTab === 'rigs' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="text-gray-500 text-center py-12">Rigs tab - Coming soon</div>
+          </div>
+        )}
+        {activeTab === 'projects' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="text-gray-500 text-center py-12">Projects tab - Coming soon</div>
+          </div>
+        )}
+        {activeTab === 'monthly' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="text-gray-500 text-center py-12">Monthly Tracking tab - Coming soon</div>
+          </div>
+        )}
+        {activeTab === 'trends' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="text-gray-500 text-center py-12">Monthly Trends tab - Coming soon</div>
+          </div>
+        )}
+        {activeTab === 'export' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="text-gray-500 text-center py-12">Export & Templates tab - Coming soon</div>
+          </div>
+        )}
       </div>
     </div>
   );

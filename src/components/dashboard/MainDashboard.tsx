@@ -508,6 +508,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
         </div>
       )}
 
+
       {/* Action Buttons */}
       <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-6">
         <div className="flex justify-center gap-4">
