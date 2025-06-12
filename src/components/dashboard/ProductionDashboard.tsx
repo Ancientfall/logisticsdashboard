@@ -509,21 +509,17 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       // Get the actual voyage count from the production voyages that match the same filters
       // This ensures we count unique voyages, not cost allocation records
       const getVoyageCountForFacility = (facility: any) => {
+        const facilityNorm = normalizeLocationForComparison(facility.displayName);
         const facilityVoyages = productionVoyages.filter(voyage => {
-          // Check if voyage includes this facility location
-          const locationMatch = voyage.locations && (
-            voyage.locations.toLowerCase().includes(facility.locationName.toLowerCase()) ||
-            voyage.locations.toLowerCase().includes(facility.displayName.toLowerCase())
-          );
-          
-          // For specific location filter, ensure it matches
-          if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-            return locationMatch && filters.selectedLocation === facility.displayName;
-          }
-          
-          return locationMatch;
+          // Normalize all possible location fields in the voyage
+          const locationsToCheck = [
+            voyage.locations,
+            ...(voyage.locationList || []),
+            voyage.mainDestination,
+            voyage.originPort
+          ].filter(Boolean);
+          return locationsToCheck.some(loc => normalizeLocationForComparison(loc || '') === facilityNorm);
         });
-        
         console.log(`🚢 Voyage count for ${facility.displayName}: ${facilityVoyages.length} voyages (from voyage list)`);
         if (facilityVoyages.length > 0) {
           console.log(`   Sample voyages:`, facilityVoyages.slice(0, 3).map(v => ({
@@ -533,7 +529,6 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
             startDate: v.startDate
           })));
         }
-        
         return facilityVoyages.length;
       };
       
@@ -779,6 +774,34 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
 
     return { months, locations };
   }, [voyageEvents, vesselManifests, voyageList]);
+
+  // Helper function to normalize location names for comparison (matches logic in ProductionBulkInsights)
+  const normalizeLocationForComparison = (location: string): string => {
+    let norm = location
+      .replace(/\s*\(Drilling\)\s*/i, '')
+      .replace(/\s*\(Production\)\s*/i, '')
+      .replace(/\s*Drilling\s*/i, '')
+      .replace(/\s*Production\s*/i, '')
+      .trim()
+      .toLowerCase();
+    if (
+      norm === 'thunder horse pdq' ||
+      norm === 'thunder horse prod' ||
+      norm === 'thunder horse production' ||
+      norm === 'thunderhorse'
+    ) {
+      return 'thunder horse';
+    }
+    if (
+      norm === 'mad dog pdq' ||
+      norm === 'mad dog prod' ||
+      norm === 'mad dog production' ||
+      norm === 'maddog'
+    ) {
+      return 'mad dog';
+    }
+    return norm;
+  };
 
   return (
     <div className="space-y-6">
