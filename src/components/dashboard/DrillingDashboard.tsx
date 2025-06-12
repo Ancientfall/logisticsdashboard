@@ -3,7 +3,7 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation, getAllProductionLCs } from '../../data/masterFacilities';
 import type { VoyageEvent } from '../../types';
-import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Droplet } from 'lucide-react';
+import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Droplet, AlertCircle } from 'lucide-react';
 import KPICard from './KPICard';
 import DrillingBulkInsights from './DrillingBulkInsights';
 import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
@@ -419,6 +419,25 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const completionFluidVolume = filteredBulkActions
       .filter(action => action.isCompletionFluid)
       .reduce((sum, action) => sum + action.volumeBbls, 0);
+      
+    // Calculate daily fluid volumes for the last 30 days
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    
+    const last30DaysBulkActions = filteredBulkActions.filter(a => a.startDate >= thirtyDaysAgo);
+    const previous30DaysBulkActions = filteredBulkActions.filter(a => a.startDate >= sixtyDaysAgo && a.startDate < thirtyDaysAgo);
+    
+    // Generate daily volume data for the last 30 days
+    const dailyFluidVolumes = Array(30).fill(0);
+    
+    // Populate with actual data where available
+    last30DaysBulkActions.forEach(action => {
+      const daysAgo = Math.floor((now.getTime() - action.startDate.getTime()) / (24 * 60 * 60 * 1000));
+      if (daysAgo >= 0 && daysAgo < 30) {
+        dailyFluidVolumes[29 - daysAgo] += action.volumeBbls; // Most recent day at the end of the array
+      }
+    });
     
     // 6. Vessel Utilization - Productive hours vs total offshore time with LC allocation
     const totalOffshoreHours = filteredVoyageEvents
@@ -600,12 +619,22 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         mappedFacility.facilityType === 'Drilling' : 
         locationName.toLowerCase().includes('drilling');
       
-      const shouldInclude = (isDrillingLC || isDrillingDept || isDrillingProject) && 
+      // Special case for Stena IceMAX - include if the location contains "stena" or "icemax"
+      const isStenaIceMAX = locationName.toLowerCase().includes('stena') || 
+                           locationName.toLowerCase().includes('icemax') ||
+                           locationName.toLowerCase().includes('ice max');
+      
+      const shouldInclude = (isDrillingLC || isDrillingDept || isDrillingProject || isStenaIceMAX) && 
                            !locationName.toLowerCase().includes('production') &&
                            !locationName.toLowerCase().includes(' prod');
       
       if (!shouldInclude && lcNumber && isDrillingLocation) {
         console.log(`🚫 Excluding non-drilling LC: ${lcNumber} (dept: ${cost.department}, project: ${cost.projectType}, location: ${locationName})`);
+      }
+      
+      // Debug output for Stena IceMAX records
+      if (isStenaIceMAX) {
+        console.log(`✅ Including Stena IceMAX record: ${lcNumber} (location: ${locationName})`);
       }
       
       return shouldInclude;
@@ -646,6 +675,19 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         });
       }
       
+      // Special case for Stena IceMAX
+      if (filters.selectedLocation === 'Stena IceMAX') {
+        const costLocation = (cost.rigLocation || cost.locationReference || '').toLowerCase();
+        const isStenaIceMAX = costLocation.includes('stena') || 
+                             costLocation.includes('icemax') ||
+                             costLocation.includes('ice max');
+        
+        if (isStenaIceMAX) {
+          console.log(`✅ Stena IceMAX match found: ${cost.rigLocation || cost.locationReference}`);
+          return true;
+        }
+      }
+      
       // Check if this cost allocation matches the selected location
       const isDirectMatch = cost.rigLocation === filters.selectedLocation ||
                            cost.locationReference === filters.selectedLocation;
@@ -679,6 +721,20 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         console.log('🐕 Mad Dog Drilling specific debug:', {
           madDogFacility: madDogFacility,
           madDogLCs: madDogFacility?.drillingLCs,
+          costLocations: filteredDrillingCosts.slice(0, 5).map(c => ({
+            lcNumber: c.lcNumber,
+            rigLocation: c.rigLocation,
+            locationReference: c.locationReference
+          }))
+        });
+      }
+      
+      // Special debug for Stena IceMAX
+      if (filters.selectedLocation === 'Stena IceMAX') {
+        const stenaFacility = getAllDrillingCapableLocations().find(f => f.displayName === 'Stena IceMAX');
+        console.log('🧊 Stena IceMAX specific debug:', {
+          stenaFacility: stenaFacility,
+          stenaLCs: stenaFacility?.drillingLCs,
           costLocations: filteredDrillingCosts.slice(0, 5).map(c => ({
             lcNumber: c.lcNumber,
             rigLocation: c.rigLocation,
@@ -775,25 +831,35 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       // Map the location to check if it's actually a drilling facility
       const mappedFacility = mapCostAllocationLocation(cost.rigLocation, cost.locationReference);
       
+      // Special case for Stena IceMAX - normalize the name
+      let normalizedLocation = rigLocation;
+      if (rigLocation.toLowerCase().includes('stena') || 
+          rigLocation.toLowerCase().includes('icemax') || 
+          rigLocation.toLowerCase().includes('ice max')) {
+        normalizedLocation = 'Stena IceMAX';
+        console.log(`🧊 Normalizing location name to Stena IceMAX: ${rigLocation}`);
+      }
+      
       // Only include if it's a drilling facility or has drilling in the name
       const isDrillingFacility = mappedFacility ? 
         mappedFacility.facilityType === 'Drilling' : 
-        rigLocation.toLowerCase().includes('drilling') || 
-        rigLocation.toLowerCase().includes('ocean') || 
-        rigLocation.toLowerCase().includes('deepwater') ||
-        rigLocation.toLowerCase().includes('stena') ||
-        rigLocation.toLowerCase().includes('island') ||
-        rigLocation.toLowerCase().includes('seadrill');
+        normalizedLocation.toLowerCase().includes('drilling') || 
+        normalizedLocation.toLowerCase().includes('ocean') || 
+        normalizedLocation.toLowerCase().includes('deepwater') ||
+        normalizedLocation.toLowerCase().includes('stena') ||
+        normalizedLocation.toLowerCase().includes('icemax') ||
+        normalizedLocation.toLowerCase().includes('island') ||
+        normalizedLocation.toLowerCase().includes('seadrill');
       
       // Skip non-drilling facilities like Atlantis
-      if (!isDrillingFacility && rigLocation !== 'Unknown') {
-        console.log(`🚫 Excluding non-drilling facility from rig analysis: ${rigLocation}`);
+      if (!isDrillingFacility && normalizedLocation !== 'Unknown') {
+        console.log(`🚫 Excluding non-drilling facility from rig analysis: ${normalizedLocation}`);
         return acc;
       }
       
-      if (!acc[rigLocation]) {
-        acc[rigLocation] = {
-          rigLocation,
+      if (!acc[normalizedLocation]) {
+        acc[normalizedLocation] = {
+          rigLocation: normalizedLocation,
           rigType: cost.rigType || 'Unknown',
           waterDepth: cost.waterDepth || 0,
           totalCost: 0,
@@ -812,8 +878,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       const budgetedValue = Number(cost.budgetedVesselCost || 0);
       
       // Debug log for first few records to ensure proper aggregation
-      if (Object.keys(acc).length <= 3 && acc[rigLocation].records.length === 0) {
-        console.log(`🔧 AGGREGATING ${rigLocation}:`, {
+      if (Object.keys(acc).length <= 3 && acc[normalizedLocation].records.length === 0) {
+        console.log(`🔧 AGGREGATING ${normalizedLocation}:`, {
           lcNumber: cost.lcNumber,
           originalCost: cost.totalCost,
           originalBudgeted: cost.budgetedVesselCost, 
@@ -825,17 +891,17 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         });
       }
       
-      acc[rigLocation].totalCost += costValue;
-      acc[rigLocation].allocatedDays += daysValue;
-      acc[rigLocation].budgetedCost += budgetedValue;
-      acc[rigLocation].records.push({
+      acc[normalizedLocation].totalCost += costValue;
+      acc[normalizedLocation].allocatedDays += daysValue;
+      acc[normalizedLocation].budgetedCost += budgetedValue;
+      acc[normalizedLocation].records.push({
         lcNumber: cost.lcNumber,
         days: daysValue,
         cost: costValue,
         monthYear: cost.monthYear
       });
       
-      if (cost.projectType) acc[rigLocation].projectTypes.add(cost.projectType);
+      if (cost.projectType) acc[normalizedLocation].projectTypes.add(cost.projectType);
       
       return acc;
     }, {} as Record<string, any>);
@@ -948,7 +1014,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         isPositive: fluidMovement > 0 ? fluidMovement > mockPreviousPeriod.fluidMovement : null,
         drillingFluidVolume: Math.round(drillingFluidVolume),
         completionFluidVolume: Math.round(completionFluidVolume),
-        totalTransfers: filteredBulkActions.length
+        totalTransfers: filteredBulkActions.length,
+        dailyFluidVolumes: dailyFluidVolumes,
+        last30DaysVolume: last30DaysBulkActions.reduce((sum, a) => sum + a.volumeBbls, 0),
+        previous30DaysVolume: previous30DaysBulkActions.reduce((sum, a) => sum + a.volumeBbls, 0)
       },
       vesselUtilization: { 
         value: Math.round(Number(vesselUtilization) || 0), 
@@ -1242,7 +1311,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         osvProductiveHours: { value: 0, trend: 0, isPositive: false },
         waitingTime: { value: 0, trend: 0, isPositive: false },
         rtCargoTons: { value: 0, trend: 0, isPositive: false },
-        fluidMovement: { value: 'N/A', trend: null, isPositive: null, drillingFluidVolume: 0, completionFluidVolume: 0, totalTransfers: 0 },
+        fluidMovement: { value: 'N/A', trend: null, isPositive: null, drillingFluidVolume: 0, completionFluidVolume: 0, totalTransfers: 0, dailyFluidVolumes: Array(30).fill(0), last30DaysVolume: 0, previous30DaysVolume: 0 },
         vesselUtilization: { value: 0, trend: 0, isPositive: false },
         fsvRuns: { value: 0, trend: 0, isPositive: false },
         vesselVisits: { value: 0, trend: 0, isPositive: false },
@@ -1415,10 +1484,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               </div>
             </div>
             
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Activity className="w-4 h-4" />
-              <span>Live data refresh every 5 minutes</span>
-            </div>
+            {/* Removed live data refresh text */}
           </div>
         </div>
 
@@ -1714,9 +1780,41 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         {Math.round(Number(drillingMetrics.fluidMovement.value)).toLocaleString()}
                       </div>
                       <div className="text-lg font-medium text-gray-600 mt-2">Total Barrels Moved</div>
-                      <div className={`flex items-center justify-center gap-2 mt-4 ${drillingMetrics.fluidMovement.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                        <span className="text-sm font-medium">{drillingMetrics.fluidMovement.trend}</span>
-                        <span className="text-xs">vs previous period</span>
+                      
+                      {/* Trend Percentage */}
+                      {drillingMetrics.fluidMovement.trend !== null && (
+                        <div className="mt-3 inline-block px-4 py-1 rounded-full bg-white">
+                          <span className={`text-lg font-bold ${drillingMetrics.fluidMovement.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                            {drillingMetrics.fluidMovement.isPositive ? '+' : ''}{drillingMetrics.fluidMovement.trend}%
+                          </span>
+                          <span className="text-sm text-gray-500 ml-1">vs. previous period</span>
+                        </div>
+                      )}
+                      
+                      <div className="mt-4 text-sm text-gray-600">
+                        <span className="font-medium">30-Day Fluid Movement Trend</span>
+                      </div>
+                      <div className="flex items-center justify-center gap-1 mt-2">
+                        {(drillingMetrics.fluidMovement.dailyFluidVolumes || Array(30).fill(0)).map((volume, i) => {
+                          // Calculate height based on actual volume data
+                          const dailyVolumes = drillingMetrics.fluidMovement.dailyFluidVolumes || Array(30).fill(0);
+                          const maxVolume = Math.max(...dailyVolumes, 1);
+                          // Scale the height based on the maximum volume in the dataset
+                          const heightPercentage = maxVolume > 0 ? (volume / maxVolume) * 100 : 0;
+                          const height = Math.max(5, (heightPercentage * 0.4)); // 40% of the container height max
+                          
+                          return (
+                            <div 
+                              key={i} 
+                              className={`w-2 rounded-t-sm ${drillingMetrics.fluidMovement.isPositive ? 'bg-green-500' : 'bg-red-500'}`}
+                              style={{ 
+                                height: `${height}px`,
+                                opacity: 0.5 + (i / 30) * 0.5 // Gradually increase opacity
+                              }}
+                              title={`Day ${i+1}: ${Math.round(volume)} BBLs`} // Tooltip showing actual volume
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                     
@@ -2134,24 +2232,50 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           )}
           
           {showBulkInsights && (
-            <DrillingBulkInsights
-              bulkActions={bulkActions}
-              selectedVessel={undefined} // Don't filter by vessel in drilling dashboard
-              selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
-              dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
-                // Parse the selected month to create a date range
-                const parts = filters.selectedMonth.split(' ');
-                if (parts.length >= 2) {
-                  const monthName = parts[0];
-                  const year = parseInt(parts[1]);
-                  const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
-                  const startDate = new Date(year, monthIndex, 1);
-                  const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
-                  return [startDate, endDate];
-                }
-                return undefined;
-              })()}
-            />
+            <>
+              {isDataReady && bulkActions && bulkActions.length > 0 ? (
+                <DrillingBulkInsights
+                  bulkActions={bulkActions}
+                  selectedVessel={undefined} // Don't filter by vessel in drilling dashboard
+                  selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
+                  dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
+                    try {
+                      // Parse the selected month to create a date range
+                      const parts = filters.selectedMonth.split(' ');
+                      if (parts.length >= 2) {
+                        const monthName = parts[0];
+                        const year = parseInt(parts[1]);
+                        if (isNaN(year)) return undefined;
+                        
+                        const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
+                        if (isNaN(monthIndex)) return undefined;
+                        
+                        const startDate = new Date(year, monthIndex, 1);
+                        const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
+                        console.log('📅 Created date range:', {
+                          month: filters.selectedMonth,
+                          startDate: startDate.toISOString(),
+                          endDate: endDate.toISOString()
+                        });
+                        return [startDate, endDate];
+                      }
+                      return undefined;
+                    } catch (error) {
+                      console.error('❌ Error creating date range:', error);
+                      return undefined;
+                    }
+                  })()}
+                />
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-900">No fluid data available</p>
+                    <p className="text-sm text-yellow-700">Please upload bulk fluid data to see analysis.</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
