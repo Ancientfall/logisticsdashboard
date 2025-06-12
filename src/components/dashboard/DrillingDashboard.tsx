@@ -34,8 +34,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
   // Calculate drilling-specific KPIs
   const drillingMetrics = useMemo(() => {
-    // Filter data based on selected filters
-    const filterByDate = (date: Date) => {
+    try {
+      console.log('🔄 Recalculating drilling metrics for:', filters);
+      
+      // Filter data based on selected filters
+      const filterByDate = (date: Date) => {
       if (filters.selectedMonth === 'all' || filters.selectedMonth === 'All Months') return true;
       
       // Ensure we have a valid date
@@ -85,9 +88,21 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
       // Special handling for Mad Dog variations
       if (filters.selectedLocation === 'Mad Dog (Drilling)') {
-        return normalizedLocation.includes('mad dog') && 
-               (normalizedLocation.includes('drill') || 
-                normalizedLocation === 'mad dog');
+        try {
+          const isMadDog = normalizedLocation.includes('mad dog') && 
+                           (normalizedLocation.includes('drill') || 
+                            normalizedLocation === 'mad dog');
+          
+          // Debug Mad Dog location matching
+          if (normalizedLocation.includes('mad dog')) {
+            console.log(`🐕 Mad Dog location check: "${location}" -> normalized: "${normalizedLocation}" -> matches: ${isMadDog}`);
+          }
+          
+          return isMadDog;
+        } catch (error) {
+          console.error('Error in Mad Dog location filtering:', error, { location, normalizedLocation });
+          return false;
+        }
       }
       
       return directMatch || facilityMatch;
@@ -653,10 +668,24 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       console.log(`🎯 LOCATION FILTER RESULTS for "${filters.selectedLocation}":`, {
         totalDrillingCosts: drillingCostAllocation.length,
         filteredCosts: filteredDrillingCosts.length,
-        filteredLCs: filteredDrillingCosts.map(c => c.lcNumber),
+        filteredLCs: filteredDrillingCosts.slice(0, 10).map(c => c.lcNumber),
         totalCostValue: filteredDrillingCosts.reduce((sum, c) => sum + (c.totalCost || c.budgetedVesselCost || 0), 0),
         totalAllocatedDays: filteredDrillingCosts.reduce((sum, c) => sum + (c.totalAllocatedDays || 0), 0)
       });
+      
+      // Special debug for Mad Dog
+      if (filters.selectedLocation === 'Mad Dog (Drilling)') {
+        const madDogFacility = getAllDrillingCapableLocations().find(f => f.displayName === 'Mad Dog (Drilling)');
+        console.log('🐕 Mad Dog Drilling specific debug:', {
+          madDogFacility: madDogFacility,
+          madDogLCs: madDogFacility?.drillingLCs,
+          costLocations: filteredDrillingCosts.slice(0, 5).map(c => ({
+            lcNumber: c.lcNumber,
+            rigLocation: c.rigLocation,
+            locationReference: c.locationReference
+          }))
+        });
+      }
     }
     
     // Apply date filter to cost allocation
@@ -1202,6 +1231,45 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       // Additional cost allocation data
       dateFilteredDrillingCosts
     };
+    } catch (error) {
+      console.error('❌ Error calculating drilling metrics:', error);
+      console.error('Filters at time of error:', filters);
+      
+      // Return safe default values to prevent page crash
+      return {
+        cargoTons: { value: 0, trend: 0, isPositive: false },
+        liftsPerHour: { value: 0, trend: 0, isPositive: false },
+        osvProductiveHours: { value: 0, trend: 0, isPositive: false },
+        waitingTime: { value: 0, trend: 0, isPositive: false },
+        rtCargoTons: { value: 0, trend: 0, isPositive: false },
+        fluidMovement: { value: 'N/A', trend: null, isPositive: null, drillingFluidVolume: 0, completionFluidVolume: 0, totalTransfers: 0 },
+        vesselUtilization: { value: 0, trend: 0, isPositive: false },
+        fsvRuns: { value: 0, trend: 0, isPositive: false },
+        vesselVisits: { value: 0, trend: 0, isPositive: false },
+        maneuveringHours: { value: 0, trend: 0, isPositive: false },
+        totalCostYTD: { value: 0, trend: 0, isPositive: false },
+        avgMonthlyCost: { value: 0, trend: 0, isPositive: false },
+        vesselVisitsPerWeek: { value: 0, trend: 0, isPositive: false },
+        allocatedDays: { value: 0, trend: 0, isPositive: false },
+        avgCostPerHour: { value: 0, trend: 0, isPositive: false },
+        nptPercentage: { value: 0, trend: 0, isPositive: false },
+        weatherImpact: { value: 0, trend: 0, isPositive: false },
+        totalEvents: 0,
+        totalManifests: 0,
+        totalHours: 0,
+        cargoOpsHours: 0,
+        nonProductiveHours: 0,
+        rigLocationAnalysis: {},
+        totalCostAllocations: 0,
+        vesselTypeData: [],
+        activityData: [],
+        vesselLocationData: null,
+        ratePeriodAnalysis: [],
+        budgetVsActual: { totalBudgeted: 0, totalActual: 0, variance: 0 },
+        budgetVariancePercentage: 0,
+        dateFilteredDrillingCosts: []
+      };
+    }
   }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions, filters]);
 
   // Get filter options
@@ -1329,7 +1397,15 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   <select 
                     className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
                     value={filters.selectedLocation}
-                    onChange={(e) => setFilters(prev => ({ ...prev, selectedLocation: e.target.value }))}
+                    onChange={(e) => {
+                      try {
+                        const newLocation = e.target.value;
+                        console.log(`📍 Drilling location changed to: ${newLocation}`);
+                        setFilters(prev => ({ ...prev, selectedLocation: newLocation }));
+                      } catch (error) {
+                        console.error('Error changing location filter:', error);
+                      }
+                    }}
                   >
                     {filterOptions.locations.map(location => (
                       <option key={location} value={location}>{location}</option>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatNumber } from '../../utils/formatters';
+import { formatNumberWhole } from '../../utils/formatters';
 import { useData } from '../../context/DataContext';
 import KPICard from './KPICard';
 import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
@@ -258,38 +258,38 @@ const BulkActionsDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard
           title="Total Transfers"
-          value={formatNumber(kpis.totalTransfers)}
+          value={formatNumberWhole(kpis.totalTransfers)}
           trend={0}
           color="blue"
         />
         <KPICard
           title="Total Volume"
-          value={`${formatNumber(kpis.totalVolumeBbls)} bbls`}
+          value={`${formatNumberWhole(kpis.totalVolumeBbls)} bbls`}
           trend={0}
           color="green"
         />
         <KPICard
           title="Shorebase to Rig"
-          value={formatNumber(kpis.shorebaseToRig)}
+          value={formatNumberWhole(kpis.shorebaseToRig)}
           trend={0}
           color="purple"
         />
         <KPICard
           title="Avg Transfer Size"
-          value={`${formatNumber(kpis.avgTransferSize)} bbls`}
+          value={`${formatNumberWhole(kpis.avgTransferSize)} bbls`}
           trend={0}
           color="orange"
         />
         <KPICard
           title="Drilling Fluids"
-          value={`${formatNumber(kpis.drillingFluidVolume)} bbls`}
+          value={`${formatNumberWhole(kpis.drillingFluidVolume)} bbls`}
           subtitle={`${kpis.drillingFluidCount} transfers`}
           trend={0}
           color="blue"
         />
         <KPICard
           title="Completion Fluids"
-          value={`${formatNumber(kpis.completionFluidVolume)} bbls`}
+          value={`${formatNumberWhole(kpis.completionFluidVolume)} bbls`}
           subtitle={`${kpis.completionFluidCount} transfers`}
           trend={0}
           color="purple"
@@ -323,7 +323,7 @@ const BulkActionsDashboard: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-gray-500">Volume:</span>
-                  <span className="ml-2 font-semibold">{formatNumber(route.volume)} bbls</span>
+                  <span className="ml-2 font-semibold">{formatNumberWhole(route.volume)} bbls</span>
                 </div>
                 <div>
                   <span className="text-gray-500">Types:</span>
@@ -335,67 +335,127 @@ const BulkActionsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Volume by Bulk Type */}
+      {/* Volume by Bulk Type - Enhanced Design */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <PieChart className="h-5 w-5" />
-            Volume by Bulk Type
-          </h2>
-          <div className="space-y-3">
-            {Object.entries(kpis.volumeByType)
-              .sort(([, a], [, b]) => b - a)
-              .slice(0, 8)
-              .map(([type, volume]) => {
-                const percentage = (volume / kpis.totalVolumeBbls) * 100;
-                return (
-                  <div key={type} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <span className="text-sm font-medium">{type}</span>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${percentage}%` }}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <PieChart className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Volume by Bulk Type</h3>
+                  <p className="text-sm text-blue-100 mt-0.5">Material Distribution</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-white">{formatNumberWhole(kpis.totalVolumeBbls)}</div>
+                <div className="text-xs text-blue-100">Total bbls</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="space-y-4">
+              {Object.entries(kpis.volumeByType)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 8)
+                .map(([type, volume], index) => {
+                  const percentage = (volume / kpis.totalVolumeBbls) * 100;
+                  const colors = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-blue-400', 'bg-indigo-400', 'bg-purple-400', 'bg-pink-400'];
+                  
+                  return (
+                    <div key={type} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`}></div>
+                          <span className="text-sm font-semibold text-gray-800">{type}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900">{formatNumberWhole(volume)}</div>
+                          <div className="text-xs text-gray-500">bbls</div>
+                        </div>
+                      </div>
+                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                        <div 
+                          className={`absolute top-0 left-0 h-full ${colors[index % colors.length]} rounded-full transition-all duration-700 ease-out`}
+                          style={{ width: `${Math.max(2, percentage)}%` }}
                         />
+                        <div className="absolute inset-0 flex items-center justify-between px-3">
+                          <span className="text-xs font-medium text-white">{Math.round(percentage)}%</span>
+                          {percentage > 15 && (
+                            <span className="text-xs font-medium text-white">
+                              {formatNumberWhole(volume)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-sm text-gray-600 ml-4">
-                      {formatNumber(volume)} bbls ({percentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Transfers by Vessel
-          </h2>
-          <div className="space-y-3">
-            {Object.entries(kpis.transfersByVessel)
-              .sort(([, a], [, b]) => b - a)
-              .slice(0, 8)
-              .map(([vessel, count]) => {
-                const percentage = (count / kpis.totalTransfers) * 100;
-                return (
-                  <div key={vessel} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <span className="text-sm font-medium">{vessel}</span>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-green-500 h-2 rounded-full"
-                          style={{ width: `${percentage}%` }}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Transfers by Vessel</h3>
+                  <p className="text-sm text-green-100 mt-0.5">Fleet Performance</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-white">{kpis.totalTransfers}</div>
+                <div className="text-xs text-green-100">Total transfers</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="space-y-4">
+              {Object.entries(kpis.transfersByVessel)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 8)
+                .map(([vessel, count], index) => {
+                  const percentage = (count / kpis.totalTransfers) * 100;
+                  const colors = ['bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-green-400', 'bg-emerald-400', 'bg-teal-400', 'bg-cyan-400'];
+                  
+                  return (
+                    <div key={vessel} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`}></div>
+                          <span className="text-sm font-semibold text-gray-800">{vessel}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900">{count}</div>
+                          <div className="text-xs text-gray-500">transfers</div>
+                        </div>
+                      </div>
+                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                        <div 
+                          className={`absolute top-0 left-0 h-full ${colors[index % colors.length]} rounded-full transition-all duration-700 ease-out`}
+                          style={{ width: `${Math.max(2, percentage)}%` }}
                         />
+                        <div className="absolute inset-0 flex items-center justify-between px-3">
+                          <span className="text-xs font-medium text-white">{Math.round(percentage)}%</span>
+                          {percentage > 15 && (
+                            <span className="text-xs font-medium text-white">
+                              {count}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-sm text-gray-600 ml-4">
-                      {count} transfers ({percentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+            </div>
           </div>
         </div>
       </div>
@@ -449,10 +509,10 @@ const BulkActionsDashboard: React.FC = () => {
                     {action.standardizedDestination || '-'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
-                    {formatNumber(action.qty)} {action.unit}
+                    {formatNumberWhole(action.qty)} {action.unit}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                    {formatNumber(action.volumeBbls)}
+                    {formatNumberWhole(action.volumeBbls)}
                   </td>
                 </tr>
               ))}

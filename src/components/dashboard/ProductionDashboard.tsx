@@ -19,6 +19,18 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
     bulkActions
   } = useData();
 
+  // Debug bulk actions data
+  console.log('🔍 ProductionDashboard - bulkActions:', {
+    total: bulkActions.length,
+    sample: bulkActions.slice(0, 3),
+    hasProductionFluids: bulkActions.some(a => 
+      a.fluidCategory === 'Production Chemical' || 
+      ['Methanol', 'Xylene', 'Corrosion Inhibitor', 'Scale Inhibitor', 'LDHI', 'Asphaltene Inhibitor', 'Calcium Nitrate', 'Subsea 525'].some(type => 
+        a.fluidSpecificType?.includes(type) || a.bulkType?.includes(type)
+      )
+    )
+  });
+
   // Filters state - matching PowerBI layout
   const [filters, setFilters] = useState({
     selectedMonth: 'All Months',
@@ -42,12 +54,51 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       const productionFacilities = getProductionFacilities();
       const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
       
-      // Check against both display name and location name
-      return location === filters.selectedLocation || 
-             (selectedFacility && (
-               location === selectedFacility.locationName ||
-               location === selectedFacility.displayName
-             ));
+      // For production facilities, we need more flexible matching
+      if (selectedFacility) {
+        // Check various location name formats
+        const locationLower = location.toLowerCase();
+        
+        // Direct matches
+        if (location === selectedFacility.locationName || 
+            location === selectedFacility.displayName) {
+          return true;
+        }
+        
+        // Check if location contains the facility name (case insensitive)
+        if (locationLower.includes('thunder horse') && selectedFacility.locationName.includes('Thunder Horse')) {
+          return true;
+        }
+        if (locationLower.includes('mad dog') && selectedFacility.locationName.includes('Mad Dog')) {
+          return true;
+        }
+        
+        // Check mapped location variations
+        const locationMappings: Record<string, string[]> = {
+          'Thunder Horse Prod': ['Thunder Horse', 'Thunder Horse PDQ', 'Thunder Horse Production', 'Thunderhorse'],
+          'Mad Dog Prod': ['Mad Dog', 'Mad Dog Production', 'Maddog']
+        };
+        
+        const mappedLocations = locationMappings[selectedFacility.locationName] || [];
+        if (mappedLocations.some(mapped => locationLower.includes(mapped.toLowerCase()))) {
+          return true;
+        }
+        
+        // Debug logging for Thunder Horse and Mad Dog
+        if (filters.selectedLocation === 'Thunder Horse (Production)' || filters.selectedLocation === 'Mad Dog (Production)') {
+          console.log(`🔍 Filtering for ${filters.selectedLocation}:`, {
+            location,
+            selectedFacility: selectedFacility.locationName,
+            locationLower,
+            matches: false
+          });
+        }
+        
+        return false;
+      }
+      
+      // For non-facility locations, use exact match
+      return location === filters.selectedLocation;
     };
 
     // Apply filters to data - Enhanced logic for production locations
@@ -56,19 +107,44 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       if (filters.selectedLocation !== 'all' && 
           filters.selectedLocation !== 'All Locations') {
         
-        // For production locations: Include ALL events at that location during the time period
-        // This captures production activities regardless of department classification
-        return filterByDate(event.eventDate) && filterByLocation(event.location);
+        // For production locations: Check both location and mappedLocation
+        const dateMatch = filterByDate(event.eventDate);
+        const locationMatch = filterByLocation(event.location) || 
+                            filterByLocation(event.mappedLocation) ||
+                            filterByLocation(event.originalLocation);
+        
+        // Debug for Thunder Horse and Mad Dog
+        if ((filters.selectedLocation === 'Thunder Horse (Production)' || filters.selectedLocation === 'Mad Dog (Production)')) {
+          // Log any event that might be related
+          if (event.location?.includes('Thunder Horse') || event.location?.includes('Mad Dog') ||
+              event.mappedLocation?.includes('Thunder Horse') || event.mappedLocation?.includes('Mad Dog') ||
+              event.originalLocation?.includes('Thunder Horse') || event.originalLocation?.includes('Mad Dog') ||
+              event.department === 'Production') {
+            console.log(`🔍 Event filtering for ${filters.selectedLocation}:`, {
+              eventLocation: event.location,
+              mappedLocation: event.mappedLocation,
+              originalLocation: event.originalLocation,
+              dateMatch,
+              locationMatch,
+              department: event.department,
+              eventDate: event.eventDate
+            });
+          }
+        }
+        
+        return dateMatch && locationMatch;
       }
       
-      // For non-production locations, use the original logic
+      // For "All Locations", use the original logic
       const isProductionRelated = event.department === 'Production' || 
                                  event.department === 'Logistics' ||
                                  !event.department; // Include events without department classification
       
       return isProductionRelated &&
              filterByDate(event.eventDate) &&
-             filterByLocation(event.location);
+             (filterByLocation(event.location) || 
+              filterByLocation(event.mappedLocation) ||
+              filterByLocation(event.originalLocation));
     });
 
     const filteredVesselManifests = vesselManifests.filter(manifest => {
@@ -76,19 +152,43 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       if (filters.selectedLocation !== 'all' && 
           filters.selectedLocation !== 'All Locations') {
         
-        // For production locations: Include ALL manifests at that location during the time period
-        // This captures production activities regardless of department classification
-        return filterByDate(manifest.manifestDate) && filterByLocation(manifest.mappedLocation);
+        // For production locations: Check mappedLocation and offshoreLocation
+        const dateMatch = filterByDate(manifest.manifestDate);
+        const locationMatch = filterByLocation(manifest.mappedLocation) ||
+                            filterByLocation(manifest.offshoreLocation) ||
+                            filterByLocation(manifest.from);
+        
+        // Debug for Thunder Horse and Mad Dog
+        if ((filters.selectedLocation === 'Thunder Horse (Production)' || filters.selectedLocation === 'Mad Dog (Production)')) {
+          if (manifest.mappedLocation?.includes('Thunder Horse') || manifest.mappedLocation?.includes('Mad Dog') ||
+              manifest.offshoreLocation?.includes('Thunder Horse') || manifest.offshoreLocation?.includes('Mad Dog') ||
+              manifest.from?.includes('Thunder Horse') || manifest.from?.includes('Mad Dog') ||
+              manifest.finalDepartment === 'Production') {
+            console.log(`🚢 Manifest filtering for ${filters.selectedLocation}:`, {
+              mappedLocation: manifest.mappedLocation,
+              offshoreLocation: manifest.offshoreLocation,
+              from: manifest.from,
+              dateMatch,
+              locationMatch,
+              finalDepartment: manifest.finalDepartment,
+              manifestDate: manifest.manifestDate
+            });
+          }
+        }
+        
+        return dateMatch && locationMatch;
       }
       
-      // For non-production locations, use the original logic
+      // For "All Locations", use the original logic
       const isProductionRelated = manifest.finalDepartment === 'Production' ||
                                  manifest.finalDepartment === 'Logistics' ||
                                  !manifest.finalDepartment; // Include manifests without department classification
       
       return isProductionRelated &&
              filterByDate(manifest.manifestDate) &&
-             filterByLocation(manifest.mappedLocation);
+             (filterByLocation(manifest.mappedLocation) ||
+              filterByLocation(manifest.offshoreLocation) ||
+              filterByLocation(manifest.from));
     });
 
     // Calculate KPIs based on filtered data using exact PowerBI DAX logic
@@ -127,46 +227,57 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       
       // Apply location filter if not "All Locations"
       if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-        // Check multiple location fields and the location list array
-        let locationMatch = false;
+        // For production facilities, we need to check if the voyage includes the facility
+        const selectedFacility = getProductionFacilities().find(f => f.displayName === filters.selectedLocation);
         
-        // Check main destination
-        if (voyage.mainDestination) {
-          locationMatch = filterByLocation(voyage.mainDestination) || false;
+        if (selectedFacility) {
+          let locationMatch = false;
+          
+          // Check all location fields for facility name variations
+          const facilityVariations = [
+            selectedFacility.locationName,
+            selectedFacility.displayName,
+            selectedFacility.locationName.replace(' Prod', ''),
+            selectedFacility.locationName.replace(' (Production)', '')
+          ];
+          
+          // Check if any location field contains any facility variation
+          const checkLocation = (loc: string | undefined) => {
+            if (!loc) return false;
+            const locLower = loc.toLowerCase();
+            return facilityVariations.some(variation => 
+              locLower.includes(variation.toLowerCase())
+            );
+          };
+          
+          locationMatch = checkLocation(voyage.mainDestination) ||
+                         checkLocation(voyage.originPort) ||
+                         checkLocation(voyage.locations) ||
+                         (voyage.locationList && voyage.locationList.some(loc => checkLocation(loc)));
+          
+          // Debug logging for Thunder Horse and Mad Dog
+          if ((filters.selectedLocation === 'Thunder Horse (Production)' || 
+               filters.selectedLocation === 'Mad Dog (Production)') && 
+              voyage.locations && 
+              (voyage.locations.toLowerCase().includes('thunder horse') || 
+               voyage.locations.toLowerCase().includes('mad dog'))) {
+            console.log('🚢 Production voyage debug:', {
+              vessel: voyage.vessel,
+              voyageNumber: voyage.voyageNumber,
+              startDate: voyage.startDate,
+              voyagePurpose: voyage.voyagePurpose,
+              locations: voyage.locations,
+              locationList: voyage.locationList,
+              mainDestination: voyage.mainDestination,
+              originPort: voyage.originPort,
+              locationMatch,
+              isProduction,
+              selectedFacility: selectedFacility.locationName
+            });
+          }
+          
+          if (!locationMatch) return false;
         }
-        
-        // Check origin port if main destination didn't match
-        if (!locationMatch && voyage.originPort) {
-          locationMatch = filterByLocation(voyage.originPort) || false;
-        }
-        
-        // Check full locations string if still no match
-        if (!locationMatch && voyage.locations) {
-          locationMatch = filterByLocation(voyage.locations) || false;
-        }
-        
-        // Check individual locations in locationList array
-        if (!locationMatch && voyage.locationList && voyage.locationList.length > 0) {
-          locationMatch = voyage.locationList.some(loc => filterByLocation(loc) || false);
-        }
-        
-        // Debug logging for Argos
-        if (filters.selectedLocation === 'Argos' && voyage.locations && voyage.locations.toLowerCase().includes('argos')) {
-          console.log('🔍 Argos voyage debug:', {
-            vessel: voyage.vessel,
-            voyageNumber: voyage.voyageNumber,
-            startDate: voyage.startDate,
-            voyagePurpose: voyage.voyagePurpose,
-            locations: voyage.locations,
-            locationList: voyage.locationList,
-            mainDestination: voyage.mainDestination,
-            originPort: voyage.originPort,
-            locationMatch,
-            isProduction
-          });
-        }
-        
-        if (!locationMatch) return false;
       }
       
       // Apply date filter if not "All Months"
@@ -260,6 +371,13 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       const thunderHorseLCs = ['9360', '10099', '10081', '10074', '10052'];
       const madDogLCs = ['9358', '10097', '10084', '10072', '10067'];
       
+      // Debug: Check if lcNumber field exists
+      const sampleCost = costAllocation[0];
+      if (sampleCost && !sampleCost.lcNumber) {
+        console.log('⚠️ WARNING: lcNumber field not found in cost allocation data!');
+        console.log('Available fields:', Object.keys(sampleCost));
+      }
+      
       const thunderHorseCosts = costAllocation.filter(cost => 
         thunderHorseLCs.includes(cost.lcNumber)
       );
@@ -284,6 +402,16 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         totalCost: c.totalCost,
         allocatedDays: c.totalAllocatedDays
       })));
+      
+      // Additional debug: Check all unique LC numbers
+      const uniqueLCs = new Set(costAllocation.map(c => c.lcNumber).filter(Boolean));
+      console.log('📊 Unique LC numbers in cost allocation:', Array.from(uniqueLCs).slice(0, 20));
+      
+      // Check if any Thunder Horse or Mad Dog LCs exist
+      const hasThunderHorseLCs = Array.from(uniqueLCs).some(lc => thunderHorseLCs.includes(lc));
+      const hasMadDogLCs = Array.from(uniqueLCs).some(lc => madDogLCs.includes(lc));
+      console.log('🔍 Has Thunder Horse LCs:', hasThunderHorseLCs);
+      console.log('🔍 Has Mad Dog LCs:', hasMadDogLCs);
       
       const facilityCosts: Record<string, { 
         totalCost: number; 
@@ -349,6 +477,34 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       });
       
       console.log(`📊 Filtered cost allocation: ${filteredCostAllocation.length} records`);
+      
+      // Debug: Show breakdown by facility when specific location is selected
+      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
+        console.log(`🏭 Cost allocation for ${filters.selectedLocation}:`);
+        const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
+        if (selectedFacility) {
+          const lcNumbers = selectedFacility.productionLCs ? selectedFacility.productionLCs.split(',').map(lc => lc.trim()) : [];
+          console.log(`   LC Numbers: ${lcNumbers.join(', ')}`);
+          
+          const facilityRecords = filteredCostAllocation.filter(cost => {
+            return lcNumbers.includes(cost.lcNumber) ||
+                   cost.locationReference === selectedFacility.locationName ||
+                   cost.locationReference === selectedFacility.displayName ||
+                   cost.rigLocation === selectedFacility.locationName ||
+                   cost.rigLocation === selectedFacility.displayName;
+          });
+          
+          console.log(`   Records found: ${facilityRecords.length}`);
+          if (facilityRecords.length > 0) {
+            console.log(`   Sample records:`, facilityRecords.slice(0, 3).map(r => ({
+              lcNumber: r.lcNumber,
+              location: r.locationReference || r.rigLocation,
+              allocatedDays: r.totalAllocatedDays,
+              totalCost: r.totalCost
+            })));
+          }
+        }
+      }
       
       // Get the actual voyage count from the production voyages that match the same filters
       // This ensures we count unique voyages, not cost allocation records
@@ -674,7 +830,23 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                 <select 
                   className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
                   value={filters.selectedLocation}
-                  onChange={(e) => setFilters(prev => ({ ...prev, selectedLocation: e.target.value }))}
+                  onChange={(e) => {
+                    const newLocation = e.target.value;
+                    console.log(`📍 Location filter changed to: ${newLocation}`);
+                    if (newLocation === 'Thunder Horse (Production)' || newLocation === 'Mad Dog (Production)') {
+                      console.log(`🔍 Selected production facility: ${newLocation}`);
+                      const facilities = getProductionFacilities();
+                      const facility = facilities.find(f => f.displayName === newLocation);
+                      if (facility) {
+                        console.log(`📊 Facility details:`, {
+                          locationName: facility.locationName,
+                          displayName: facility.displayName,
+                          productionLCs: facility.productionLCs
+                        });
+                      }
+                    }
+                    setFilters(prev => ({ ...prev, selectedLocation: newLocation }));
+                  }}
                 >
                   {filterOptions.locations.map(location => (
                     <option key={location} value={location}>{location}</option>
@@ -1332,27 +1504,45 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
               <Droplet className="h-6 w-6 text-green-600" />
               <h3 className="text-lg font-semibold text-gray-900">PRODUCTION FLUIDS ANALYSIS</h3>
             </div>
-            <div className="text-sm text-gray-500">Volume tracked in gallons</div>
+            <div className="text-sm text-gray-500">
+              {bulkActions.length > 0 ? 'Volume tracked in gallons' : 'No bulk actions data loaded'}
+            </div>
           </div>
           
-          <ProductionBulkInsights
-            bulkActions={bulkActions}
-            selectedVessel={undefined} // Don't filter by vessel in production dashboard
-            selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
-            dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
-              // Parse the selected month to create a date range
-              const parts = filters.selectedMonth.split(' ');
-              if (parts.length >= 2) {
-                const monthName = parts[0];
-                const year = parseInt(parts[1]);
-                const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
-                const startDate = new Date(year, monthIndex, 1);
-                const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
-                return [startDate, endDate];
-              }
-              return undefined;
-            })()}
-          />
+          {bulkActions.length > 0 ? (
+            <ProductionBulkInsights
+              bulkActions={bulkActions}
+              selectedVessel={undefined} // Don't filter by vessel in production dashboard
+              selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
+              dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
+                // Parse the selected month to create a date range
+                const parts = filters.selectedMonth.split(' ');
+                if (parts.length >= 2) {
+                  const monthName = parts[0];
+                  const year = parseInt(parts[1]);
+                  const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
+                  const startDate = new Date(year, monthIndex, 1);
+                  const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
+                  return [startDate, endDate];
+                }
+                return undefined;
+              })()}
+            />
+          ) : (
+            <div className="text-center py-12">
+              <div className="p-4 bg-gray-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
+                <Droplet className="w-10 h-10 text-gray-400" />
+              </div>
+              <p className="text-gray-700 font-semibold">No Bulk Actions Data Available</p>
+              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                To see production fluids analysis, please upload the bulk actions Excel file. 
+                This file contains information about fluid transfers including methanol, xylene, corrosion inhibitors, and other production chemicals.
+              </p>
+              <p className="text-xs text-gray-400 mt-4">
+                Expected columns: Vessel Name, Start Date, Action, Qty, Unit, Bulk Type, Bulk Description, At Port, Destination Port
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
