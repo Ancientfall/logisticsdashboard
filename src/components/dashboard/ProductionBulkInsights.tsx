@@ -10,14 +10,33 @@ const formatWholeNumber = (value: number): string => {
 
 // Helper function to normalize location names for comparison
 const normalizeLocationForComparison = (location: string): string => {
-  // Remove drilling/production indicators
-  return location
+  let norm = location
     .replace(/\s*\(Drilling\)\s*/i, '')
     .replace(/\s*\(Production\)\s*/i, '')
     .replace(/\s*Drilling\s*/i, '')
     .replace(/\s*Production\s*/i, '')
     .trim()
     .toLowerCase();
+
+  // Map all Thunder Horse variants to 'thunder horse'
+  if (
+    norm === 'thunder horse pdq' ||
+    norm === 'thunder horse prod' ||
+    norm === 'thunder horse production' ||
+    norm === 'thunderhorse'
+  ) {
+    return 'thunder horse';
+  }
+  // Map all Mad Dog variants to 'mad dog'
+  if (
+    norm === 'mad dog pdq' ||
+    norm === 'mad dog prod' ||
+    norm === 'mad dog production' ||
+    norm === 'maddog'
+  ) {
+    return 'mad dog';
+  }
+  return norm;
 };
 
 // Production fluid types
