@@ -128,7 +128,6 @@ export const parseCostAllocationMonthYear = (monthYearStr: string | number | Dat
     let match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (match) {
       const month = parseInt(match[1], 10);
-      const day = parseInt(match[2], 10);
       const year = parseInt(match[3], 10);
       
       // Validate month

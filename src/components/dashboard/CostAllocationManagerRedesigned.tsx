@@ -64,6 +64,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     selectedProjectType: 'All Types'
   });
 
+  const [hoveredMonth, setHoveredMonth] = useState<string | null>(null);
 
   // Get unique filter options
   const filterOptions = useMemo(() => {
@@ -329,106 +330,83 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
               </div>
             )}
             {/* KPI Cards Grid - First Row (Financial Overview) */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
           <KPICard 
-            title="Total Cost" 
+            title="Total Spend" 
             value={formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}
-            trend={costMetrics.costTrend}
-            isPositive={costMetrics.costTrend < 0}
             color="blue"
-            tooltip="Total budgeted vessel cost across all allocations in the selected period"
+            tooltip="Total spend across all allocations in the selected period"
           />
           <KPICard 
-            title="Efficiency Score" 
-            value={costMetrics.costEfficiency.toFixed(1)}
-            trend={null}
-            isPositive={costMetrics.costEfficiency > 90}
-            unit="%"
+            title="Avg Cost per Voyage" 
+            value={formatLargeCurrency(costMetrics.avgCostPerVoyage)}
             color="purple"
-            tooltip="Budget efficiency percentage - how well actual costs align with budgeted amounts (higher is better)"
-          />
-          <KPICard 
-            title="Active Locations" 
-            value={costMetrics.activeRigs}
-            trend={null}
-            unit="sites"
-            color="orange"
-            tooltip="Number of unique rig locations with cost allocations in the selected period"
-          />
-        </div>
-
-            {/* KPI Cards Grid - Second Row (Operational Metrics) */}
-            <div className="grid grid-cols-5 gap-4">
-          <KPICard 
-            title="Total Days" 
-            value={costMetrics.totalAllocatedDays.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-            trend={null}
-            unit="days"
-            color="green"
-            tooltip="Sum of all vessel days allocated across all voyages in the selected period"
-          />
-          <KPICard 
-            title="Cost per Day" 
-            value={formatCurrencyWhole(costMetrics.avgCostPerDay)}
-            trend={costMetrics.dailyCostTrend}
-            isPositive={costMetrics.dailyCostTrend < 0}
-            color="pink"
-            tooltip="Average cost per allocated vessel day (Total Cost ÷ Total Days)"
-          />
-          <KPICard 
-            title="Daily Rate (Avg)" 
-            value={formatCurrencyWhole(costMetrics.avgDailyRate)}
-            trend={null}
-            color="yellow"
-            tooltip="Average vessel daily rate used for cost calculations"
-          />
-          <KPICard 
-            title="Utilization Rate" 
-            value={costMetrics.utilizationRate.toFixed(1)}
-            trend={costMetrics.utilizationTrend}
-            isPositive={costMetrics.utilizationTrend > 0}
-            unit="%"
-            color="blue"
-            tooltip="Percentage of potential vessel days that were actually utilized"
+            tooltip="Average cost per voyage in the selected period"
           />
           <KPICard 
             title="Voyages Covered" 
             value={filteredCostAllocation.length}
-            trend={null}
-            unit={filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months' ? 'filtered' : 'total'}
             color="red"
             tooltip="Number of cost allocation records in the current view"
           />
+          <KPICard 
+            title="Active Departments" 
+            value={costMetrics.departmentBreakdown.length}
+            color="green"
+            tooltip="Number of unique departments with cost allocations in the selected period"
+          />
         </div>
 
-            {/* Budget Performance Summary */}
+            {/* KPI Cards Grid - Second Row (Operational Metrics) */}
+            <div className="grid grid-cols-4 gap-4">
+          <KPICard 
+            title="Project Types" 
+            value={costMetrics.projectTypeBreakdown.length}
+            color="orange"
+            tooltip="Number of different project types identified in cost allocations"
+          />
+          <KPICard 
+            title="Avg Cost per Day" 
+            value={formatCurrencyWhole(costMetrics.avgCostPerDay)}
+            color="pink"
+            tooltip="Average cost per allocated vessel day (Total Spend ÷ Total Days)"
+          />
+          <KPICard 
+            title="Top Location by Spend" 
+            value={costMetrics.locationBreakdown[0]?.location || 'N/A'}
+            color="indigo"
+            tooltip="Location with the highest total spend in the selected period"
+          />
+          <KPICard 
+            title="Largest Department by Spend" 
+            value={costMetrics.departmentBreakdown[0]?.department || 'N/A'}
+            color="yellow"
+            tooltip="Department with the highest total spend in the selected period"
+          />
+        </div>
+
+            {/* Overview Summary (formerly Budget Performance Summary) */}
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Budget Performance Overview</h3>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span className="text-sm text-gray-600">
-                {costMetrics.budgetVariance < 0 ? 'Under Budget' : 'Over Budget'} by {formatLargeCurrency(Math.abs(costMetrics.budgetVariance))}
-              </span>
-            </div>
+            <h3 className="text-lg font-semibold text-gray-900">Overview</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-            <div className="bg-white rounded-lg p-3 shadow-sm" title="Percentage of total budget that has been allocated to vessel costs">
-              <div className="text-gray-600">Budget Utilization</div>
+            <div className="bg-white rounded-lg p-3 shadow-sm" title="Total spend across all allocations in the selected period">
+              <div className="text-gray-600">Total Spend</div>
               <div className="text-2xl font-bold text-blue-600">
-                {costMetrics.totalBudget > 0 ? ((costMetrics.totalAllocatedCost / costMetrics.totalBudget) * 100).toFixed(1) : '0'}%
+                {formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}
               </div>
-              <div className="text-xs text-gray-500">of total budget</div>
+              <div className="text-xs text-gray-500">in selected period</div>
             </div>
             <div className="bg-white rounded-lg p-3 shadow-sm" title="Average cost per voyage calculated from manifest and voyage data">
-              <div className="text-gray-600">Cost per Voyage</div>
+              <div className="text-gray-600">Avg Cost per Voyage</div>
               <div className="text-2xl font-bold text-purple-600">
                 {formatLargeCurrency(costMetrics.avgCostPerVoyage)}
               </div>
               <div className="text-xs text-gray-500">average per trip</div>
             </div>
             <div className="bg-white rounded-lg p-3 shadow-sm" title="Number of unique departments with cost allocations">
-              <div className="text-gray-600">Department Count</div>
+              <div className="text-gray-600">Active Departments</div>
               <div className="text-2xl font-bold text-green-600">
                 {costMetrics.departmentBreakdown.length}
               </div>
@@ -635,8 +613,16 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
                 <div className="space-y-3">
                   {costMetrics.monthlyTrend.slice(-6).map((month, index, array) => {
                     const isLatest = index === array.length - 1;
+                    const isActive = hoveredMonth === month.month || (!hoveredMonth && isLatest);
                     return (
-                      <div key={month.month} className={`p-3 rounded-lg transition-colors ${isLatest ? 'bg-orange-50 border border-orange-200' : 'hover:bg-gray-50'}`}>
+                      <div
+                        key={month.month}
+                        className={`p-3 rounded-lg transition-colors ${
+                          isActive ? 'bg-orange-50 border border-orange-200' : 'hover:bg-gray-50'
+                        }`}
+                        onMouseEnter={() => setHoveredMonth(month.month)}
+                        onMouseLeave={() => setHoveredMonth(null)}
+                      >
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium text-gray-900">{month.month}</div>

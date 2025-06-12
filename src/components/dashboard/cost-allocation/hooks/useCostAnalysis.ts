@@ -355,7 +355,7 @@ export function useCostAnalysisRedesigned(
       monthlyTrend,
       locationBreakdown
     };
-  }, [costAllocation, voyageEvents, vesselManifests, voyageList]);
+  }, [costAllocation, vesselManifests, voyageList]);
 }
 
 function getEmptyMetrics(): CostMetrics {
