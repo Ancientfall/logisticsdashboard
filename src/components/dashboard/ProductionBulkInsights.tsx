@@ -10,32 +10,42 @@ const formatWholeNumber = (value: number): string => {
 
 // Helper function to normalize location names for comparison
 const normalizeLocationForComparison = (location: string): string => {
+  if (!location) return '';
+  
   let norm = location
     .replace(/\s*\(Drilling\)\s*/i, '')
     .replace(/\s*\(Production\)\s*/i, '')
     .replace(/\s*Drilling\s*/i, '')
     .replace(/\s*Production\s*/i, '')
+    .replace(/\s*PQ\s*/i, '') // Remove PQ suffix
+    .replace(/\s*Prod\s*/i, '') // Remove Prod suffix
     .trim()
     .toLowerCase();
 
-  // Map all Thunder Horse variants to 'thunder horse'
-  if (
-    norm === 'thunder horse pdq' ||
-    norm === 'thunder horse prod' ||
-    norm === 'thunder horse production' ||
-    norm === 'thunderhorse'
-  ) {
+  // Thunder Horse variations
+  if (norm === 'thunder horse pdq' || norm === 'thunder horse prod' || 
+      norm === 'thunder horse production' || norm === 'thunderhorse' || 
+      norm === 'thunder horse') {
     return 'thunder horse';
   }
-  // Map all Mad Dog variants to 'mad dog'
-  if (
-    norm === 'mad dog pdq' ||
-    norm === 'mad dog prod' ||
-    norm === 'mad dog production' ||
-    norm === 'maddog'
-  ) {
+  
+  // Mad Dog variations  
+  if (norm === 'mad dog pdq' || norm === 'mad dog prod' || 
+      norm === 'mad dog production' || norm === 'maddog' || 
+      norm === 'mad dog') {
     return 'mad dog';
   }
+  
+  // Atlantis variations
+  if (norm === 'atlantis pq' || norm === 'atlantis') {
+    return 'atlantis';
+  }
+  
+  // Na Kika variations
+  if (norm === 'na kika' || norm === 'nakika') {
+    return 'na kika';
+  }
+  
   return norm;
 };
 
@@ -110,10 +120,33 @@ const ProductionBulkInsights: React.FC<ProductionBulkInsightsProps> = ({
     // Debug: Show unique production fluid types
     if (productionFluids.length > 0) {
       const uniqueTypes = new Set<string>();
+      const uniqueDestinations = new Set<string>();
+      const uniqueOrigins = new Set<string>();
+      
       productionFluids.forEach(action => {
         if (action.fluidSpecificType) uniqueTypes.add(action.fluidSpecificType);
+        if (action.standardizedDestination) uniqueDestinations.add(action.standardizedDestination);
+        if (action.standardizedOrigin) uniqueOrigins.add(action.standardizedOrigin);
       });
+      
       console.log('🧪 Unique production fluid types:', Array.from(uniqueTypes));
+      console.log('📍 Unique destinations in bulk actions:', Array.from(uniqueDestinations));
+      console.log('📍 Unique origins in bulk actions:', Array.from(uniqueOrigins));
+      
+      // Check specifically for Na Kika and Atlantis variations
+      const naKikaDestinations = Array.from(uniqueDestinations).filter(dest => 
+        dest.toLowerCase().includes('na kika') || dest.toLowerCase().includes('nakika')
+      );
+      const atlantisDestinations = Array.from(uniqueDestinations).filter(dest => 
+        dest.toLowerCase().includes('atlantis')
+      );
+      
+      if (naKikaDestinations.length > 0) {
+        console.log('🔍 Na Kika destinations found:', naKikaDestinations);
+      }
+      if (atlantisDestinations.length > 0) {
+        console.log('🔍 Atlantis destinations found:', atlantisDestinations);
+      }
     }
     
     const filtered = productionFluids.filter(action => {
@@ -123,6 +156,23 @@ const ProductionBulkInsights: React.FC<ProductionBulkInsightsProps> = ({
         const normalizedSelected = normalizeLocationForComparison(selectedLocation);
         const normalizedDestination = normalizeLocationForComparison(action.standardizedDestination || '');
         const normalizedOrigin = normalizeLocationForComparison(action.standardizedOrigin || '');
+        
+        // Debug logging for Na Kika and Atlantis
+        if (selectedLocation === 'Na Kika' || selectedLocation === 'Atlantis') {
+          console.log(`🧪 Bulk fluid location filtering for ${selectedLocation}:`, {
+            actionId: action.id,
+            vesselName: action.vesselName,
+            bulkType: action.bulkType,
+            originalDestination: action.standardizedDestination,
+            originalOrigin: action.standardizedOrigin,
+            normalizedSelected,
+            normalizedDestination,
+            normalizedOrigin,
+            destinationMatch: normalizedDestination === normalizedSelected,
+            originMatch: normalizedOrigin === normalizedSelected,
+            willPass: normalizedDestination === normalizedSelected || normalizedOrigin === normalizedSelected
+          });
+        }
         
         if (normalizedDestination !== normalizedSelected && normalizedOrigin !== normalizedSelected) return false;
       }

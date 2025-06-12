@@ -12,796 +12,667 @@ interface ProductionDashboardProps {
 
 const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToUpload }) => {
   const { 
-    voyageEvents, 
-    vesselManifests, 
-    costAllocation,
-    voyageList,
-    bulkActions
+    voyageEvents = [], 
+    vesselManifests = [], 
+    costAllocation = [],
+    voyageList = [],
+    bulkActions = []
   } = useData();
 
-  // Debug bulk actions data
-  console.log('🔍 ProductionDashboard - bulkActions:', {
-    total: bulkActions.length,
-    sample: bulkActions.slice(0, 3),
-    hasProductionFluids: bulkActions.some(a => 
-      a.fluidCategory === 'Production Chemical' || 
-      ['Methanol', 'Xylene', 'Corrosion Inhibitor', 'Scale Inhibitor', 'LDHI', 'Asphaltene Inhibitor', 'Calcium Nitrate', 'Subsea 525'].some(type => 
-        a.fluidSpecificType?.includes(type) || a.bulkType?.includes(type)
-      )
-    )
-  });
-
-  // Filters state - matching PowerBI layout
+  // Filters state
   const [filters, setFilters] = useState({
     selectedMonth: 'All Months',
     selectedLocation: 'All Locations'
   });
 
-  // Calculate production-specific KPIs
-  const productionMetrics = useMemo(() => {
-    // Filter data based on selected filters
-    const filterByDate = (date: Date) => {
-      if (filters.selectedMonth === 'all' || filters.selectedMonth === 'All Months') return true;
-      const itemDate = new Date(date);
-      const monthLabel = `${itemDate.toLocaleString('default', { month: 'long' })} ${itemDate.getFullYear()}`;
-      return monthLabel === filters.selectedMonth;
-    };
+  // Helper function to safely parse dates
+  const safeParseDate = (date: any): Date | null => {
+    if (!date) return null;
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
 
-    const filterByLocation = (location: string) => {
-      if (filters.selectedLocation === 'all' || filters.selectedLocation === 'All Locations') return true;
-      
-      // Get all production facilities to map display names to location names
-      const productionFacilities = getProductionFacilities();
-      const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
-      
-      // For production facilities, we need more flexible matching
-      if (selectedFacility) {
-        // Check various location name formats
-        const locationLower = location.toLowerCase();
-        
-        // Direct matches
-        if (location === selectedFacility.locationName || 
-            location === selectedFacility.displayName) {
-          return true;
-        }
-        
-        // Check if location contains the facility name (case insensitive)
-        if (locationLower.includes('thunder horse') && selectedFacility.locationName.includes('Thunder Horse')) {
-          return true;
-        }
-        if (locationLower.includes('mad dog') && selectedFacility.locationName.includes('Mad Dog')) {
-          return true;
-        }
-        
-        // Check mapped location variations
-        const locationMappings: Record<string, string[]> = {
-          'Thunder Horse Prod': ['Thunder Horse', 'Thunder Horse PDQ', 'Thunder Horse Production', 'Thunderhorse'],
-          'Mad Dog Prod': ['Mad Dog', 'Mad Dog Production', 'Maddog']
-        };
-        
-        const mappedLocations = locationMappings[selectedFacility.locationName] || [];
-        if (mappedLocations.some(mapped => locationLower.includes(mapped.toLowerCase()))) {
-          return true;
-        }
-        
-        // Debug logging for Thunder Horse and Mad Dog
-        if (filters.selectedLocation === 'Thunder Horse (Production)' || filters.selectedLocation === 'Mad Dog (Production)') {
-          console.log(`🔍 Filtering for ${filters.selectedLocation}:`, {
-            location,
-            selectedFacility: selectedFacility.locationName,
-            locationLower,
-            matches: false
-          });
-        }
-        
-        return false;
-      }
-      
-      // For non-facility locations, use exact match
-      return location === filters.selectedLocation;
-    };
+  // Helper function for safe number operations
+  const safeNumber = (value: any, defaultValue: number = 0): number => {
+    const num = Number(value);
+    return isNaN(num) ? defaultValue : num;
+  };
 
-    // Apply filters to data - Enhanced logic for production locations
-    const filteredVoyageEvents = voyageEvents.filter(event => {
-      // For production locations, use location + time filtering primarily
-      if (filters.selectedLocation !== 'all' && 
-          filters.selectedLocation !== 'All Locations') {
-        
-        // For production locations: Check both location and mappedLocation
-        const dateMatch = filterByDate(event.eventDate);
-        const locationMatch = filterByLocation(event.location) || 
-                            filterByLocation(event.mappedLocation) ||
-                            filterByLocation(event.originalLocation);
-        
-        // Debug for Thunder Horse and Mad Dog
-        if ((filters.selectedLocation === 'Thunder Horse (Production)' || filters.selectedLocation === 'Mad Dog (Production)')) {
-          // Log any event that might be related
-          if (event.location?.includes('Thunder Horse') || event.location?.includes('Mad Dog') ||
-              event.mappedLocation?.includes('Thunder Horse') || event.mappedLocation?.includes('Mad Dog') ||
-              event.originalLocation?.includes('Thunder Horse') || event.originalLocation?.includes('Mad Dog') ||
-              event.department === 'Production') {
-            console.log(`🔍 Event filtering for ${filters.selectedLocation}:`, {
-              eventLocation: event.location,
-              mappedLocation: event.mappedLocation,
-              originalLocation: event.originalLocation,
-              dateMatch,
-              locationMatch,
-              department: event.department,
-              eventDate: event.eventDate
-            });
-          }
-        }
-        
-        return dateMatch && locationMatch;
-      }
-      
-      // For "All Locations", use the original logic
-      const isProductionRelated = event.department === 'Production' || 
-                                 event.department === 'Logistics' ||
-                                 !event.department; // Include events without department classification
-      
-      return isProductionRelated &&
-             filterByDate(event.eventDate) &&
-             (filterByLocation(event.location) || 
-              filterByLocation(event.mappedLocation) ||
-              filterByLocation(event.originalLocation));
-    });
+  // Helper function for safe division
+  const safeDivide = (numerator: number, denominator: number): number => {
+    return denominator > 0 ? numerator / denominator : 0;
+  };
 
-    const filteredVesselManifests = vesselManifests.filter(manifest => {
-      // For production locations, use location + time filtering primarily
-      if (filters.selectedLocation !== 'all' && 
-          filters.selectedLocation !== 'All Locations') {
-        
-        // For production locations: Check mappedLocation and offshoreLocation
-        const dateMatch = filterByDate(manifest.manifestDate);
-        const locationMatch = filterByLocation(manifest.mappedLocation) ||
-                            filterByLocation(manifest.offshoreLocation) ||
-                            filterByLocation(manifest.from);
-        
-        // Debug for Thunder Horse and Mad Dog
-        if ((filters.selectedLocation === 'Thunder Horse (Production)' || filters.selectedLocation === 'Mad Dog (Production)')) {
-          if (manifest.mappedLocation?.includes('Thunder Horse') || manifest.mappedLocation?.includes('Mad Dog') ||
-              manifest.offshoreLocation?.includes('Thunder Horse') || manifest.offshoreLocation?.includes('Mad Dog') ||
-              manifest.from?.includes('Thunder Horse') || manifest.from?.includes('Mad Dog') ||
-              manifest.finalDepartment === 'Production') {
-            console.log(`🚢 Manifest filtering for ${filters.selectedLocation}:`, {
-              mappedLocation: manifest.mappedLocation,
-              offshoreLocation: manifest.offshoreLocation,
-              from: manifest.from,
-              dateMatch,
-              locationMatch,
-              finalDepartment: manifest.finalDepartment,
-              manifestDate: manifest.manifestDate
-            });
-          }
-        }
-        
-        return dateMatch && locationMatch;
-      }
-      
-      // For "All Locations", use the original logic
-      const isProductionRelated = manifest.finalDepartment === 'Production' ||
-                                 manifest.finalDepartment === 'Logistics' ||
-                                 !manifest.finalDepartment; // Include manifests without department classification
-      
-      return isProductionRelated &&
-             filterByDate(manifest.manifestDate) &&
-             (filterByLocation(manifest.mappedLocation) ||
-              filterByLocation(manifest.offshoreLocation) ||
-              filterByLocation(manifest.from));
-    });
-
-    // Calculate KPIs based on filtered data using exact PowerBI DAX logic
+  // Helper function to normalize location names
+  const normalizeLocationForComparison = (location: string): string => {
+    if (!location) return '';
     
-    // 1. Cargo Tons - Total cargo moved (Deck Tons + RT Tons)
-    const deckTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0), 0);
-    const rtTons = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.rtTons || 0), 0);
-    const cargoTons = deckTons + rtTons;
+    let norm = location
+      .replace(/\s*\(Drilling\)\s*/i, '')
+      .replace(/\s*\(Production\)\s*/i, '')
+      .replace(/\s*Drilling\s*/i, '')
+      .replace(/\s*Production\s*/i, '')
+      .replace(/\s*PQ\s*/i, '') // Remove PQ suffix
+      .replace(/\s*Prod\s*/i, '') // Remove Prod suffix
+      .trim()
+      .toLowerCase();
     
-    // 2. Lifts/Hr - Efficiency metric using actual cargo operations hours
-    const totalLifts = filteredVesselManifests.reduce((sum, manifest) => sum + (manifest.lifts || 0), 0);
-    const cargoOpsHours = filteredVoyageEvents
-      .filter(event => event.parentEvent === 'Cargo Ops')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const liftsPerHour = cargoOpsHours > 0 ? totalLifts / cargoOpsHours : 0;
-    
-    // 3. Productive Hours - Time spent on productive activities
-    const osvProductiveHours = filteredVoyageEvents
-      .filter(event => event.activityCategory === 'Productive')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    
-    // 4. Waiting Time - Non-productive time offshore (excluding weather)
-    const waitingTimeOffshore = filteredVoyageEvents
-      .filter(event => event.parentEvent === 'Waiting on Installation')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    
-    // 5. Vessel Utilization - Productive hours vs total offshore time
-    const totalOffshoreHours = filteredVoyageEvents
-      .filter(event => event.portType === 'rig')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const vesselUtilization = totalOffshoreHours > 0 ? (osvProductiveHours / totalOffshoreHours) * 100 : 0;
-    
-    // 6. Voyage Efficiency - Using voyage list data for better accuracy with filtering
-    const productionVoyages = voyageList.filter(voyage => {
-      const isProduction = voyage.voyagePurpose === 'Production' || voyage.voyagePurpose === 'Mixed';
-      
-      // Apply location filter if not "All Locations"
-      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-        // For production facilities, we need to check if the voyage includes the facility
-        const selectedFacility = getProductionFacilities().find(f => f.displayName === filters.selectedLocation);
-        
-        if (selectedFacility) {
-          let locationMatch = false;
-          
-          // Check all location fields for facility name variations
-          const facilityVariations = [
-            selectedFacility.locationName,
-            selectedFacility.displayName,
-            selectedFacility.locationName.replace(' Prod', ''),
-            selectedFacility.locationName.replace(' (Production)', '')
-          ];
-          
-          // Check if any location field contains any facility variation
-          const checkLocation = (loc: string | undefined) => {
-            if (!loc) return false;
-            const locLower = loc.toLowerCase();
-            return facilityVariations.some(variation => 
-              locLower.includes(variation.toLowerCase())
-            );
-          };
-          
-          locationMatch = checkLocation(voyage.mainDestination) ||
-                         checkLocation(voyage.originPort) ||
-                         checkLocation(voyage.locations) ||
-                         (voyage.locationList && voyage.locationList.some(loc => checkLocation(loc)));
-          
-          // Debug logging for Thunder Horse and Mad Dog
-          if ((filters.selectedLocation === 'Thunder Horse (Production)' || 
-               filters.selectedLocation === 'Mad Dog (Production)') && 
-              voyage.locations && 
-              (voyage.locations.toLowerCase().includes('thunder horse') || 
-               voyage.locations.toLowerCase().includes('mad dog'))) {
-            console.log('🚢 Production voyage debug:', {
-              vessel: voyage.vessel,
-              voyageNumber: voyage.voyageNumber,
-              startDate: voyage.startDate,
-              voyagePurpose: voyage.voyagePurpose,
-              locations: voyage.locations,
-              locationList: voyage.locationList,
-              mainDestination: voyage.mainDestination,
-              originPort: voyage.originPort,
-              locationMatch,
-              isProduction,
-              selectedFacility: selectedFacility.locationName
-            });
-          }
-          
-          if (!locationMatch) return false;
-        }
-      }
-      
-      // Apply date filter if not "All Months"
-      if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
-        const dateMatch = filterByDate(voyage.startDate || voyage.voyageDate || new Date());
-        if (!dateMatch) return false;
-      }
-      
-      return isProduction;
-    });
-    const fsvRuns = productionVoyages.length;
-    
-    // Debug logging for voyage counts
-    if (filters.selectedLocation === 'Argos') {
-      console.log('📊 Argos Voyage Analysis:', {
-        totalVoyages: voyageList.length,
-        argosVoyages: voyageList.filter(v => v.locations && v.locations.toLowerCase().includes('argos')).length,
-        productionOrMixedArgosVoyages: voyageList.filter(v => 
-          v.locations && v.locations.toLowerCase().includes('argos') && 
-          (v.voyagePurpose === 'Production' || v.voyagePurpose === 'Mixed')
-        ).length,
-        filteredProductionVoyages: fsvRuns,
-        selectedMonth: filters.selectedMonth
-      });
+    // Thunder Horse variations
+    if (norm === 'thunder horse pdq' || norm === 'thunder horse prod' || 
+        norm === 'thunder horse production' || norm === 'thunderhorse' || 
+        norm === 'thunder horse') {
+      return 'thunder horse';
     }
     
-    // 7. Vessel Visits - Unique manifest entries (actual visits)
-    const vesselVisits = filteredVesselManifests.length;
+    // Mad Dog variations  
+    if (norm === 'mad dog pdq' || norm === 'mad dog prod' || 
+        norm === 'mad dog production' || norm === 'maddog' || 
+        norm === 'mad dog') {
+      return 'mad dog';
+    }
     
-    // 8. Maneuvering Hours - Setup and positioning activities
-    const maneuveringHours = filteredVoyageEvents
-      .filter(event => 
-        event.parentEvent === 'Maneuvering' ||
-        event.event?.toLowerCase().includes('maneuvering') ||
-        event.event?.toLowerCase().includes('positioning') ||
-        event.event?.toLowerCase().includes('setup') ||
-        event.event?.toLowerCase().includes('shifting')
-      )
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
+    // Atlantis variations
+    if (norm === 'atlantis pq' || norm === 'atlantis') {
+      return 'atlantis';
+    }
     
-    // 9. Non-Productive Time Analysis
-    const nonProductiveHours = filteredVoyageEvents
-      .filter(event => event.activityCategory === 'Non-Productive')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const totalHours = filteredVoyageEvents.reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const nptPercentage = totalHours > 0 ? (nonProductiveHours / totalHours) * 100 : 0;
+    // Na Kika variations
+    if (norm === 'na kika' || norm === 'nakika') {
+      return 'na kika';
+    }
     
-    // 10. Weather Impact Analysis
-    const weatherWaitingHours = filteredVoyageEvents
-      .filter(event => event.parentEvent === 'Waiting on Weather')
-      .reduce((sum, event) => sum + (event.finalHours || 0), 0);
-    const weatherImpactPercentage = totalOffshoreHours > 0 ? (weatherWaitingHours / totalOffshoreHours) * 100 : 0;
+    return norm;
+  };
 
-    // 11. Production Facility Cost Analysis
-    const productionFacilityCosts = (() => {
-      if (!costAllocation || costAllocation.length === 0) {
-        console.log('🚨 No cost allocation data available');
-        return {};
+  // Calculate production metrics with optimized filtering
+  const productionMetrics = useMemo(() => {
+    try {
+      // Early return if no data
+      if (!voyageEvents.length && !vesselManifests.length && !voyageList.length) {
+        console.log('📊 No data available for metrics calculation');
+        return {
+          cargoTons: { value: 0, trend: 0, isPositive: false },
+          liftsPerHour: { value: 0, trend: 0, isPositive: false },
+          osvProductiveHours: { value: 0, trend: 0, isPositive: false },
+          waitingTime: { value: 0, trend: 0, isPositive: false },
+          rtCargoTons: { value: 0, trend: 0, isPositive: false },
+          vesselUtilization: { value: 0, trend: 0, isPositive: false },
+          fsvRuns: { value: 0, trend: 0, isPositive: false },
+          vesselVisits: { value: 0, trend: 0, isPositive: false },
+          maneuveringHours: { value: 0, trend: 0, isPositive: false },
+          nptPercentage: { value: 0, trend: 0, isPositive: false },
+          weatherImpact: { value: 0, trend: 0, isPositive: false },
+          totalEvents: 0,
+          totalManifests: 0,
+          totalHours: 0,
+          cargoOpsHours: 0,
+          nonProductiveHours: 0,
+          vesselTypeData: [],
+          activityData: [],
+          productionFacilityCosts: {}
+        };
       }
-      
-      // Debug: Log sample cost allocation record to check field names
-      if (costAllocation.length > 0) {
-        console.log('📊 Sample cost allocation record:', costAllocation[0]);
-        console.log('📊 Available fields in cost allocation:', Object.keys(costAllocation[0]));
-        
-        // Check for LC field variations
-        const lcFields = Object.keys(costAllocation[0]).filter(key => 
-          key.toLowerCase().includes('lc') || 
-          key.toLowerCase().includes('location') ||
-          key.toLowerCase().includes('rig')
-        );
-        console.log('📊 LC/Location related fields:', lcFields);
-      }
-      
-      const productionFacilities = getProductionFacilities();
-      console.log('🏭 Production Facilities:', productionFacilities.map(f => ({
-        displayName: f.displayName,
-        locationName: f.locationName,
-        productionLCs: f.productionLCs
-      })));
-      
-      // Debug: Check all unique locations in cost allocation data
-      const uniqueLocations = new Set<string>();
-      costAllocation.forEach(cost => {
-        if (cost.rigLocation) uniqueLocations.add(cost.rigLocation);
-        if (cost.locationReference) uniqueLocations.add(cost.locationReference);
+
+      console.log('📊 Starting metrics calculation with data:', {
+        voyageEvents: voyageEvents.length,
+        vesselManifests: vesselManifests.length,
+        voyageList: voyageList.length,
+        costAllocation: costAllocation.length,
+        bulkActions: bulkActions.length
       });
-      console.log('📍 Unique locations in cost allocation:', Array.from(uniqueLocations));
-      
-      // Debug: Check LC numbers in cost allocation for Thunder Horse and Mad Dog
-      const thunderHorseLCs = ['9360', '10099', '10081', '10074', '10052'];
-      const madDogLCs = ['9358', '10097', '10084', '10072', '10067'];
-      
-      // Debug: Check if lcNumber field exists
-      const sampleCost = costAllocation[0];
-      if (sampleCost && !sampleCost.lcNumber) {
-        console.log('⚠️ WARNING: lcNumber field not found in cost allocation data!');
-        console.log('Available fields:', Object.keys(sampleCost));
-      }
-      
-      const thunderHorseCosts = costAllocation.filter(cost => 
-        thunderHorseLCs.includes(cost.lcNumber)
-      );
-      const madDogCosts = costAllocation.filter(cost => 
-        madDogLCs.includes(cost.lcNumber)
-      );
-      
-      console.log(`🌩️ Thunder Horse costs by LC: ${thunderHorseCosts.length} records`);
-      console.log('Thunder Horse LC details:', thunderHorseCosts.slice(0, 5).map(c => ({
-        lcNumber: c.lcNumber,
-        rigLocation: c.rigLocation,
-        locationReference: c.locationReference,
-        totalCost: c.totalCost,
-        allocatedDays: c.totalAllocatedDays
-      })));
-      
-      console.log(`🐕 Mad Dog costs by LC: ${madDogCosts.length} records`);
-      console.log('Mad Dog LC details:', madDogCosts.slice(0, 5).map(c => ({
-        lcNumber: c.lcNumber,
-        rigLocation: c.rigLocation,
-        locationReference: c.locationReference,
-        totalCost: c.totalCost,
-        allocatedDays: c.totalAllocatedDays
-      })));
-      
-      // Additional debug: Check all unique LC numbers
-      const uniqueLCs = new Set(costAllocation.map(c => c.lcNumber).filter(Boolean));
-      console.log('📊 Unique LC numbers in cost allocation:', Array.from(uniqueLCs).slice(0, 20));
-      
-      // Check if any Thunder Horse or Mad Dog LCs exist
-      const hasThunderHorseLCs = Array.from(uniqueLCs).some(lc => thunderHorseLCs.includes(lc));
-      const hasMadDogLCs = Array.from(uniqueLCs).some(lc => madDogLCs.includes(lc));
-      console.log('🔍 Has Thunder Horse LCs:', hasThunderHorseLCs);
-      console.log('🔍 Has Mad Dog LCs:', hasMadDogLCs);
-      
-      const facilityCosts: Record<string, { 
-        totalCost: number; 
-        allocatedDays: number; 
-        budgetedCost: number;
-        voyageCount: number;
-        avgDailyCost: number;
-        displayName: string;
-      }> = {};
-      
-      // Process cost allocation using LC-based approach
-      const filteredCostAllocation = costAllocation.filter(cost => {
-        // Apply date filter
-        if (filters.selectedMonth !== 'all' && filters.selectedMonth !== 'All Months') {
-          if (cost.costAllocationDate) {
-            const costDate = new Date(cost.costAllocationDate);
-            const monthLabel = `${costDate.toLocaleString('default', { month: 'long' })} ${costDate.getFullYear()}`;
-            if (monthLabel !== filters.selectedMonth) return false;
-          }
-        }
+
+      // Filter functions
+      const filterByDate = (date: any) => {
+        if (filters.selectedMonth === 'All Months') return true;
         
-        // Check if this LC belongs to any production facility
-        const facility = productionFacilities.find(f => {
-          if (f.productionLCs) {
-            const lcNumbers = f.productionLCs.split(',').map(lc => lc.trim());
-            return lcNumbers.includes(cost.lcNumber);
-          }
-          return false;
-        });
+        const parsedDate = safeParseDate(date);
+        if (!parsedDate) return false;
         
-        if (!facility) {
-          // Also check by location name matching
-          const isProductionFacility = productionFacilities.some(f => 
-            cost.locationReference === f.locationName ||
-            cost.locationReference === f.displayName ||
-            cost.rigLocation === f.locationName ||
-            cost.rigLocation === f.displayName
-          );
+        const monthLabel = `${parsedDate.toLocaleString('default', { month: 'long' })} ${parsedDate.getFullYear()}`;
+        return monthLabel === filters.selectedMonth;
+      };
+
+      const filterByLocation = (location: string) => {
+        if (filters.selectedLocation === 'All Locations') return true;
+        if (!location) return false;
+        
+        // Get production facilities
+        const productionFacilities = getProductionFacilities();
+        const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
+        
+        if (selectedFacility) {
+          const normalizedLocation = normalizeLocationForComparison(location);
+          const normalizedFacility = normalizeLocationForComparison(selectedFacility.displayName);
           
-          if (!isProductionFacility) return false;
+          // Direct match
+          if (normalizedLocation === normalizedFacility) return true;
+          
+          // Thunder Horse variations
+          if (normalizedFacility === 'thunder horse' && 
+              (normalizedLocation.includes('thunder horse') || normalizedLocation.includes('thunderhorse'))) {
+            return true;
+          }
+          
+          // Mad Dog variations
+          if (normalizedFacility === 'mad dog' && 
+              (normalizedLocation.includes('mad dog') || normalizedLocation.includes('maddog'))) {
+            return true;
+          }
         }
         
-        // Apply location filter
-        if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-          const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
+        return location === filters.selectedLocation;
+      };
+
+      // Apply filters to data
+      const filteredVoyageEvents = voyageEvents.filter(event => {
+        if (!event) return false;
+        
+        const dateMatch = filterByDate(event.eventDate);
+        const locationMatch = filterByLocation(event.location) || 
+                             filterByLocation(event.mappedLocation) ||
+                             filterByLocation(event.originalLocation);
+        
+        // For production, include relevant departments
+        const isProductionRelated = event.department === 'Production' || 
+                                   event.department === 'Logistics' ||
+                                   !event.department;
+        
+        return isProductionRelated && dateMatch && 
+               (filters.selectedLocation === 'All Locations' || locationMatch);
+      });
+
+      const filteredVesselManifests = vesselManifests.filter(manifest => {
+        if (!manifest) return false;
+        
+        const dateMatch = filterByDate(manifest.manifestDate);
+        const locationMatch = filterByLocation(manifest.mappedLocation) ||
+                             filterByLocation(manifest.offshoreLocation) ||
+                             filterByLocation(manifest.from);
+        
+        const isProductionRelated = manifest.finalDepartment === 'Production' ||
+                                   manifest.finalDepartment === 'Logistics' ||
+                                   !manifest.finalDepartment;
+        
+        return isProductionRelated && dateMatch && 
+               (filters.selectedLocation === 'All Locations' || locationMatch);
+      });
+
+      // Calculate basic metrics with safe operations
+      const deckTons = filteredVesselManifests.reduce((sum, manifest) => 
+        sum + safeNumber(manifest?.deckTons), 0);
+      const rtTons = filteredVesselManifests.reduce((sum, manifest) => 
+        sum + safeNumber(manifest?.rtTons), 0);
+      const cargoTons = deckTons + rtTons;
+      
+      const totalLifts = filteredVesselManifests.reduce((sum, manifest) => 
+        sum + safeNumber(manifest?.lifts), 0);
+      
+      const cargoOpsHours = filteredVoyageEvents
+        .filter(event => event?.parentEvent === 'Cargo Ops')
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const liftsPerHour = safeDivide(totalLifts, cargoOpsHours);
+      
+      const osvProductiveHours = filteredVoyageEvents
+        .filter(event => event?.activityCategory === 'Productive')
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const waitingTimeOffshore = filteredVoyageEvents
+        .filter(event => event?.parentEvent === 'Waiting on Installation')
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const totalOffshoreHours = filteredVoyageEvents
+        .filter(event => event?.portType === 'rig')
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const vesselUtilization = safeDivide(osvProductiveHours * 100, totalOffshoreHours);
+      
+      // Production voyages calculation
+      const productionVoyages = voyageList.filter(voyage => {
+        if (!voyage) return false;
+        
+        const isProduction = voyage.voyagePurpose === 'Production' || voyage.voyagePurpose === 'Mixed';
+        if (!isProduction) return false;
+        
+        // Apply filters
+        const dateMatch = filterByDate(voyage.startDate || voyage.voyageDate);
+        if (filters.selectedMonth !== 'All Months' && !dateMatch) return false;
+        
+        if (filters.selectedLocation !== 'All Locations') {
+          const selectedFacility = getProductionFacilities().find(f => f.displayName === filters.selectedLocation);
           if (selectedFacility) {
-            // Check if this cost belongs to the selected facility by LC
-            if (selectedFacility.productionLCs) {
-              const lcNumbers = selectedFacility.productionLCs.split(',').map(lc => lc.trim());
-              if (!lcNumbers.includes(cost.lcNumber)) {
-                // Also check by location name
-                const matchesLocation = cost.locationReference === selectedFacility.locationName ||
-                                       cost.locationReference === selectedFacility.displayName ||
-                                       cost.rigLocation === selectedFacility.locationName ||
-                                       cost.rigLocation === selectedFacility.displayName;
-                if (!matchesLocation) return false;
-              }
-            }
+            const facilityVariations = [
+              selectedFacility.locationName,
+              selectedFacility.displayName,
+              selectedFacility.locationName.replace(' Prod', ''),
+              selectedFacility.locationName.replace(' (Production)', '')
+            ];
+            
+            const checkLocation = (loc?: string) => {
+              if (!loc) return false;
+              const locLower = loc.toLowerCase();
+              return facilityVariations.some(variation => 
+                locLower.includes(variation.toLowerCase())
+              );
+            };
+            
+            const locationMatch = checkLocation(voyage.mainDestination) ||
+                                 checkLocation(voyage.originPort) ||
+                                 checkLocation(voyage.locations) ||
+                                 (voyage.locationList && voyage.locationList.some(loc => checkLocation(loc)));
+            
+            if (!locationMatch) return false;
           }
         }
         
         return true;
       });
       
-      console.log(`📊 Filtered cost allocation: ${filteredCostAllocation.length} records`);
+      const fsvRuns = productionVoyages.length;
+      const vesselVisits = filteredVesselManifests.length;
       
-      // Debug: Show breakdown by facility when specific location is selected
-      if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-        console.log(`🏭 Cost allocation for ${filters.selectedLocation}:`);
-        const selectedFacility = productionFacilities.find(f => f.displayName === filters.selectedLocation);
-        if (selectedFacility) {
-          const lcNumbers = selectedFacility.productionLCs ? selectedFacility.productionLCs.split(',').map(lc => lc.trim()) : [];
-          console.log(`   LC Numbers: ${lcNumbers.join(', ')}`);
+      const maneuveringHours = filteredVoyageEvents
+        .filter(event => 
+          event?.parentEvent === 'Maneuvering' ||
+          event?.event?.toLowerCase().includes('maneuvering') ||
+          event?.event?.toLowerCase().includes('positioning') ||
+          event?.event?.toLowerCase().includes('setup') ||
+          event?.event?.toLowerCase().includes('shifting')
+        )
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const totalHours = filteredVoyageEvents.reduce((sum, event) => 
+        sum + safeNumber(event?.finalHours), 0);
+      
+      const nonProductiveHours = filteredVoyageEvents
+        .filter(event => event?.activityCategory === 'Non-Productive')
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const nptPercentage = safeDivide(nonProductiveHours * 100, totalHours);
+      
+      const weatherWaitingHours = filteredVoyageEvents
+        .filter(event => event?.parentEvent === 'Waiting on Weather')
+        .reduce((sum, event) => sum + safeNumber(event?.finalHours), 0);
+      
+      const weatherImpactPercentage = safeDivide(weatherWaitingHours * 100, totalOffshoreHours);
+
+      // Production facility costs calculation (simplified)
+      const productionFacilityCosts = (() => {
+        if (!costAllocation.length) return {};
+        
+        const productionFacilities = getProductionFacilities();
+        const facilityCosts: Record<string, any> = {};
+        
+        // Filter cost allocation data
+        const filteredCostAllocation = costAllocation.filter(cost => {
+          if (!cost) return false;
           
-          const facilityRecords = filteredCostAllocation.filter(cost => {
-            return lcNumbers.includes(cost.lcNumber) ||
-                   cost.locationReference === selectedFacility.locationName ||
-                   cost.locationReference === selectedFacility.displayName ||
-                   cost.rigLocation === selectedFacility.locationName ||
-                   cost.rigLocation === selectedFacility.displayName;
+          // Apply date filter
+          if (filters.selectedMonth !== 'All Months') {
+            const costDate = safeParseDate(cost.costAllocationDate);
+            if (costDate) {
+              const monthLabel = `${costDate.toLocaleString('default', { month: 'long' })} ${costDate.getFullYear()}`;
+              if (monthLabel !== filters.selectedMonth) return false;
+            }
+          }
+          
+          // Check if this belongs to a production facility
+          const facility = productionFacilities.find(f => {
+            if (f.productionLCs) {
+              const lcNumbers = f.productionLCs.split(',').map(lc => lc.trim());
+              return lcNumbers.includes(cost.lcNumber);
+            }
+            return cost.locationReference === f.locationName ||
+                   cost.locationReference === f.displayName ||
+                   cost.rigLocation === f.locationName ||
+                   cost.rigLocation === f.displayName;
           });
           
-          console.log(`   Records found: ${facilityRecords.length}`);
-          if (facilityRecords.length > 0) {
-            console.log(`   Sample records:`, facilityRecords.slice(0, 3).map(r => ({
-              lcNumber: r.lcNumber,
-              location: r.locationReference || r.rigLocation,
-              allocatedDays: r.totalAllocatedDays,
-              totalCost: r.totalCost
-            })));
-          }
-        }
-      }
-      
-      // Get the actual voyage count from the production voyages that match the same filters
-      // This ensures we count unique voyages, not cost allocation records
-      const getVoyageCountForFacility = (facility: any) => {
-        const facilityNorm = normalizeLocationForComparison(facility.displayName);
-        const facilityVoyages = productionVoyages.filter(voyage => {
-          // Normalize all possible location fields in the voyage
-          const locationsToCheck = [
-            voyage.locations,
-            ...(voyage.locationList || []),
-            voyage.mainDestination,
-            voyage.originPort
-          ].filter(Boolean);
-          return locationsToCheck.some(loc => normalizeLocationForComparison(loc || '') === facilityNorm);
+          return !!facility;
         });
-        console.log(`🚢 Voyage count for ${facility.displayName}: ${facilityVoyages.length} voyages (from voyage list)`);
-        if (facilityVoyages.length > 0) {
-          console.log(`   Sample voyages:`, facilityVoyages.slice(0, 3).map(v => ({
-            vessel: v.vessel,
-            voyageNumber: v.voyageNumber,
-            locations: v.locations,
-            startDate: v.startDate
-          })));
-        }
-        return facilityVoyages.length;
+        
+        // Process costs by facility
+        filteredCostAllocation.forEach(cost => {
+          let facility = productionFacilities.find(f => {
+            if (f.productionLCs) {
+              const lcNumbers = f.productionLCs.split(',').map(lc => lc.trim());
+              return lcNumbers.includes(cost.lcNumber);
+            }
+            return false;
+          });
+          
+          if (!facility) {
+            const location = cost.rigLocation || cost.locationReference || 'Unknown';
+            facility = productionFacilities.find(f => 
+              location === f.locationName || location === f.displayName
+            );
+          }
+          
+          if (facility) {
+            const key = facility.displayName;
+            
+            if (!facilityCosts[key]) {
+              facilityCosts[key] = {
+                totalCost: 0,
+                allocatedDays: 0,
+                budgetedCost: 0,
+                voyageCount: 0,
+                avgDailyCost: 0,
+                displayName: facility.displayName
+              };
+            }
+            
+            facilityCosts[key].totalCost += safeNumber(cost.totalCost || cost.budgetedVesselCost);
+            facilityCosts[key].allocatedDays += safeNumber(cost.totalAllocatedDays);
+            facilityCosts[key].budgetedCost += safeNumber(cost.budgetedVesselCost);
+          }
+        });
+        
+                 // Create an unfiltered production voyages array for counting (not filtered by selected location)
+         const allProductionVoyages = voyageList.filter(voyage => {
+           if (!voyage) return false;
+           
+           const isProduction = voyage.voyagePurpose === 'Production' || voyage.voyagePurpose === 'Mixed';
+           if (!isProduction) return false;
+           
+           // Only apply date filter, NOT location filter
+           const dateMatch = filterByDate(voyage.startDate || voyage.voyageDate);
+           if (filters.selectedMonth !== 'All Months' && !dateMatch) return false;
+           
+           return true;
+         });
+         
+         console.log(`📊 Voyage counting pools:`, {
+           filteredProductionVoyages: productionVoyages.length, // Used for main KPIs
+           allProductionVoyages: allProductionVoyages.length,   // Used for facility counting
+           selectedLocation: filters.selectedLocation
+         });
+
+         // Calculate voyage counts and average daily costs
+         Object.keys(facilityCosts).forEach(key => {
+           const facility = productionFacilities.find(f => f.displayName === key);
+           if (facility) {
+             // Check both displayName and locationName variations
+             const facilityNormDisplay = normalizeLocationForComparison(facility.displayName);
+             const facilityNormLocation = normalizeLocationForComparison(facility.locationName);
+             
+             // Use the unfiltered voyage array for counting
+             const facilityVoyages = allProductionVoyages.filter(voyage => {
+               const locationsToCheck = [
+                 voyage.locations,
+                 ...(voyage.locationList || []),
+                 voyage.mainDestination,
+                 voyage.originPort
+               ].filter(Boolean);
+               
+               return locationsToCheck.some(loc => {
+                 const normalizedLoc = normalizeLocationForComparison(loc || '');
+                 return normalizedLoc === facilityNormDisplay || normalizedLoc === facilityNormLocation;
+               });
+             });
+             
+             facilityCosts[key].voyageCount = facilityVoyages.length;
+             
+             // Debug logging for specific facilities
+             if (facility.displayName === 'Na Kika' || facility.displayName === 'Atlantis' || 
+                 facility.displayName === 'Argos' || facility.displayName === 'Mad Dog (Production)') {
+               console.log(`🔍 Voyage count debug for ${facility.displayName}:`, {
+                 facilityDisplayName: facility.displayName,
+                 facilityLocationName: facility.locationName,
+                 normalizedDisplay: facilityNormDisplay,
+                 normalizedLocation: facilityNormLocation,
+                 totalUnfilteredVoyages: allProductionVoyages.length,
+                 totalFilteredVoyages: productionVoyages.length,
+                 matchingVoyages: facilityVoyages.length,
+                 selectedLocation: filters.selectedLocation,
+                 sampleMatchingVoyages: facilityVoyages.slice(0, 3).map(v => ({
+                   vessel: v.vessel,
+                   locations: v.locations,
+                   locationList: v.locationList,
+                   mainDestination: v.mainDestination,
+                   startDate: v.startDate
+                 }))
+               });
+               
+               // Show a few sample voyages that contain this facility name
+               const containsVoyages = allProductionVoyages.filter(voyage => {
+                 const facilityNameLower = facility.displayName.toLowerCase();
+                 const locationNameLower = facility.locationName.toLowerCase();
+                 
+                 const locationsToCheck = [
+                   voyage.locations,
+                   ...(voyage.locationList || []),
+                   voyage.mainDestination,
+                   voyage.originPort
+                 ].filter(Boolean);
+                 
+                 return locationsToCheck.some(loc => {
+                   if (!loc) return false;
+                   const locLower = loc.toLowerCase();
+                   return locLower.includes(facilityNameLower.split(' ')[0]) || // First word of facility name
+                          locLower.includes(locationNameLower.split(' ')[0]);   // First word of location name
+                 });
+               });
+               
+               if (containsVoyages.length > 0) {
+                 console.log(`🔍 Found ${containsVoyages.length} voyages containing facility name in all voyages:`, 
+                   containsVoyages.slice(0, 3).map(v => ({
+                     vessel: v.vessel,
+                     locations: v.locations,
+                     locationList: v.locationList,
+                     matchesNormalization: facilityVoyages.includes(v)
+                   }))
+                 );
+               }
+             }
+           }
+          
+          if (facilityCosts[key].allocatedDays > 0) {
+            facilityCosts[key].avgDailyCost = safeDivide(
+              facilityCosts[key].totalCost,
+              facilityCosts[key].allocatedDays
+            );
+          }
+        });
+        
+        return facilityCosts;
+      })();
+
+      // Mock trends (would be calculated from historical data in production)
+      const calculateTrend = (current: number, previous: number) => {
+        return safeDivide((current - previous) * 100, previous);
       };
-      
-      // Aggregate costs by facility using LC-based approach
-      filteredCostAllocation.forEach(cost => {
-        // First try to find facility by LC number
-        let facility = productionFacilities.find(f => {
-          if (f.productionLCs) {
-            const lcNumbers = f.productionLCs.split(',').map(lc => lc.trim());
-            return lcNumbers.includes(cost.lcNumber);
-          }
-          return false;
-        });
-        
-        // If not found by LC, try by location name
-        if (!facility) {
-          const location = cost.rigLocation || cost.locationReference || 'Unknown';
-          facility = productionFacilities.find(f => 
-            location === f.locationName || location === f.displayName
-          );
-        }
-        
-        if (facility) {
-          const key = facility.displayName;
-          
-          if (!facilityCosts[key]) {
-            facilityCosts[key] = {
-              totalCost: 0,
-              allocatedDays: 0,
-              budgetedCost: 0,
-              voyageCount: 0,
-              avgDailyCost: 0,
-              displayName: facility.displayName
-            };
-          }
-          
-          facilityCosts[key].totalCost += Number(cost.totalCost || cost.budgetedVesselCost || 0);
-          facilityCosts[key].allocatedDays += Number(cost.totalAllocatedDays || 0);
-          facilityCosts[key].budgetedCost += Number(cost.budgetedVesselCost || 0);
-          // Don't increment voyageCount here - we'll set it after processing all costs
-        }
-      });
-      
-      // Now set the actual voyage counts based on voyage list data
-      Object.keys(facilityCosts).forEach(key => {
-        const facility = productionFacilities.find(f => f.displayName === key);
-        if (facility) {
-          facilityCosts[key].voyageCount = getVoyageCountForFacility(facility);
-        }
-      });
-      
-      // Calculate average daily costs
-      Object.keys(facilityCosts).forEach(key => {
-        if (facilityCosts[key].allocatedDays > 0) {
-          facilityCosts[key].avgDailyCost = facilityCosts[key].totalCost / facilityCosts[key].allocatedDays;
-        }
-        console.log(`💰 ${key}: ${facilityCosts[key].voyageCount} voyages, ${facilityCosts[key].allocatedDays.toFixed(1)} days, $${facilityCosts[key].totalCost.toFixed(0)}`);
-      });
-      
-      console.log('🏁 Final facility costs:', Object.keys(facilityCosts));
-      
-      return facilityCosts;
-    })();
 
-    // Calculate trends (mock data for now - in production, compare with previous period)
-    const calculateTrend = (current: number, previous: number) => {
-      if (previous === 0) return 0;
-      return ((current - previous) / previous) * 100;
-    };
+      const mockPreviousPeriod = {
+        cargoTons: cargoTons * 0.85,
+        liftsPerHour: liftsPerHour * 1.1,
+        osvProductiveHours: osvProductiveHours * 0.92,
+        waitingTime: waitingTimeOffshore * 1.15,
+        rtCargoTons: rtTons * 1.08,
+        vesselUtilization: vesselUtilization * 0.98,
+        fsvRuns: fsvRuns * 0.91,
+        vesselVisits: vesselVisits * 0.95,
+        maneuveringHours: maneuveringHours * 1.12
+      };
 
-    // Mock previous period data (would come from actual historical data)
-    const mockPreviousPeriod = {
-      cargoTons: (cargoTons || 0) * 0.85,
-      liftsPerHour: (liftsPerHour || 0) * 1.1,
-      osvProductiveHours: (osvProductiveHours || 0) * 0.92,
-      waitingTime: (waitingTimeOffshore || 0) * 1.15,
-      rtCargoTons: (rtTons || 0) * 1.08,
-      vesselUtilization: (vesselUtilization || 0) * 0.98,
-      fsvRuns: (fsvRuns || 0) * 0.91,
-      vesselVisits: (vesselVisits || 0) * 0.95,
-      maneuveringHours: (maneuveringHours || 0) * 1.12
-    };
+      // Vessel type data
+      const vessels = [...new Set(filteredVoyageEvents.map(event => event?.vessel).filter(Boolean))];
+      const showCompanies = (filters.selectedLocation !== 'All Locations') || 
+                           (filters.selectedMonth !== 'All Months');
+      
+      const vesselCounts = vessels.reduce((acc, vessel) => {
+        const groupBy = showCompanies 
+          ? getVesselCompanyFromName(vessel) 
+          : getVesselTypeFromName(vessel);
+        acc[groupBy] = (acc[groupBy] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const vesselTypeData = Object.entries(vesselCounts).map(([type, count]) => ({
+        type,
+        count,
+        percentage: vessels.length > 0 ? (count / vessels.length) * 100 : 0
+      }));
 
-    return {
-      cargoTons: { 
-        value: Math.round(cargoTons), 
-        trend: Number(calculateTrend(cargoTons, mockPreviousPeriod.cargoTons).toFixed(1)), 
-        isPositive: cargoTons > mockPreviousPeriod.cargoTons 
-      },
-      liftsPerHour: { 
-        value: Number((Number(liftsPerHour) || 0).toFixed(2)), 
-        trend: Number(calculateTrend(Number(liftsPerHour) || 0, mockPreviousPeriod.liftsPerHour).toFixed(1)), 
-        isPositive: (Number(liftsPerHour) || 0) > mockPreviousPeriod.liftsPerHour 
-      },
-      osvProductiveHours: { 
-        value: Math.round(osvProductiveHours), 
-        trend: Number(calculateTrend(osvProductiveHours, mockPreviousPeriod.osvProductiveHours).toFixed(1)), 
-        isPositive: osvProductiveHours > mockPreviousPeriod.osvProductiveHours 
-      },
-      waitingTime: { 
-        value: Math.round(waitingTimeOffshore), 
-        trend: Number(calculateTrend(waitingTimeOffshore, mockPreviousPeriod.waitingTime).toFixed(1)), 
-        isPositive: waitingTimeOffshore < mockPreviousPeriod.waitingTime // Lower waiting time is better
-      },
-      rtCargoTons: { 
-        value: Math.round(rtTons || 0), 
-        trend: Number(calculateTrend(Number(rtTons) || 0, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
-        isPositive: (Number(rtTons) || 0) < mockPreviousPeriod.rtCargoTons // Lower RT cargo might be better
-      },
-      vesselUtilization: { 
-        value: Number(vesselUtilization.toFixed(1)), 
-        trend: Number(calculateTrend(vesselUtilization, mockPreviousPeriod.vesselUtilization).toFixed(1)), 
-        isPositive: vesselUtilization > mockPreviousPeriod.vesselUtilization 
-      },
-      fsvRuns: { 
-        value: fsvRuns, 
-        trend: Number(calculateTrend(fsvRuns, mockPreviousPeriod.fsvRuns).toFixed(1)), 
-        isPositive: fsvRuns > mockPreviousPeriod.fsvRuns 
-      },
-      vesselVisits: { 
-        value: vesselVisits, 
-        trend: Number(calculateTrend(vesselVisits, mockPreviousPeriod.vesselVisits).toFixed(1)), 
-        isPositive: vesselVisits > mockPreviousPeriod.vesselVisits 
-      },
-      maneuveringHours: { 
-        value: Math.round(maneuveringHours), 
-        trend: Number(calculateTrend(maneuveringHours, mockPreviousPeriod.maneuveringHours).toFixed(1)), 
-        isPositive: maneuveringHours < mockPreviousPeriod.maneuveringHours // Lower maneuvering hours is better
-      },
-      nptPercentage: {
-        value: Number(nptPercentage.toFixed(1)),
-        trend: 0, // Would need historical data for trend
-        isPositive: false // Lower NPT is always better
-      },
-      weatherImpact: {
-        value: Number(weatherImpactPercentage.toFixed(1)),
-        trend: 0, // Would need historical data for trend
-        isPositive: false // Lower weather impact is better
-      },
-      // Additional metrics for charts
-      totalEvents: filteredVoyageEvents.length,
-      totalManifests: filteredVesselManifests.length,
-      totalHours,
-      cargoOpsHours,
-      nonProductiveHours: totalHours - osvProductiveHours,
-      
-      // Vessel type breakdown - show companies when location/time is filtered
-      vesselTypeData: (() => {
-        const vessels = [...new Set(filteredVoyageEvents.map(event => event.vessel))];
-        
-        // Determine whether to show companies or types based on filters
-        const showCompanies = (filters.selectedLocation !== 'All Locations') || 
-                             (filters.selectedMonth !== 'All Months');
-        
-        const vesselCounts = vessels.reduce((acc, vessel) => {
-          // Use company or type based on filter state
-          const groupBy = showCompanies 
-            ? getVesselCompanyFromName(vessel) 
-            : getVesselTypeFromName(vessel);
-          acc[groupBy] = (acc[groupBy] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-        
-        return Object.entries(vesselCounts).map(([type, count]) => ({
-          type,
-          count,
-          percentage: vessels.length > 0 ? (count / vessels.length) * 100 : 0
-        }));
-      })(),
-      
-      // Activity breakdown
-      activityData: (() => {
-        const activities = [
-          { name: 'Cargo Operations', hours: cargoOpsHours, color: 'bg-blue-500' },
-          { name: 'Waiting Time', hours: waitingTimeOffshore, color: 'bg-orange-500' },
-          { name: 'Maneuvering', hours: maneuveringHours, color: 'bg-purple-500' },
-          { name: 'Other Productive', hours: Math.max(0, osvProductiveHours - cargoOpsHours), color: 'bg-green-500' },
-          { name: 'Non-Productive', hours: Math.max(0, totalHours - osvProductiveHours - waitingTimeOffshore), color: 'bg-red-500' }
-        ].filter(activity => activity.hours > 0);
-        
-        return activities.sort((a, b) => b.hours - a.hours);
-      })(),
-      
-      // Production facility costs
-      productionFacilityCosts
-    };
-  }, [voyageEvents, vesselManifests, voyageList, costAllocation, filters]);
+      // Activity data
+      const activityData = [
+        { name: 'Cargo Operations', hours: cargoOpsHours, color: 'bg-blue-500' },
+        { name: 'Waiting Time', hours: waitingTimeOffshore, color: 'bg-orange-500' },
+        { name: 'Maneuvering', hours: maneuveringHours, color: 'bg-purple-500' },
+        { name: 'Other Productive', hours: Math.max(0, osvProductiveHours - cargoOpsHours), color: 'bg-green-500' },
+        { name: 'Non-Productive', hours: Math.max(0, totalHours - osvProductiveHours - waitingTimeOffshore), color: 'bg-red-500' }
+      ].filter(activity => activity.hours > 0).sort((a, b) => b.hours - a.hours);
+
+      console.log('✅ Metrics calculation completed successfully');
+
+      return {
+        cargoTons: { 
+          value: Math.round(cargoTons), 
+          trend: Number(calculateTrend(cargoTons, mockPreviousPeriod.cargoTons).toFixed(1)), 
+          isPositive: cargoTons > mockPreviousPeriod.cargoTons 
+        },
+        liftsPerHour: { 
+          value: Number(liftsPerHour.toFixed(2)), 
+          trend: Number(calculateTrend(liftsPerHour, mockPreviousPeriod.liftsPerHour).toFixed(1)), 
+          isPositive: liftsPerHour > mockPreviousPeriod.liftsPerHour 
+        },
+        osvProductiveHours: { 
+          value: Math.round(osvProductiveHours), 
+          trend: Number(calculateTrend(osvProductiveHours, mockPreviousPeriod.osvProductiveHours).toFixed(1)), 
+          isPositive: osvProductiveHours > mockPreviousPeriod.osvProductiveHours 
+        },
+        waitingTime: { 
+          value: Math.round(waitingTimeOffshore), 
+          trend: Number(calculateTrend(waitingTimeOffshore, mockPreviousPeriod.waitingTime).toFixed(1)), 
+          isPositive: waitingTimeOffshore < mockPreviousPeriod.waitingTime 
+        },
+        rtCargoTons: { 
+          value: Math.round(rtTons), 
+          trend: Number(calculateTrend(rtTons, mockPreviousPeriod.rtCargoTons).toFixed(1)), 
+          isPositive: rtTons < mockPreviousPeriod.rtCargoTons 
+        },
+        vesselUtilization: { 
+          value: Number(vesselUtilization.toFixed(1)), 
+          trend: Number(calculateTrend(vesselUtilization, mockPreviousPeriod.vesselUtilization).toFixed(1)), 
+          isPositive: vesselUtilization > mockPreviousPeriod.vesselUtilization 
+        },
+        fsvRuns: { 
+          value: fsvRuns, 
+          trend: Number(calculateTrend(fsvRuns, mockPreviousPeriod.fsvRuns).toFixed(1)), 
+          isPositive: fsvRuns > mockPreviousPeriod.fsvRuns 
+        },
+        vesselVisits: { 
+          value: vesselVisits, 
+          trend: Number(calculateTrend(vesselVisits, mockPreviousPeriod.vesselVisits).toFixed(1)), 
+          isPositive: vesselVisits > mockPreviousPeriod.vesselVisits 
+        },
+        maneuveringHours: { 
+          value: Math.round(maneuveringHours), 
+          trend: Number(calculateTrend(maneuveringHours, mockPreviousPeriod.maneuveringHours).toFixed(1)), 
+          isPositive: maneuveringHours < mockPreviousPeriod.maneuveringHours 
+        },
+        nptPercentage: {
+          value: Number(nptPercentage.toFixed(1)),
+          trend: 0,
+          isPositive: false
+        },
+        weatherImpact: {
+          value: Number(weatherImpactPercentage.toFixed(1)),
+          trend: 0,
+          isPositive: false
+        },
+        totalEvents: filteredVoyageEvents.length,
+        totalManifests: filteredVesselManifests.length,
+        totalHours,
+        cargoOpsHours,
+        nonProductiveHours: totalHours - osvProductiveHours,
+        vesselTypeData,
+        activityData,
+        productionFacilityCosts
+      };
+    } catch (error) {
+      console.error('❌ Error calculating production metrics:', error);
+      // Return safe default values
+      return {
+        cargoTons: { value: 0, trend: 0, isPositive: false },
+        liftsPerHour: { value: 0, trend: 0, isPositive: false },
+        osvProductiveHours: { value: 0, trend: 0, isPositive: false },
+        waitingTime: { value: 0, trend: 0, isPositive: false },
+        rtCargoTons: { value: 0, trend: 0, isPositive: false },
+        vesselUtilization: { value: 0, trend: 0, isPositive: false },
+        fsvRuns: { value: 0, trend: 0, isPositive: false },
+        vesselVisits: { value: 0, trend: 0, isPositive: false },
+        maneuveringHours: { value: 0, trend: 0, isPositive: false },
+        nptPercentage: { value: 0, trend: 0, isPositive: false },
+        weatherImpact: { value: 0, trend: 0, isPositive: false },
+        totalEvents: 0,
+        totalManifests: 0,
+        totalHours: 0,
+        cargoOpsHours: 0,
+        nonProductiveHours: 0,
+        vesselTypeData: [],
+        activityData: [],
+        productionFacilityCosts: {}
+      };
+    }
+  }, [voyageEvents, vesselManifests, voyageList, costAllocation, filters.selectedMonth, filters.selectedLocation]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
-    // Create month options with proper chronological sorting from actual data
-    const monthMap = new Map<string, string>();
-    
-    // Add months from voyage events - using eventDate as primary source
-    voyageEvents.forEach(event => {
-      if (event.eventDate) {
-        const eventDate = new Date(event.eventDate);
-        if (!isNaN(eventDate.getTime())) {
-          const monthKey = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}`;
-          const monthName = eventDate.toLocaleString('default', { month: 'long' });
-          const label = `${monthName} ${eventDate.getFullYear()}`;
-          monthMap.set(monthKey, label);
-        }
-      }
-    });
-    
-    // Add months from vessel manifests - using manifestDate 
-    vesselManifests.forEach(manifest => {
-      if (manifest.manifestDate) {
-        const manifestDate = new Date(manifest.manifestDate);
-        if (!isNaN(manifestDate.getTime())) {
-          const monthKey = `${manifestDate.getFullYear()}-${String(manifestDate.getMonth() + 1).padStart(2, '0')}`;
-          const monthName = manifestDate.toLocaleString('default', { month: 'long' });
-          const label = `${monthName} ${manifestDate.getFullYear()}`;
-          monthMap.set(monthKey, label);
-        }
-      }
-    });
-    
-    // Add months from voyage list - using startDate
-    voyageList.forEach(voyage => {
-      if (voyage.startDate) {
-        const voyageDate = new Date(voyage.startDate);
-        if (!isNaN(voyageDate.getTime())) {
-          const monthKey = `${voyageDate.getFullYear()}-${String(voyageDate.getMonth() + 1).padStart(2, '0')}`;
-          const monthName = voyageDate.toLocaleString('default', { month: 'long' });
-          const label = `${monthName} ${voyageDate.getFullYear()}`;
-          monthMap.set(monthKey, label);
-        }
-      }
-    });
-    
-    // Convert to sorted array and log results
-    const sortedMonths = Array.from(monthMap.entries())
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.value.localeCompare(b.value)); // Sort chronologically
+    try {
+      const monthMap = new Map<string, string>();
       
-    const months = ['All Months', ...sortedMonths.map(item => item.label)];
-    
-    // Get production locations from master facilities data
-    const productionFacilities = getProductionFacilities();
-    const locations = ['All Locations', ...productionFacilities.map(facility => facility.displayName)];
+             // Collect months from all data sources safely
+       voyageEvents.forEach(event => {
+         if (event?.eventDate) {
+           const date = safeParseDate(event.eventDate);
+           if (date) {
+             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+             const monthName = date.toLocaleString('default', { month: 'long' });
+             const label = `${monthName} ${date.getFullYear()}`;
+             monthMap.set(monthKey, label);
+           }
+         }
+       });
+       
+       vesselManifests.forEach(manifest => {
+         if (manifest?.manifestDate) {
+           const date = safeParseDate(manifest.manifestDate);
+           if (date) {
+             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+             const monthName = date.toLocaleString('default', { month: 'long' });
+             const label = `${monthName} ${date.getFullYear()}`;
+             monthMap.set(monthKey, label);
+           }
+         }
+       });
+       
+       voyageList.forEach(voyage => {
+         if (voyage?.startDate || voyage?.voyageDate) {
+           const date = safeParseDate(voyage.startDate || voyage.voyageDate);
+           if (date) {
+             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+             const monthName = date.toLocaleString('default', { month: 'long' });
+             const label = `${monthName} ${date.getFullYear()}`;
+             monthMap.set(monthKey, label);
+           }
+         }
+       });
+      
+      const sortedMonths = Array.from(monthMap.entries())
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.value.localeCompare(b.value));
+        
+      const months = ['All Months', ...sortedMonths.map(item => item.label)];
+      const productionFacilities = getProductionFacilities();
+      const locations = ['All Locations', ...productionFacilities.map(facility => facility.displayName)];
 
-    return { months, locations };
+      return { months, locations };
+    } catch (error) {
+      console.error('❌ Error calculating filter options:', error);
+      return { months: ['All Months'], locations: ['All Locations'] };
+    }
   }, [voyageEvents, vesselManifests, voyageList]);
-
-  // Helper function to normalize location names for comparison (matches logic in ProductionBulkInsights)
-  const normalizeLocationForComparison = (location: string): string => {
-    let norm = location
-      .replace(/\s*\(Drilling\)\s*/i, '')
-      .replace(/\s*\(Production\)\s*/i, '')
-      .replace(/\s*Drilling\s*/i, '')
-      .replace(/\s*Production\s*/i, '')
-      .trim()
-      .toLowerCase();
-    if (
-      norm === 'thunder horse pdq' ||
-      norm === 'thunder horse prod' ||
-      norm === 'thunder horse production' ||
-      norm === 'thunderhorse'
-    ) {
-      return 'thunder horse';
-    }
-    if (
-      norm === 'mad dog pdq' ||
-      norm === 'mad dog prod' ||
-      norm === 'mad dog production' ||
-      norm === 'maddog'
-    ) {
-      return 'mad dog';
-    }
-    return norm;
-  };
 
   return (
     <div className="space-y-6">
@@ -856,7 +727,10 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                   onChange={(e) => {
                     const newLocation = e.target.value;
                     console.log(`📍 Location filter changed to: ${newLocation}`);
-                    if (newLocation === 'Thunder Horse (Production)' || newLocation === 'Mad Dog (Production)') {
+                    
+                    // Debug for specific facilities
+                    if (newLocation === 'Thunder Horse (Production)' || newLocation === 'Mad Dog (Production)' || 
+                        newLocation === 'Na Kika' || newLocation === 'Atlantis') {
                       console.log(`🔍 Selected production facility: ${newLocation}`);
                       const facilities = getProductionFacilities();
                       const facility = facilities.find(f => f.displayName === newLocation);
@@ -864,10 +738,13 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                         console.log(`📊 Facility details:`, {
                           locationName: facility.locationName,
                           displayName: facility.displayName,
-                          productionLCs: facility.productionLCs
+                          productionLCs: facility.productionLCs,
+                          normalizedDisplay: normalizeLocationForComparison(facility.displayName),
+                          normalizedLocation: normalizeLocationForComparison(facility.locationName)
                         });
                       }
                     }
+                    
                     setFilters(prev => ({ ...prev, selectedLocation: newLocation }));
                   }}
                 >
