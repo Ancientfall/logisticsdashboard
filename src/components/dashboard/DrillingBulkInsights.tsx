@@ -473,7 +473,7 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
             
             {/* Visual 30-Day Trend Graph */}
             <div className="mt-3 mb-2">
-              <div className="flex items-center justify-center gap-1 h-24 bg-gray-50 rounded-lg p-2">
+              <div className="flex items-end justify-center gap-0.5 h-24 bg-gray-50 rounded-lg p-2">
                 {(recentTrends.dailyVolumes || Array(30).fill(0)).map((volume, i) => {
                   try {
                     // Calculate height based on actual volume data
@@ -481,7 +481,7 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
                     const maxVolume = Math.max(...dailyVolumes, 1);
                     // Scale the height based on the maximum volume in the dataset
                     const heightPercentage = maxVolume > 0 ? (volume / maxVolume) * 100 : 0;
-                    const height = Math.max(5, (heightPercentage * 0.8)); // 80% of the container height max
+                    const height = Math.max(5, Math.min(80, heightPercentage * 0.8)); // 80% of container height max, min 5px, max 80px
                     
                     return (
                       <div 
