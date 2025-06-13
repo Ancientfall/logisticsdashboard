@@ -478,12 +478,44 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         return facilityCosts;
       })();
 
-      // Calculate fluid movement from bulk actions (production fluids)
+      // Define production chemical types
+      const PRODUCTION_CHEMICALS = [
+        'Asphaltene Inhibitor',
+        'Calcium Nitrate (Petrocare 45)',
+        'Methanol',
+        'Xylene',
+        'Corrosion Inhibitor',
+        'Scale Inhibitor',
+        'LDHI',
+        'Subsea 525'
+      ];
+      
+      // Helper function to check if action is a production chemical
+      const isProductionChemical = (action: any) => {
+        return PRODUCTION_CHEMICALS.some(chemical => 
+          action.fluidSpecificType?.toLowerCase().includes(chemical.toLowerCase()) ||
+          action.bulkDescription?.toLowerCase().includes(chemical.toLowerCase()) ||
+          action.bulkType?.toLowerCase().includes(chemical.toLowerCase())
+        );
+      };
+      
+      // Helper function to check if action is diesel
+      const isDiesel = (action: any) => {
+        const desc = (action.bulkDescription || '').toLowerCase();
+        const type = (action.bulkType || '').toLowerCase();
+        const specificType = (action.fluidSpecificType || '').toLowerCase();
+        return desc.includes('diesel') || type.includes('diesel') || specificType.includes('diesel');
+      };
+      
+      // Filter bulk actions for production chemicals only
       const filteredBulkActions = bulkActions.filter(action => {
         if (!action) return false;
         
-        // Filter for production fluids only (not drilling/completion)
+        // Exclude drilling and completion fluids
         if (action.isDrillingFluid || action.isCompletionFluid) return false;
+        
+        // Include only production chemicals (exclude diesel)
+        if (!isProductionChemical(action)) return false;
         
         // Apply date filter
         if (filters.selectedMonth !== 'All Months') {
@@ -491,7 +523,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           if (!actionDate || !filterByDate(actionDate)) return false;
         }
         
-        // Apply location filter for production
+        // Apply location filter
         if (filters.selectedLocation !== 'All Locations') {
           const locMatch = (action.standardizedDestination && filterByLocation(action.standardizedDestination)) ||
                           (action.standardizedOrigin && filterByLocation(action.standardizedOrigin));
@@ -501,8 +533,33 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         return true;
       });
       
-      // Calculate total fluid movement in gallons (production uses gallons)
+      // Calculate diesel separately
+      const dieselBulkActions = bulkActions.filter(action => {
+        if (!action) return false;
+        
+        // Include only diesel
+        if (!isDiesel(action)) return false;
+        
+        // Apply date filter
+        if (filters.selectedMonth !== 'All Months') {
+          const actionDate = safeParseDate(action.startDate);
+          if (!actionDate || !filterByDate(actionDate)) return false;
+        }
+        
+        // Apply location filter
+        if (filters.selectedLocation !== 'All Locations') {
+          const locMatch = (action.standardizedDestination && filterByLocation(action.standardizedDestination)) ||
+                          (action.standardizedOrigin && filterByLocation(action.standardizedOrigin));
+          if (!locMatch) return false;
+        }
+        
+        return true;
+      });
+      
+      // Calculate volumes
       const fluidMovement = filteredBulkActions.reduce((sum, action) => sum + (action.volumeGals || 0), 0);
+      const dieselVolume = dieselBulkActions.reduce((sum, action) => sum + (action.volumeGals || 0), 0);
+      const dieselTransfers = dieselBulkActions.length;
       
       // Calculate daily fluid volumes for the last 30 days
       const now = new Date();
@@ -679,7 +736,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive: fluidMovement > mockPreviousPeriod.fluidMovement,
           dailyFluidVolumes,
           currentVolume: currentFluidVolume,
-          totalTransfers: filteredBulkActions.length
+          totalTransfers: filteredBulkActions.length,
+          dieselVolume: dieselVolume,
+          dieselTransfers: dieselTransfers
         },
         totalEvents: filteredVoyageEvents.length,
         totalManifests: filteredVesselManifests.length,
@@ -1527,17 +1586,40 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                 </div>
               </div>
               <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                {productionMetrics.fluidMovement?.value !== 'N/A' ? `${Math.round(Number(productionMetrics.fluidMovement?.value || 0)).toLocaleString()} gals` : 'No Data'}
+                {productionMetrics.fluidMovement?.value !== 'N/A' ? `${Math.round(Number(productionMetrics.fluidMovement?.value || 0) + (productionMetrics.fluidMovement?.dieselVolume || 0)).toLocaleString()} gals total` : 'No Data'}
               </span>
             </div>
           </div>
           
           <div className="p-6">
-            <div className="text-center">
-              <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-                {productionMetrics.fluidMovement?.value === 'N/A' ? '0' : Math.round(Number(productionMetrics.fluidMovement?.value || 0)).toLocaleString()}
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* Production Chemicals */}
+              <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Droplet className="w-5 h-5 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-700">Production Chemicals</span>
+                </div>
+                <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                  {productionMetrics.fluidMovement?.value === 'N/A' ? '0' : Math.round(Number(productionMetrics.fluidMovement?.value || 0)).toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">Gallons</div>
               </div>
-              <div className="text-lg font-medium text-gray-600 mt-2">Total Gallons Moved</div>
+              
+              {/* Diesel */}
+              <div className="text-center p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Droplet className="w-5 h-5 text-amber-600" />
+                  <span className="text-sm font-medium text-gray-700">Diesel</span>
+                </div>
+                <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-orange-600">
+                  {Math.round(productionMetrics.fluidMovement?.dieselVolume || 0).toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">Gallons</div>
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-lg font-medium text-gray-600">Combined Total: {Math.round(Number(productionMetrics.fluidMovement?.value || 0) + (productionMetrics.fluidMovement?.dieselVolume || 0)).toLocaleString()} Gallons</div>
               
               {/* Trend Percentage */}
               {productionMetrics.fluidMovement?.trend !== null && productionMetrics.fluidMovement?.value !== 'N/A' && (
@@ -1598,19 +1680,19 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
             <div className="grid grid-cols-3 gap-4 mt-6">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-900">
-                  {Math.round(bulkActions.filter((a: any) => a.fluidSpecificType === 'Methanol' && !a.isDrillingFluid && !a.isCompletionFluid).reduce((sum: number, a: any) => sum + (a.volumeGals || 0), 0)).toLocaleString()}
+                  {productionMetrics.fluidMovement?.totalTransfers || 0}
                 </div>
-                <div className="text-xs text-blue-700 mt-1">Methanol</div>
+                <div className="text-xs text-blue-700 mt-1">Chemical Transfers</div>
               </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-900">
-                  {Math.round(bulkActions.filter((a: any) => a.fluidSpecificType === 'Xylene' && !a.isDrillingFluid && !a.isCompletionFluid).reduce((sum: number, a: any) => sum + (a.volumeGals || 0), 0)).toLocaleString()}
+              <div className="text-center p-4 bg-amber-50 rounded-lg">
+                <div className="text-2xl font-bold text-amber-900">
+                  {productionMetrics.fluidMovement?.dieselTransfers || 0}
                 </div>
-                <div className="text-xs text-purple-700 mt-1">Xylene</div>
+                <div className="text-xs text-amber-700 mt-1">Diesel Transfers</div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-900">
-                  {productionMetrics.fluidMovement?.totalTransfers || 0}
+                  {(productionMetrics.fluidMovement?.totalTransfers || 0) + (productionMetrics.fluidMovement?.dieselTransfers || 0)}
                 </div>
                 <div className="text-xs text-green-700 mt-1">Total Transfers</div>
               </div>

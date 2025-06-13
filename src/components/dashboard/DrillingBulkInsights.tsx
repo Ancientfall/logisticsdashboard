@@ -382,280 +382,236 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Cards - Matching Fluid Movements Style */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Drilling Fluids Card */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Droplet className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-gray-900">Drilling Fluids</h3>
-            </div>
+        <div className="text-center p-4 bg-blue-50 rounded-lg">
+          <div className="text-2xl font-bold text-blue-900">
+            {formatWholeNumber(drillingFluidMetrics.totalVolume)}
           </div>
-          <div className="space-y-2">
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{formatWholeNumber(drillingFluidMetrics.totalVolume)}</p>
-              <p className="text-sm text-gray-600">Total BBLs</p>
-            </div>
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-sm text-gray-600">{drillingFluidMetrics.transfers} transfers</p>
-              <p className="text-sm text-gray-600">{Object.keys(drillingFluidMetrics.byType).length} fluid types</p>
-            </div>
-          </div>
+          <div className="text-xs text-blue-700 mt-1">Drilling Fluids (BBLs)</div>
         </div>
 
         {/* Completion Fluids Card */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Beaker className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-gray-900">Completion Fluids</h3>
-            </div>
+        <div className="text-center p-4 bg-purple-50 rounded-lg">
+          <div className="text-2xl font-bold text-purple-900">
+            {formatWholeNumber(completionFluidMetrics.totalVolume)}
           </div>
-          <div className="space-y-2">
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{formatWholeNumber(completionFluidMetrics.totalVolume)}</p>
-              <p className="text-sm text-gray-600">Total BBLs</p>
-            </div>
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-sm text-gray-600">{completionFluidMetrics.transfers} transfers</p>
-              <p className="text-sm text-gray-600">{Object.keys(completionFluidMetrics.byType).length} fluid types</p>
-            </div>
-          </div>
+          <div className="text-xs text-purple-700 mt-1">Completion Fluids (BBLs)</div>
         </div>
 
-        {/* Operations Summary */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Building className="h-5 w-5 text-green-600" />
-              <h3 className="font-semibold text-gray-900">Operations</h3>
-            </div>
+        {/* Total Transfers Card */}
+        <div className="text-center p-4 bg-green-50 rounded-lg">
+          <div className="text-2xl font-bold text-green-900">
+            {drillingFluidMetrics.transfers + completionFluidMetrics.transfers}
           </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Load Operations</span>
-              <span className="text-sm font-medium">{drillingFluidMetrics.loadOperations + completionFluidMetrics.loadOperations}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Discharge Operations</span>
-              <span className="text-sm font-medium">{drillingFluidMetrics.dischargeOperations + completionFluidMetrics.dischargeOperations}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Returns</span>
-              <span className="text-sm font-medium">{drillingFluidMetrics.returns + completionFluidMetrics.returns}</span>
-            </div>
-          </div>
+          <div className="text-xs text-green-700 mt-1">Total Transfers</div>
         </div>
+      </div>
 
-        {/* Trends Card - Enhanced with Visual Graph */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              {recentTrends.volumeChange >= 0 ? (
-                <TrendingUp className="h-5 w-5 text-green-600" />
-              ) : (
-                <TrendingDown className="h-5 w-5 text-red-600" />
-              )}
-              <h3 className="font-semibold text-gray-900">30-Day Trend</h3>
-            </div>
+      {/* Fluid Type Breakdown - Enhanced Design */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Drilling Fluids by Type - Enhanced */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <Droplet className="h-5 w-5 text-white" />
+              </div>
+              Drilling Fluids by Type
+            </h3>
           </div>
-          <div className="space-y-2">
-            <div className="bg-gray-50 p-3 rounded-lg text-center">
-              <p className={`text-3xl font-bold ${(recentTrends.volumeChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {(recentTrends.volumeChange || 0) >= 0 ? '+' : ''}{Math.round(recentTrends.volumeChange || 0)}%
-              </p>
-              <p className="text-sm text-gray-600 mt-1">30-Day Volume Change</p>
-              {(recentTrends.currentVolume === 0 && recentTrends.previousVolume === 0) && (
-                <p className="text-xs text-orange-600 mt-1">No volume data available</p>
-              )}
-            </div>
-            
-            {/* Visual 30-Day Trend Graph */}
-            <div className="mt-3 mb-2">
-              <div className="flex items-end justify-center gap-0.5 h-24 bg-gray-50 rounded-lg p-2">
-                {(recentTrends.dailyVolumes || Array(30).fill(0)).map((volume, i) => {
-                  try {
-                    // Calculate height based on actual volume data
-                    const dailyVolumes = recentTrends.dailyVolumes || Array(30).fill(0);
-                    const maxVolume = Math.max(...dailyVolumes, 1);
-                    // Scale the height based on the maximum volume in the dataset
-                    const heightPercentage = maxVolume > 0 ? (volume / maxVolume) * 100 : 0;
-                    const height = Math.max(5, Math.min(80, heightPercentage * 0.8)); // 80% of container height max, min 5px, max 80px
+          <div className="p-6">
+            {Object.entries(drillingFluidMetrics.byType).length > 0 ? (
+              <div className="space-y-4">
+                {Object.entries(drillingFluidMetrics.byType)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([type, volume], index) => {
+                    const percentage = (volume / drillingFluidMetrics.totalVolume) * 100;
+                    const colors = [
+                      { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
+                      { bg: 'bg-cyan-500', light: 'bg-cyan-50', ring: 'ring-cyan-200' },
+                      { bg: 'bg-teal-500', light: 'bg-teal-50', ring: 'ring-teal-200' },
+                      { bg: 'bg-indigo-500', light: 'bg-indigo-50', ring: 'ring-indigo-200' },
+                      { bg: 'bg-sky-500', light: 'bg-sky-50', ring: 'ring-sky-200' }
+                    ];
+                    const color = colors[index % colors.length];
                     
                     return (
-                      <div 
-                        key={i} 
-                        className={`w-2 rounded-t-sm ${(recentTrends.volumeChange || 0) >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ 
-                          height: `${height}px`,
-                          opacity: 0.5 + (i / 30) * 0.5 // Gradually increase opacity
-                        }}
-                        title={`Day ${i+1}: ${Math.round(volume)} BBLs`} // Tooltip showing actual volume
-                      />
+                      <div key={type} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                            <span className="font-semibold text-gray-800">{type}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-gray-900">{formatWholeNumber(volume)}</span>
+                            <span className="text-xs text-gray-500 ml-1">BBLs</span>
+                          </div>
+                        </div>
+                        <div className="relative w-full bg-gray-100 rounded-full h-10 overflow-hidden">
+                          <div 
+                            className={`${color.bg} h-10 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                            style={{ width: `${Math.max(15, percentage)}%` }}
+                          >
+                            <span className="text-sm font-bold text-white">
+                              {Math.round(percentage)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     );
-                  } catch (error) {
-                    console.error('Error rendering trend bar:', error);
-                    return <div key={i} className="w-2 h-5 bg-gray-300 rounded-t-sm" />;
-                  }
-                })}
+                  })}
               </div>
-              <div className="text-xs text-center text-gray-500 mt-1">Daily Volume (Last 30 Days)</div>
-            </div>
-            
-            <div className="pt-2 border-t border-gray-100">
-              <div className="flex justify-between items-center mb-1">
-                <p className="text-sm text-gray-600">Current Volume:</p>
-                <p className="text-sm font-medium text-gray-900">{formatWholeNumber(recentTrends.currentVolume || 0)} BBLs</p>
+            ) : (
+              <div className="text-center py-8">
+                <Droplet className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No drilling fluid data available</p>
               </div>
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-600">Current Transfers:</p>
-                <p className="text-sm font-medium text-gray-900">{recentTrends.currentTransfers || 0}</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Fluid Type Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Drilling Fluids by Type */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Droplet className="h-5 w-5 text-blue-600" />
-            Drilling Fluids by Type
-          </h3>
-          <div className="space-y-3">
-            {Object.entries(drillingFluidMetrics.byType)
-              .sort(([, a], [, b]) => b - a)
-              .map(([type, volume], index) => {
-                const percentage = (volume / drillingFluidMetrics.totalVolume) * 100;
-                const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500'];
-                const colorClass = colors[index % colors.length];
-                return (
-                  <div key={type} className="border-b border-gray-100 pb-3 last:border-b-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
-                        <span className="font-medium text-gray-900">{type}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-semibold text-gray-900">{formatWholeNumber(volume)}</span>
-                        <span className="text-xs text-gray-500 ml-1">BBLs</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <div className="relative w-full bg-gray-100 rounded-lg h-8 overflow-hidden">
+        {/* Completion Fluids by Type - Enhanced */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <Beaker className="h-5 w-5 text-white" />
+              </div>
+              Completion Fluids by Type
+            </h3>
+          </div>
+          <div className="p-6">
+            {Object.entries(completionFluidMetrics.byType).length > 0 ? (
+              <div className="space-y-4">
+                {Object.entries(completionFluidMetrics.byType)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([type, volume], index) => {
+                    const percentage = (volume / completionFluidMetrics.totalVolume) * 100;
+                    const colors = [
+                      { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
+                      { bg: 'bg-pink-500', light: 'bg-pink-50', ring: 'ring-pink-200' },
+                      { bg: 'bg-fuchsia-500', light: 'bg-fuchsia-50', ring: 'ring-fuchsia-200' },
+                      { bg: 'bg-violet-500', light: 'bg-violet-50', ring: 'ring-violet-200' },
+                      { bg: 'bg-rose-500', light: 'bg-rose-50', ring: 'ring-rose-200' }
+                    ];
+                    const color = colors[index % colors.length];
+                    
+                    return (
+                      <div key={type} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                            <span className="font-semibold text-gray-800">{type}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-gray-900">{formatWholeNumber(volume)}</span>
+                            <span className="text-xs text-gray-500 ml-1">BBLs</span>
+                          </div>
+                        </div>
+                        <div className="relative w-full bg-gray-100 rounded-full h-10 overflow-hidden">
                           <div 
-                            className={`absolute top-0 left-0 h-full ${colorClass} rounded-lg transition-all duration-700 ease-out`}
-                            style={{ width: `${Math.max(2, percentage)}%` }}
+                            className={`${color.bg} h-10 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                            style={{ width: `${Math.max(15, percentage)}%` }}
                           >
-                            <div className="h-full flex items-center justify-end pr-3">
-                              <span className="text-white text-xs font-semibold drop-shadow">
-                                {Math.round(percentage)}%
-                              </span>
-                            </div>
+                            <span className="text-sm font-bold text-white">
+                              {Math.round(percentage)}%
+                            </span>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-
-        {/* Completion Fluids by Type */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Beaker className="h-5 w-5 text-purple-600" />
-            Completion Fluids by Type
-          </h3>
-          <div className="space-y-3">
-            {Object.entries(completionFluidMetrics.byType)
-              .sort(([, a], [, b]) => b - a)
-              .map(([type, volume], index) => {
-                const percentage = (volume / completionFluidMetrics.totalVolume) * 100;
-                const colors = ['bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-blue-500', 'bg-green-500', 'bg-orange-500', 'bg-red-500', 'bg-yellow-500'];
-                const colorClass = colors[index % colors.length];
-                return (
-                  <div key={type} className="border-b border-gray-100 pb-3 last:border-b-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
-                        <span className="font-medium text-gray-900">{type}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-semibold text-gray-900">{formatWholeNumber(volume)}</span>
-                        <span className="text-xs text-gray-500 ml-1">BBLs</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <div className="relative w-full bg-gray-100 rounded-lg h-8 overflow-hidden">
-                          <div 
-                            className={`absolute top-0 left-0 h-full ${colorClass} rounded-lg transition-all duration-700 ease-out`}
-                            style={{ width: `${Math.max(2, percentage)}%` }}
-                          >
-                            <div className="h-full flex items-center justify-end pr-3">
-                              <span className="text-white text-xs font-semibold drop-shadow">
-                                {Math.round(percentage)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Beaker className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No completion fluid data available</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Top Transfer Routes */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-gray-600" />
-          Top Drilling & Completion Fluid Routes
-        </h3>
-        <div className="space-y-3">
-          {topTransferRoutes.map((route, index) => (
-            <div key={index} className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-gray-900">{route.route}</span>
-                <span className="text-sm text-gray-600">{route.count} transfers</span>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500">Total Volume:</span>
-                  <span className="ml-2 font-medium">{formatWholeNumber(route.volume)} BBLs</span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Drilling:</span>
-                  <span className="ml-2 font-medium">{formatWholeNumber(route.drillingVolume)} BBLs</span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Completion:</span>
-                  <span className="ml-2 font-medium">{formatWholeNumber(route.completionVolume)} BBLs</span>
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-xs text-gray-500">Types: {route.types.join(', ')}</span>
-              </div>
+      {/* Top Transfer Routes - Enhanced */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <MapPin className="h-5 w-5 text-white" />
             </div>
-          ))}
+            Top Drilling & Completion Fluid Routes
+          </h3>
+        </div>
+        <div className="p-6">
+          {topTransferRoutes.length > 0 ? (
+            <div className="space-y-4">
+              {topTransferRoutes.map((route, index) => (
+                <div key={index} className="p-5 bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-8 rounded-full ${index === 0 ? 'bg-gradient-to-b from-blue-600 to-indigo-600' : index === 1 ? 'bg-gradient-to-b from-blue-500 to-indigo-500' : 'bg-gradient-to-b from-blue-400 to-indigo-400'}`}></div>
+                      <span className="font-semibold text-gray-900">{route.route}</span>
+                    </div>
+                    <span className="px-3 py-1 bg-white rounded-full text-sm font-medium text-gray-700 shadow-sm">
+                      {route.count} transfers
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 mb-3">
+                    <div className="text-center p-3 bg-white rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900">{formatWholeNumber(route.volume)}</p>
+                      <p className="text-xs text-gray-600 mt-1">Total BBLs</p>
+                    </div>
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <p className="text-2xl font-bold text-blue-600">{formatWholeNumber(route.drillingVolume)}</p>
+                      <p className="text-xs text-gray-600 mt-1">Drilling BBLs</p>
+                    </div>
+                    <div className="text-center p-3 bg-purple-50 rounded-lg">
+                      <p className="text-2xl font-bold text-purple-600">{formatWholeNumber(route.completionVolume)}</p>
+                      <p className="text-xs text-gray-600 mt-1">Completion BBLs</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className="font-medium">Fluid Types:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {route.types.slice(0, 3).map((type, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-white rounded-full">
+                          {type}
+                        </span>
+                      ))}
+                      {route.types.length > 3 && (
+                        <span className="px-2 py-0.5 bg-gray-200 rounded-full">
+                          +{route.types.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No transfer routes available</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Alert for low activity */}
+      {/* Alert for low activity - Enhanced */}
       {filteredBulkActions.length === 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-yellow-900">No drilling or completion fluid transfers found</p>
-            <p className="text-sm text-yellow-700">Try adjusting your filters or date range to see bulk fluid activity.</p>
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-base font-semibold text-amber-900 mb-1">No drilling or completion fluid transfers found</h4>
+              <p className="text-sm text-amber-700">Try adjusting your filters or date range to see bulk fluid activity. Make sure the bulk actions data has been uploaded and contains drilling or completion fluid information.</p>
+            </div>
           </div>
         </div>
       )}

@@ -333,172 +333,168 @@ const ProductionBulkInsights: React.FC<ProductionBulkInsightsProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Summary Cards - Matching Drilling Style */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Production Fluids Card */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Droplet className="h-5 w-5 text-green-600" />
-              <h3 className="font-semibold text-gray-900">Production Fluids</h3>
-            </div>
+        <div className="text-center p-4 bg-green-50 rounded-lg">
+          <div className="text-2xl font-bold text-green-900">
+            {formatWholeNumber(productionFluidMetrics.totalVolume)}
           </div>
-          <div className="space-y-2">
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{formatWholeNumber(productionFluidMetrics.totalVolume)}</p>
-              <p className="text-sm text-gray-600">Total Gallons</p>
-            </div>
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-sm text-gray-600">{productionFluidMetrics.transfers} transfers</p>
-              <p className="text-sm text-gray-600">{Object.keys(productionFluidMetrics.byType).length} fluid types</p>
-            </div>
-          </div>
+          <div className="text-xs text-green-700 mt-1">Production Fluids (Gallons)</div>
         </div>
 
-        {/* Operations Summary */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Building className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-gray-900">Operations</h3>
-            </div>
+        {/* Total Transfers Card */}
+        <div className="text-center p-4 bg-blue-50 rounded-lg">
+          <div className="text-2xl font-bold text-blue-900">
+            {productionFluidMetrics.transfers}
           </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Load Operations</span>
-              <span className="text-sm font-medium">{productionFluidMetrics.loadOperations}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Discharge Operations</span>
-              <span className="text-sm font-medium">{productionFluidMetrics.dischargeOperations}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Returns</span>
-              <span className="text-sm font-medium">{productionFluidMetrics.returns}</span>
-            </div>
-          </div>
+          <div className="text-xs text-blue-700 mt-1">Total Transfers</div>
         </div>
 
-        {/* Top Fluid Type */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Beaker className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-gray-900">Top Fluid Type</h3>
-            </div>
+        {/* Fluid Types Card */}
+        <div className="text-center p-4 bg-purple-50 rounded-lg">
+          <div className="text-2xl font-bold text-purple-900">
+            {Object.keys(productionFluidMetrics.byType).length}
           </div>
-          <div className="space-y-2">
-            {Object.entries(productionFluidMetrics.byType).length > 0 ? (
-              (() => {
-                const topType = Object.entries(productionFluidMetrics.byType)
-                  .sort(([, a], [, b]) => b - a)[0];
-                return (
-                  <>
-                    <div>
-                      <p className="text-lg font-bold text-gray-900">{topType[0]}</p>
-                      <p className="text-sm text-gray-600">{formatWholeNumber(topType[1])} gallons</p>
-                    </div>
-                    <div className="pt-2 border-t border-gray-100">
-                      <p className="text-sm text-gray-600">
-                        {Math.round((topType[1] / productionFluidMetrics.totalVolume) * 100)}% of total
-                      </p>
-                    </div>
-                  </>
-                );
-              })()
-            ) : (
-              <p className="text-sm text-gray-500">No data available</p>
-            )}
-          </div>
+          <div className="text-xs text-purple-700 mt-1">Fluid Types</div>
         </div>
-
       </div>
 
-      {/* Fluid Type Breakdown */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Droplet className="h-5 w-5 text-green-600" />
-          Production Fluids by Type
-        </h3>
-        <div className="space-y-3">
-          {Object.entries(productionFluidMetrics.byType)
-            .sort(([, a], [, b]) => b - a)
-            .map(([type, volume], index) => {
-              const percentage = (volume / productionFluidMetrics.totalVolume) * 100;
-              const colors = ['bg-green-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500'];
-              const colorClass = colors[index % colors.length];
-              return (
-                <div key={type} className="border-b border-gray-100 pb-3 last:border-b-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
-                      <span className="font-medium text-gray-900">{type}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-semibold text-gray-900">{formatWholeNumber(volume)}</span>
-                      <span className="text-xs text-gray-500 ml-1">gals</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="relative w-full bg-gray-100 rounded-lg h-8 overflow-hidden">
+      {/* Fluid Type Breakdown - Enhanced Design */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <Droplet className="h-5 w-5 text-white" />
+            </div>
+            Production Fluids by Type
+          </h3>
+        </div>
+        <div className="p-6">
+          {Object.entries(productionFluidMetrics.byType).length > 0 ? (
+            <div className="space-y-4">
+              {Object.entries(productionFluidMetrics.byType)
+                .sort(([, a], [, b]) => b - a)
+                .map(([type, volume], index) => {
+                  const percentage = (volume / productionFluidMetrics.totalVolume) * 100;
+                  const colors = [
+                    { bg: 'bg-green-500', light: 'bg-green-50', ring: 'ring-green-200' },
+                    { bg: 'bg-emerald-500', light: 'bg-emerald-50', ring: 'ring-emerald-200' },
+                    { bg: 'bg-teal-500', light: 'bg-teal-50', ring: 'ring-teal-200' },
+                    { bg: 'bg-lime-500', light: 'bg-lime-50', ring: 'ring-lime-200' },
+                    { bg: 'bg-cyan-500', light: 'bg-cyan-50', ring: 'ring-cyan-200' }
+                  ];
+                  const color = colors[index % colors.length];
+                  
+                  return (
+                    <div key={type} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                          <span className="font-semibold text-gray-800">{type}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-bold text-gray-900">{formatWholeNumber(volume)}</span>
+                          <span className="text-xs text-gray-500 ml-1">gals</span>
+                        </div>
+                      </div>
+                      <div className="relative w-full bg-gray-100 rounded-full h-10 overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full ${colorClass} rounded-lg transition-all duration-700 ease-out`}
-                          style={{ width: `${Math.max(2, percentage)}%` }}
+                          className={`${color.bg} h-10 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
+                          style={{ width: `${Math.max(15, percentage)}%` }}
                         >
-                          <div className="h-full flex items-center justify-end pr-3">
-                            <span className="text-white text-xs font-semibold drop-shadow">
-                              {Math.round(percentage)}%
-                            </span>
-                          </div>
+                          <span className="text-sm font-bold text-white">
+                            {Math.round(percentage)}%
+                          </span>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Droplet className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No production fluid data available</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Top Transfer Routes - Enhanced */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <MapPin className="h-5 w-5 text-white" />
+            </div>
+            Top Production Fluid Routes
+          </h3>
+        </div>
+        <div className="p-6">
+          {topTransferRoutes.length > 0 ? (
+            <div className="space-y-4">
+              {topTransferRoutes.map((route, index) => (
+                <div key={index} className="p-5 bg-gradient-to-br from-gray-50 to-indigo-50 rounded-xl border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-8 rounded-full ${index === 0 ? 'bg-gradient-to-b from-indigo-600 to-blue-600' : index === 1 ? 'bg-gradient-to-b from-indigo-500 to-blue-500' : 'bg-gradient-to-b from-indigo-400 to-blue-400'}`}></div>
+                      <span className="font-semibold text-gray-900">{route.route}</span>
+                    </div>
+                    <span className="px-3 py-1 bg-white rounded-full text-sm font-medium text-gray-700 shadow-sm">
+                      {route.count} transfers
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div className="text-center p-3 bg-white rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900">{formatWholeNumber(route.volume)}</p>
+                      <p className="text-xs text-gray-600 mt-1">Total Gallons</p>
+                    </div>
+                    <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                      <p className="text-2xl font-bold text-indigo-600">{formatWholeNumber(route.volume / route.count)}</p>
+                      <p className="text-xs text-gray-600 mt-1">Avg per Transfer</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className="font-medium">Fluid Types:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {route.types.slice(0, 3).map((type, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-white rounded-full">
+                          {type}
+                        </span>
+                      ))}
+                      {route.types.length > 3 && (
+                        <span className="px-2 py-0.5 bg-gray-200 rounded-full">
+                          +{route.types.length - 3} more
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-        </div>
-      </div>
-
-      {/* Top Transfer Routes */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-gray-600" />
-          Top Production Fluid Routes
-        </h3>
-        <div className="space-y-3">
-          {topTransferRoutes.map((route, index) => (
-            <div key={index} className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-gray-900">{route.route}</span>
-                <span className="text-sm text-gray-600">{route.count} transfers</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500">Total Volume:</span>
-                  <span className="ml-2 font-medium">{formatWholeNumber(route.volume)} gals</span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Avg per Transfer:</span>
-                  <span className="ml-2 font-medium">{formatWholeNumber(route.volume / route.count)} gals</span>
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-xs text-gray-500">Types: {route.types.join(', ')}</span>
-              </div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <div className="text-center py-8">
+              <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No transfer routes available</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Alert for low activity */}
+      {/* Alert for low activity - Enhanced */}
       {filteredBulkActions.length === 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-yellow-900">No production fluid transfers found</p>
-            <p className="text-sm text-yellow-700">Try adjusting your filters or date range to see production fluid activity.</p>
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-base font-semibold text-amber-900 mb-1">No production fluid transfers found</h4>
+              <p className="text-sm text-amber-700">Try adjusting your filters or date range to see production fluid activity. Make sure the bulk actions data has been uploaded and contains production chemical information.</p>
+            </div>
           </div>
         </div>
       )}

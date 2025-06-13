@@ -28,8 +28,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     selectedLocation: 'All Locations'
   });
   
-  // State for showing/hiding bulk insights
-  const [showBulkInsights, setShowBulkInsights] = useState(true);
+  // State for showing/hiding debug panel
   const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   // Calculate drilling-specific KPIs
@@ -2269,81 +2268,89 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           </div>
         )}
         
-        {/* Bulk Fluids Insights Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Droplet className="h-6 w-6 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">DRILLING & COMPLETION FLUIDS ANALYSIS</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowDebugPanel(!showDebugPanel)}
-                className="text-sm text-red-600 hover:text-red-800 transition-colors"
-              >
-                {showDebugPanel ? 'Hide' : 'Show'} Debug
-              </button>
-              <button
-                onClick={() => setShowBulkInsights(!showBulkInsights)}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                {showBulkInsights ? 'Hide' : 'Show'} Bulk Insights
-              </button>
+        {/* Drilling & Completion Fluids Analysis - Matching Fluid Movements Style */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <Droplet className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Drilling & Completion Fluids Analysis</h3>
+                  <p className="text-sm text-blue-100 mt-0.5">Volume Analysis & Tracking</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowDebugPanel(!showDebugPanel)}
+                  className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm hover:bg-white/30 transition-colors"
+                >
+                  {showDebugPanel ? 'Hide' : 'Show'} Debug
+                </button>
+                <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                  {bulkActions.filter((a: any) => a.isDrillingFluid || a.isCompletionFluid).length.toLocaleString()} transfers
+                </span>
+              </div>
             </div>
           </div>
           
-          {showDebugPanel && (
-            <div className="mb-4">
-              <BulkFluidDebugPanel bulkActions={bulkActions} />
-            </div>
-          )}
-          
-          {showBulkInsights && (
-            <>
-              {isDataReady && bulkActions && bulkActions.length > 0 ? (
-                <DrillingBulkInsights
-                  bulkActions={bulkActions}
-                  selectedVessel={undefined} // Don't filter by vessel in drilling dashboard
-                  selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
-                  dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
-                    try {
-                      // Parse the selected month to create a date range
-                      const parts = filters.selectedMonth.split(' ');
-                      if (parts.length >= 2) {
-                        const monthName = parts[0];
-                        const year = parseInt(parts[1]);
-                        if (isNaN(year)) return undefined;
-                        
-                        const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
-                        if (isNaN(monthIndex)) return undefined;
-                        
-                        const startDate = new Date(year, monthIndex, 1);
-                        const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
-                        console.log('📅 Created date range:', {
-                          month: filters.selectedMonth,
-                          startDate: startDate.toISOString(),
-                          endDate: endDate.toISOString()
-                        });
-                        return [startDate, endDate];
-                      }
-                      return undefined;
-                    } catch (error) {
-                      console.error('❌ Error creating date range:', error);
-                      return undefined;
+          <div className="p-6">
+            {showDebugPanel && (
+              <div className="mb-4">
+                <BulkFluidDebugPanel bulkActions={bulkActions} />
+              </div>
+            )}
+            
+            {isDataReady && bulkActions && bulkActions.length > 0 ? (
+              <DrillingBulkInsights
+                bulkActions={bulkActions}
+                selectedVessel={undefined} // Don't filter by vessel in drilling dashboard
+                selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
+                dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
+                  try {
+                    // Parse the selected month to create a date range
+                    const parts = filters.selectedMonth.split(' ');
+                    if (parts.length >= 2) {
+                      const monthName = parts[0];
+                      const year = parseInt(parts[1]);
+                      if (isNaN(year)) return undefined;
+                      
+                      const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
+                      if (isNaN(monthIndex)) return undefined;
+                      
+                      const startDate = new Date(year, monthIndex, 1);
+                      const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
+                      console.log('📅 Created date range:', {
+                        month: filters.selectedMonth,
+                        startDate: startDate.toISOString(),
+                        endDate: endDate.toISOString()
+                      });
+                      return [startDate, endDate];
                     }
-                  })()}
-                />
-              ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-900">No fluid data available</p>
-                    <p className="text-sm text-yellow-700">Please upload bulk fluid data to see analysis.</p>
-                  </div>
+                    return undefined;
+                  } catch (error) {
+                    console.error('❌ Error creating date range:', error);
+                    return undefined;
+                  }
+                })()}
+              />
+            ) : (
+              <div className="text-center py-12">
+                <div className="p-4 bg-gray-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
+                  <Droplet className="w-10 h-10 text-gray-400" />
                 </div>
-              )}
-            </>
-          )}
+                <p className="text-gray-700 font-semibold">No Drilling & Completion Fluids Data Available</p>
+                <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                  To see drilling and completion fluids analysis, please upload the bulk actions Excel file. 
+                  This file contains information about fluid transfers including drilling muds, completion brines, and other bulk fluids.
+                </p>
+                <p className="text-xs text-gray-400 mt-4">
+                  Expected columns: Vessel Name, Start Date, Action, Qty, Unit, Bulk Type, Bulk Description, At Port, Destination Port
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
