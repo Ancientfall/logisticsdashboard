@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Upload, Plus, RefreshCw, CheckCircle, FileText, BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, Home, Package } from 'lucide-react';
 import { useData } from '../../context/DataContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
 import { VoyageEvent, VesselManifest, MasterFacility, CostAllocation, VoyageList, VesselClassification, BulkAction } from '../../types';
 
@@ -72,6 +73,8 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     setError,
     clearAllData
   } = useData();
+  
+  const { addNotification } = useNotifications();
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -235,6 +238,8 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     setIsLoading(true);
     addLog(`Starting ${mode} data processing...`);
     
+    const processingStartTime = performance.now();
+    
     try {
       console.log('📁 Files to process:', {
         voyageEvents: files.voyageEvents?.name,
@@ -359,6 +364,33 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         
         addLog(`Initial data load complete: ${totalRecords} records`, 'success');
         addLog(`Vessel Analysis: Events(${uniqueVesselsFromEvents.size}), Manifests(${uniqueVesselsFromManifests.size}), VoyageList(${uniqueVesselsFromVoyageList.size})`, 'info');
+        
+        // Add notifications
+        const processingTime = performance.now() - processingStartTime;
+        addNotification('processing-complete', {
+          totalRecords,
+          duration: Math.round(processingTime)
+        });
+        
+        // Notify for each file type that was uploaded
+        if (files.voyageEvents) {
+          addNotification('upload-success', {
+            fileName: files.voyageEvents.name,
+            recordCount: newData.voyageEvents.length
+          });
+        }
+        if (files.vesselManifests) {
+          addNotification('upload-success', {
+            fileName: files.vesselManifests.name,
+            recordCount: newData.vesselManifests.length
+          });
+        }
+        if (files.costAllocation) {
+          addNotification('upload-success', {
+            fileName: files.costAllocation.name,
+            recordCount: newData.costAllocation.length
+          });
+        }
       } else {
         // Merge with existing data
         const mergedData = mergeDataSets(dataStore, newData);
@@ -374,6 +406,12 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
         setBulkActions(mergedData.bulkActions);
         
         addLog(`Incremental update complete: +${mergedData.metadata.newRecords} records`, 'success');
+        
+        // Add notification for incremental update
+        addNotification('incremental-update', {
+          newRecords: mergedData.metadata.newRecords || 0,
+          updatedRecords: 0 // We could track updated records if needed
+        });
       }
       
       setProcessingState('complete');

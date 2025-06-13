@@ -9,6 +9,7 @@ import {
   VoyageList,
   BulkAction
 } from '../../types';
+import type { Notification, NotificationSettings } from '../../types/notification';
 
 export interface StorageMetadata {
   id?: number;
@@ -46,6 +47,8 @@ export class LogisticsDatabase extends Dexie {
   voyageList!: Table<VoyageList, number>;
   bulkActions!: Table<BulkAction, number>;
   metadata!: Table<StorageMetadata, number>;
+  notifications!: Table<Notification, string>;
+  notificationSettings!: Table<NotificationSettings, number>;
 
   constructor() {
     super('BPLogisticsDatabase');
@@ -75,6 +78,23 @@ export class LogisticsDatabase extends Dexie {
       
       // Metadata table (single record with app metadata)
       metadata: '++id, lastUpdated, dataVersion'
+    });
+    
+    // Version 2: Add notifications
+    this.version(2).stores({
+      // Keep all existing stores
+      voyageEvents: '++id, vessel, eventDate, location, activityCategory, from, to',
+      vesselManifests: '++id, transporter, manifestDate, from, offshoreLocation',
+      masterFacilities: '++id, name, location, type',
+      costAllocation: '++id, vesselName, date, location, activityType',
+      vesselClassifications: '++id, vesselName, classification, type',
+      voyageList: '++id, vesselName, departure, arrival, route',
+      bulkActions: '++id, timestamp, type, status',
+      metadata: '++id, lastUpdated, dataVersion',
+      
+      // Add notification stores
+      notifications: 'id, type, subType, priority, timestamp, isRead, groupId',
+      notificationSettings: '++id'
     });
 
     // Optional: Add hooks for data validation and transformation

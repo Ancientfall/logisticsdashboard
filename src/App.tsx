@@ -5,6 +5,7 @@ import FileUploadPage from './components/dashboard/FileUploadPage';
 import MainDashboard from './components/dashboard/MainDashboard';
 import LandingPage from './components/LandingPage';
 import { DataProvider, useData } from './context/DataContext';
+import { NotificationProvider } from './context/NotificationContext';
 import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
@@ -12,9 +13,12 @@ import CostAllocationManagerRedesigned from './components/dashboard/CostAllocati
 import ProductionDashboard from './components/dashboard/ProductionDashboard';
 import ComparisonDashboard from './components/dashboard/ComparisonDashboard';
 import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard';
+import { useNotificationIntegration } from './hooks/useNotificationIntegration';
 
 // Main application content component
 const AppContent: React.FC = () => {
+  // Initialize notification integration
+  useNotificationIntegration();
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
   const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('landing');
   
@@ -260,7 +264,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <DataProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </DataProvider>
   );
 };

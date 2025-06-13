@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Home, Package } from 'lucide-react';
 import { useData } from '../../context/DataContext';
+import { useNotifications } from '../../context/NotificationContext';
+import NotificationPanel from '../notifications/NotificationPanel';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -28,7 +30,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onNavigateToBulk
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const { clearAllData, lastUpdated } = useData();
+  const { state: notificationState } = useNotifications();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -73,9 +77,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                     {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <button className="relative p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                <button 
+                  onClick={() => setIsNotificationPanelOpen(true)}
+                  className="relative p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                >
                   <Bell size={18} className="text-gray-300" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                  {notificationState.unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                      {notificationState.unreadCount > 99 ? '99+' : notificationState.unreadCount}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -253,6 +264,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </div>
         </div>
       </footer>
+      
+      {/* Notification Panel */}
+      <NotificationPanel
+        isOpen={isNotificationPanelOpen}
+        onClose={() => setIsNotificationPanelOpen(false)}
+      />
     </div>
   );
 };

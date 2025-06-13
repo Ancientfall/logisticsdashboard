@@ -1,7 +1,8 @@
 // src/components/dashboard/MainDashboard.tsx
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
-import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings, Package } from 'lucide-react';
+import { useNotifications } from '../../context/NotificationContext';
+import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings, Package, Bell } from 'lucide-react';
 import { getVesselTypeFromName, getVesselCompanyFromName, getVesselStatistics } from '../../data/vesselClassification';
 
 interface MainDashboardProps {
@@ -19,6 +20,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     forceRefreshFromStorage,
     clearAllData
   } = useData();
+  
+  const { addNotification } = useNotifications();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'quality' | 'vessels' | 'timeline'>('overview');
 
@@ -210,6 +213,33 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                // Test different notification types
+                addNotification('system-update', {
+                  version: '2.1.0'
+                });
+                setTimeout(() => {
+                  addNotification('efficiency-improvement', {
+                    metric: 'Vessel Utilization',
+                    percentage: 15,
+                    period: 'week'
+                  });
+                }, 500);
+                setTimeout(() => {
+                  addNotification('high-cost', {
+                    entity: 'LC-2024-001',
+                    current: 1250000,
+                    threshold: 1000000,
+                    percentage: 25
+                  });
+                }, 1000);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 shadow-md"
+            >
+              <Bell size={16} />
+              Test Notifications
+            </button>
             <button
               onClick={() => forceRefreshFromStorage()}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md"

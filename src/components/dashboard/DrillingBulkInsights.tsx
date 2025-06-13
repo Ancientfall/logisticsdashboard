@@ -1,7 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { BulkAction } from '../../types';
-import { } from '../../utils/bulkFluidClassification';
-import { Droplet, Beaker, AlertCircle, TrendingUp, TrendingDown, Building, MapPin } from 'lucide-react';
+import { Droplet, Beaker, AlertCircle, MapPin } from 'lucide-react';
 import { debugBulkFluidClassification } from '../../utils/bulkFluidDebugger';
 
 // Helper function to format numbers without decimals
@@ -49,7 +48,7 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
         isCompletionFluid: a.isCompletionFluid
       })));
     }
-  }, []);
+  }, [bulkActions]);
 
   // Debug logging
   useEffect(() => {
@@ -127,15 +126,6 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
         
         try {
           if (action.startDate < dateRange[0] || action.startDate > dateRange[1]) {
-            // Debug date filtering
-            if (filtered && filtered.length < 5) {
-              console.log('📅 Date filter excluded:', {
-                actionDate: action.startDate.toISOString(),
-                rangeStart: dateRange[0].toISOString(),
-                rangeEnd: dateRange[1].toISOString(),
-                reason: action.startDate < dateRange[0] ? 'before range' : 'after range'
-              });
-            }
             return false;
           }
         } catch (error) {
@@ -272,7 +262,8 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
   }, [filteredBulkActions]);
 
   // Calculate recent trends and daily data
-  const recentTrends = useMemo(() => {
+  // NOTE: Commented out as it's not currently used in the UI
+  /* const recentTrends = useMemo(() => {
     try {
       console.log('Calculating recent trends with filtered bulk actions:', filteredBulkActions.length);
       
@@ -378,7 +369,7 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
         hasRealData: false
       };
     }
-  }, [filteredBulkActions]);
+  }, [filteredBulkActions]); */
 
   return (
     <div className="space-y-6">

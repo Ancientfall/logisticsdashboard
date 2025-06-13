@@ -1,7 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { BulkAction } from '../../types';
-import { } from '../../utils/bulkFluidClassification';
-import { Droplet, Beaker, AlertCircle, Building, MapPin } from 'lucide-react';
+import { Droplet, AlertCircle, MapPin } from 'lucide-react';
 
 // Helper function to format numbers without decimals
 const formatWholeNumber = (value: number): string => {
@@ -268,7 +267,8 @@ const ProductionBulkInsights: React.FC<ProductionBulkInsightsProps> = ({
   }, [filteredBulkActions]);
 
   // Calculate recent trends
-  const recentTrends = useMemo(() => {
+  // NOTE: Commented out as it's not currently used in the UI
+  /* const recentTrends = useMemo(() => {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
@@ -329,7 +329,7 @@ const ProductionBulkInsights: React.FC<ProductionBulkInsightsProps> = ({
       previousTransfers: previous30Days.length,
       dailyVolumes
     };
-  }, [filteredBulkActions]);
+  }, [filteredBulkActions]); */
 
   return (
     <div className="space-y-6">

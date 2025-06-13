@@ -3,7 +3,7 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation, getAllProductionLCs } from '../../data/masterFacilities';
 import type { VoyageEvent } from '../../types';
-import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Droplet, AlertCircle } from 'lucide-react';
+import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Droplet } from 'lucide-react';
 import KPICard from './KPICard';
 import DrillingBulkInsights from './DrillingBulkInsights';
 import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
