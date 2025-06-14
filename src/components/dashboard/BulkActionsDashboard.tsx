@@ -2,25 +2,30 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { formatNumberWhole } from '../../utils/formatters';
 import { useData } from '../../context/DataContext';
 import KPICard from './KPICard';
+import SmartFilterBar from './SmartFilterBar';
 import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
 import { 
-  Filter, 
   MapPin,
   Building,
   ArrowRight,
   BarChart3,
   PieChart,
-  Bug
+  Bug,
+  ArrowLeft,
+  Waves
 } from 'lucide-react';
 
-const BulkActionsDashboard: React.FC = () => {
+interface BulkActionsDashboardProps {
+  onNavigateToUpload?: () => void;
+}
+
+const BulkActionsDashboard: React.FC<BulkActionsDashboardProps> = ({ onNavigateToUpload }) => {
   const { bulkActions } = useData();
-  const [selectedDateRange, setSelectedDateRange] = useState<[Date | null, Date | null]>([null, null]);
-  const [selectedVessel, setSelectedVessel] = useState<string>('all');
-  const [selectedBulkType, setSelectedBulkType] = useState<string>('all');
-  const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
-  const [selectedDestination, setSelectedDestination] = useState<string>('all');
-  const [selectedAction, setSelectedAction] = useState<string>('all');
+  // Simplified filters for SmartFilterBar
+  const [filters, setFilters] = useState({
+    selectedVessel: 'All Vessels',
+    selectedBulkType: 'All Types'
+  });
   const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 20;
@@ -28,46 +33,26 @@ const BulkActionsDashboard: React.FC = () => {
   // Filter bulk actions
   const filteredBulkActions = useMemo(() => {
     return bulkActions.filter(action => {
-      const dateMatch = !selectedDateRange[0] || !selectedDateRange[1] || 
-        (action.startDate >= selectedDateRange[0] && action.startDate <= selectedDateRange[1]);
-      const vesselMatch = selectedVessel === 'all' || action.vesselName === selectedVessel;
-      const bulkTypeMatch = selectedBulkType === 'all' || action.bulkType === selectedBulkType;
-      const originMatch = selectedOrigin === 'all' || action.standardizedOrigin === selectedOrigin;
-      const destinationMatch = selectedDestination === 'all' || action.standardizedDestination === selectedDestination;
-      const actionMatch = selectedAction === 'all' || action.action === selectedAction;
+      const vesselMatch = filters.selectedVessel === 'All Vessels' || action.vesselName === filters.selectedVessel;
+      const bulkTypeMatch = filters.selectedBulkType === 'All Types' || action.bulkType === filters.selectedBulkType;
 
-      return dateMatch && vesselMatch && bulkTypeMatch && originMatch && destinationMatch && actionMatch;
+      return vesselMatch && bulkTypeMatch;
     });
-  }, [bulkActions, selectedDateRange, selectedVessel, selectedBulkType, selectedOrigin, selectedDestination, selectedAction]);
+  }, [bulkActions, filters]);
 
   // Reset to page 1 if filters change
   useEffect(() => { setCurrentPage(1); }, [filteredBulkActions]);
 
-  // Get unique values for filters
-  const vessels = useMemo(() => 
-    Array.from(new Set(bulkActions.map(a => a.vesselName))).sort(), 
-    [bulkActions]
-  );
-  
-  const bulkTypes = useMemo(() => 
-    Array.from(new Set(bulkActions.map(a => a.bulkType))).sort(), 
-    [bulkActions]
-  );
-  
-  const origins = useMemo(() => 
-    Array.from(new Set(bulkActions.map(a => a.standardizedOrigin))).sort(), 
-    [bulkActions]
-  );
-  
-  const destinations = useMemo(() => 
-    Array.from(new Set(bulkActions.map(a => a.standardizedDestination).filter(Boolean))).sort(), 
-    [bulkActions]
-  );
-  
-  const actions = useMemo(() => 
-    Array.from(new Set(bulkActions.map(a => a.action))).sort(), 
-    [bulkActions]
-  );
+  // Get filter options for SmartFilterBar
+  const filterOptions = useMemo(() => {
+    const vessels = Array.from(new Set(bulkActions.map(a => a.vesselName))).sort();
+    const bulkTypes = Array.from(new Set(bulkActions.map(a => a.bulkType))).sort();
+    
+    return {
+      vessels: ['All Vessels', ...vessels],
+      bulkTypes: ['All Types', ...bulkTypes]
+    };
+  }, [bulkActions]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -148,251 +133,171 @@ const BulkActionsDashboard: React.FC = () => {
   }, [filteredBulkActions, currentPage]);
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="bg-white rounded-lg shadow-sm p-6">
+    <div className="space-y-6">
+      {/* Modern Header */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Bulk Actions Dashboard</h1>
-            <p className="text-gray-600">Track and analyze bulk material transfers between shorebase and rigs</p>
-          </div>
-          <button
-            onClick={() => setShowDebugPanel(!showDebugPanel)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              showDebugPanel 
-                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Bug className="h-4 w-4" />
-            {showDebugPanel ? 'Hide Debug Panel' : 'Show Debug Panel'}
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Filter className="h-5 w-5 text-gray-600" />
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
+              <Waves className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              <p className="text-sm text-gray-500">Refine your bulk actions view</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                Bulk Actions Dashboard
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Real-time bulk material transfer tracking & analytics
+              </p>
             </div>
           </div>
-        </div>
-        
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Date Range</label>
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  onChange={(e) => setSelectedDateRange([new Date(e.target.value), selectedDateRange[1]])}
-                />
-                <input
-                  type="date"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  onChange={(e) => setSelectedDateRange([selectedDateRange[0], new Date(e.target.value)])}
-                />
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-2xl font-bold text-blue-600">{kpis.totalTransfers.toLocaleString()}</div>
+              <div className="text-sm text-gray-500">Total Transfers</div>
             </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Vessel</label>
-              <select
-                value={selectedVessel}
-                onChange={(e) => setSelectedVessel(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            <button
+              onClick={() => setShowDebugPanel(!showDebugPanel)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                showDebugPanel 
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Bug className="h-4 w-4" />
+              {showDebugPanel ? 'Hide Debug' : 'Show Debug'}
+            </button>
+            {onNavigateToUpload && (
+              <button
+                onClick={onNavigateToUpload}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-gray-700 transition-all duration-200"
               >
-                <option value="all">All Vessels</option>
-                {vessels.map(vessel => (
-                  <option key={vessel} value={vessel}>{vessel}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Bulk Type</label>
-              <select
-                value={selectedBulkType}
-                onChange={(e) => setSelectedBulkType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              >
-                <option value="all">All Types</option>
-                {bulkTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Origin</label>
-              <select
-                value={selectedOrigin}
-                onChange={(e) => setSelectedOrigin(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              >
-                <option value="all">All Origins</option>
-                {origins.map(origin => (
-                  <option key={origin} value={origin}>{origin}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Destination</label>
-              <select
-                value={selectedDestination}
-                onChange={(e) => setSelectedDestination(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              >
-                <option value="all">All Destinations</option>
-                {destinations.map(dest => (
-                  <option key={dest} value={dest}>{dest}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Action</label>
-              <select
-                value={selectedAction}
-                onChange={(e) => setSelectedAction(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              >
-                <option value="all">All Actions</option>
-                {actions.map(action => (
-                  <option key={action} value={action}>{action}</option>
-                ))}
-              </select>
-            </div>
+                <ArrowLeft size={16} />
+                Back to Upload
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* Smart Filter Bar */}
+      <SmartFilterBar
+        timeFilter={filters.selectedVessel}
+        locationFilter={filters.selectedBulkType}
+        onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedVessel: value }))}
+        onLocationChange={(value) => setFilters(prev => ({ ...prev, selectedBulkType: value }))}
+        timeOptions={filterOptions.vessels.map(vessel => ({ value: vessel, label: vessel }))}
+        locationOptions={filterOptions.bulkTypes.map(type => ({ value: type, label: type }))}
+        totalRecords={bulkActions.length}
+        filteredRecords={filteredBulkActions.length}
+        showPresets={true}
+      />
+
+      {/* Core Transfer KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
         <KPICard
           title="Total Transfers"
           value={formatNumberWhole(kpis.totalTransfers)}
-          trend={0}
           color="blue"
+          variant="secondary"
+          contextualHelp="Total number of bulk material transfers in the selected period"
+          status="good"
         />
         <KPICard
           title="Total Volume"
-          value={`${formatNumberWhole(kpis.totalVolumeBbls)} bbls`}
-          trend={0}
+          value={formatNumberWhole(kpis.totalVolumeBbls)}
+          unit="bbls"
           color="green"
+          variant="secondary"
+          contextualHelp="Total volume of bulk materials transferred across all operations"
+          status="good"
         />
         <KPICard
           title="Shorebase to Rig"
           value={formatNumberWhole(kpis.shorebaseToRig)}
-          trend={0}
           color="purple"
+          variant="secondary"
+          contextualHelp="Number of transfers from shorebase facilities to offshore rigs"
+          status="neutral"
         />
         <KPICard
           title="Avg Transfer Size"
-          value={`${formatNumberWhole(kpis.avgTransferSize)} bbls`}
-          trend={0}
+          value={formatNumberWhole(kpis.avgTransferSize)}
+          unit="bbls"
           color="orange"
+          variant="secondary"
+          contextualHelp="Average volume per bulk material transfer operation"
+          target={500}
+          status={kpis.avgTransferSize >= 500 ? 'good' : kpis.avgTransferSize >= 300 ? 'warning' : 'critical'}
         />
         <KPICard
           title="Drilling Fluids"
-          value={`${formatNumberWhole(kpis.drillingFluidVolume)} bbls`}
+          value={formatNumberWhole(kpis.drillingFluidVolume)}
+          unit="bbls"
           subtitle={`${kpis.drillingFluidCount} transfers`}
-          trend={0}
-          color="blue"
+          color="indigo"
+          variant="secondary"
+          contextualHelp="Total volume of drilling fluid transfers supporting active drilling operations"
+          status="neutral"
         />
         <KPICard
           title="Completion Fluids"
-          value={`${formatNumberWhole(kpis.completionFluidVolume)} bbls`}
+          value={formatNumberWhole(kpis.completionFluidVolume)}
+          unit="bbls"
           subtitle={`${kpis.completionFluidCount} transfers`}
-          trend={0}
-          color="purple"
+          color="pink"
+          variant="secondary"
+          contextualHelp="Total volume of completion fluid transfers for well completion activities"
+          status="neutral"
         />
       </div>
 
-      {/* Transfer Routes */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
-          <div className="flex items-center justify-between">
+      {/* Transfer Routes - Modern Design */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                <MapPin className="h-5 w-5 text-white" />
+              <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg">
+                <MapPin className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">Top Transfer Routes</h2>
-                <p className="text-sm text-indigo-100">Most frequent material movements</p>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  Top Transfer Routes
+                </h2>
+                <p className="text-sm text-gray-600">Most frequent material movements</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">{transferRoutes.length}</div>
-              <div className="text-xs text-indigo-100">Total routes</div>
-            </div>
+            <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+              TOP 5 ROUTES
+            </span>
           </div>
-        </div>
-        <div className="p-6">
-          <div className="flex flex-col gap-4">
+          
+          <div className="space-y-3">
             {transferRoutes.slice(0, 5).map((route, index) => {
-              const typesToShow = route.types.slice(0, 4);
-              const extraTypes = route.types.length - typesToShow.length;
+              const rankings = [
+                { position: '#1', gradient: 'from-yellow-500 to-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700' },
+                { position: '#2', gradient: 'from-gray-500 to-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
+                { position: '#3', gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                { position: '#4', gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                { position: '#5', gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' }
+              ];
+              const ranking = rankings[index] || rankings[4];
+              
               return (
-                <div
-                  key={index}
-                  className="flex flex-row items-center justify-between bg-gray-50 rounded-xl border border-gray-200 px-6 py-4 min-h-[88px] hover:shadow-md transition-all duration-200"
-                >
-                  {/* Origin & Destination */}
-                  <div className="flex items-center gap-6 min-w-[260px]">
-                    <div className="flex flex-col items-center">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 bg-indigo-100 rounded-lg">
-                          <Building className="h-5 w-5 text-indigo-600" />
-                        </div>
-                        <span className="font-semibold text-gray-900 truncate max-w-[100px]">{route.route.split(' → ')[0]}</span>
-                      </div>
-                      <span className="text-xs text-gray-500 mt-1">Origin</span>
+                <div key={index} className={`flex items-center justify-between p-4 rounded-lg ${ranking.bg} border ${ranking.border} transition-all duration-200 hover:shadow-md`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 bg-gradient-to-r ${ranking.gradient} rounded-lg flex items-center justify-center`}>
+                      <span className="text-xs font-bold text-white">{ranking.position}</span>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-gray-400" />
-                    <div className="flex flex-col items-center">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <Building className="h-5 w-5 text-purple-600" />
-                        </div>
-                        <span className="font-semibold text-gray-900 truncate max-w-[100px]">{route.route.split(' → ')[1]}</span>
-                      </div>
-                      <span className="text-xs text-gray-500 mt-1">Destination</span>
+                    <div className="flex items-center gap-2">
+                      <Building className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-semibold text-gray-800">{route.route.split(' → ')[0]}</span>
+                      <ArrowRight className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm font-semibold text-gray-800">{route.route.split(' → ')[1]}</span>
                     </div>
                   </div>
-                  {/* Metrics */}
-                  <div className="flex flex-col items-center justify-center min-w-[140px] gap-2">
-                    <div className="flex flex-col items-center">
-                      <span className="text-lg font-bold text-gray-900">{route.count}</span>
-                      <span className="text-xs text-gray-500">Transfers</span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-lg font-bold text-gray-900">{formatNumberWhole(route.volume)}</span>
-                      <span className="text-xs text-gray-500">bbls</span>
-                    </div>
-                  </div>
-                  {/* Types */}
-                  <div className="flex flex-wrap gap-2 max-w-[340px] items-center">
-                    {typesToShow.map((type, i) => (
-                      <span
-                        key={type}
-                        className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium whitespace-nowrap"
-                      >
-                        {type}
-                      </span>
-                    ))}
-                    {extraTypes > 0 && (
-                      <span className="px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
-                        +{extraTypes} more
-                      </span>
-                    )}
+                  <div className="text-right">
+                    <div className={`text-xl font-bold ${ranking.text}`}>{route.count}</div>
+                    <div className="text-xs text-gray-500">{formatNumberWhole(route.volume)} bbls</div>
                   </div>
                 </div>
               );
@@ -401,61 +306,54 @@ const BulkActionsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Volume by Bulk Type - Enhanced Design */}
+      {/* Analytics Dashboard Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <PieChart className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Volume by Bulk Type</h3>
-                  <p className="text-sm text-blue-100 mt-0.5">Material Distribution</p>
-                </div>
+        {/* Volume by Bulk Type - Modern Design */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+                <PieChart className="w-6 h-6 text-white" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">{formatNumberWhole(kpis.totalVolumeBbls)}</div>
-                <div className="text-xs text-blue-100">Total bbls</div>
+              <div>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  Volume by Bulk Type
+                </h2>
+                <p className="text-sm text-gray-600">Material distribution analysis • {formatNumberWhole(kpis.totalVolumeBbls)} bbls total</p>
               </div>
             </div>
-          </div>
-          
-          <div className="p-6">
-            <div className="space-y-4">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(kpis.volumeByType)
                 .sort(([, a], [, b]) => b - a)
-                .slice(0, 8)
+                .slice(0, 6)
                 .map(([type, volume], index) => {
                   const percentage = (volume / kpis.totalVolumeBbls) * 100;
-                  const colors = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-blue-400', 'bg-indigo-400', 'bg-purple-400', 'bg-pink-400'];
+                  const colors = [
+                    { gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                    { gradient: 'from-green-500 to-green-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                    { gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                    { gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                    { gradient: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+                    { gradient: 'from-indigo-500 to-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' }
+                  ];
+                  const color = colors[index % colors.length];
                   
                   return (
-                    <div key={type} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`}></div>
-                          <span className="text-sm font-semibold text-gray-800">{type}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-gray-900">{formatNumberWhole(volume)}</div>
-                          <div className="text-xs text-gray-500">bbls</div>
-                        </div>
+                    <div key={type} className={`p-4 rounded-lg border ${color.bg} ${color.border} transition-all duration-200 hover:shadow-md`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-3 h-3 bg-gradient-to-r ${color.gradient} rounded-full`}></div>
+                        <span className="text-sm font-semibold text-gray-800">{type}</span>
                       </div>
-                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                      <div className={`text-xl font-bold ${color.text} mb-1`}>{formatNumberWhole(volume)}</div>
+                      <div className="text-xs text-gray-600">{percentage.toFixed(1)}% of total</div>
+                      
+                      {/* Mini trend bar */}
+                      <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full ${colors[index % colors.length]} rounded-full transition-all duration-700 ease-out`}
+                          className={`h-full bg-gradient-to-r ${color.gradient} transition-all duration-1000 ease-out`}
                           style={{ width: `${Math.max(2, percentage)}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-xs font-medium text-white">{Math.round(percentage)}%</span>
-                          {percentage > 15 && (
-                            <span className="text-xs font-medium text-white">
-                              {formatNumberWhole(volume)}
-                            </span>
-                          )}
-                        </div>
+                        ></div>
                       </div>
                     </div>
                   );
@@ -464,59 +362,52 @@ const BulkActionsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <BarChart3 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Transfers by Vessel</h3>
-                  <p className="text-sm text-green-100 mt-0.5">Fleet Performance</p>
-                </div>
+        {/* Transfers by Vessel - Modern Design */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-white" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">{kpis.totalTransfers}</div>
-                <div className="text-xs text-green-100">Total transfers</div>
+              <div>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  Transfers by Vessel
+                </h2>
+                <p className="text-sm text-gray-600">Fleet performance analysis • {kpis.totalTransfers} total transfers</p>
               </div>
             </div>
-          </div>
-          
-          <div className="p-6">
-            <div className="space-y-4">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(kpis.transfersByVessel)
                 .sort(([, a], [, b]) => b - a)
-                .slice(0, 8)
+                .slice(0, 6)
                 .map(([vessel, count], index) => {
                   const percentage = (count / kpis.totalTransfers) * 100;
-                  const colors = ['bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-green-400', 'bg-emerald-400', 'bg-teal-400', 'bg-cyan-400'];
+                  const colors = [
+                    { gradient: 'from-green-500 to-green-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                    { gradient: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+                    { gradient: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
+                    { gradient: 'from-cyan-500 to-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700' },
+                    { gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                    { gradient: 'from-indigo-500 to-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' }
+                  ];
+                  const color = colors[index % colors.length];
                   
                   return (
-                    <div key={vessel} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`}></div>
-                          <span className="text-sm font-semibold text-gray-800">{vessel}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-gray-900">{count}</div>
-                          <div className="text-xs text-gray-500">transfers</div>
-                        </div>
+                    <div key={vessel} className={`p-4 rounded-lg border ${color.bg} ${color.border} transition-all duration-200 hover:shadow-md`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-3 h-3 bg-gradient-to-r ${color.gradient} rounded-full`}></div>
+                        <span className="text-sm font-semibold text-gray-800">{vessel}</span>
                       </div>
-                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                      <div className={`text-xl font-bold ${color.text} mb-1`}>{count}</div>
+                      <div className="text-xs text-gray-600">{percentage.toFixed(1)}% of total</div>
+                      
+                      {/* Mini trend bar */}
+                      <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full ${colors[index % colors.length]} rounded-full transition-all duration-700 ease-out`}
+                          className={`h-full bg-gradient-to-r ${color.gradient} transition-all duration-1000 ease-out`}
                           style={{ width: `${Math.max(2, percentage)}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-xs font-medium text-white">{Math.round(percentage)}%</span>
-                          {percentage > 15 && (
-                            <span className="text-xs font-medium text-white">
-                              {count}
-                            </span>
-                          )}
-                        </div>
+                        ></div>
                       </div>
                     </div>
                   );
@@ -527,16 +418,18 @@ const BulkActionsDashboard: React.FC = () => {
       </div>
 
       {/* Detailed Transfer Table */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <BarChart3 className="h-5 w-5 text-gray-600" />
+              <div className="p-2 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Transfer Details</h2>
-                <p className="text-sm text-gray-500">Detailed view of bulk material transfers</p>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  Transfer Details
+                </h2>
+                <p className="text-sm text-gray-600">Detailed view of bulk material transfers</p>
               </div>
             </div>
             <div className="text-right">
@@ -545,91 +438,91 @@ const BulkActionsDashboard: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vessel</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulk Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Volume (bbls)</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedBulkActions.map((action) => (
-                <tr key={action.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {action.startDate.toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {action.vesselName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                      action.action.toLowerCase().includes('load') ? 'bg-green-100 text-green-800' : 
-                      action.action.toLowerCase().includes('discharge') ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {action.action}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {action.bulkType}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {action.bulkDescription || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {action.standardizedOrigin}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {action.standardizedDestination || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                    {formatNumberWhole(action.qty)} {action.unit}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                    {formatNumberWhole(action.volumeBbls)}
-                  </td>
+          
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vessel</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulk Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origin</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Volume (bbls)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-4 py-4 bg-gray-50 border-t border-gray-200">
-            <button
-              className="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-700">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              className="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </button>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedBulkActions.map((action) => (
+                  <tr key={action.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {action.startDate.toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {action.vesselName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                        action.action.toLowerCase().includes('load') ? 'bg-green-100 text-green-800' : 
+                        action.action.toLowerCase().includes('discharge') ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {action.action}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {action.bulkType}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {action.bulkDescription || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {action.standardizedOrigin}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {action.standardizedDestination || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                      {formatNumberWhole(action.qty)} {action.unit}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                      {formatNumberWhole(action.volumeBbls)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 pt-6 mt-6 border-t border-gray-200">
+              <button
+                className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-700 px-4">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Debug Panel */}
       {showDebugPanel && (
-        <div className="mt-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <BulkFluidDebugPanel bulkActions={bulkActions} />
         </div>
       )}

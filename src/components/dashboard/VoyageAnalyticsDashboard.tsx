@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import KPICard from './KPICard';
-import { Calendar, MapPin, Activity, Clock, Route, Target, Compass } from 'lucide-react';
+import SmartFilterBar from './SmartFilterBar';
+import { Target, Route, Clock, MapPin, ArrowLeft, BarChart3 } from 'lucide-react';
 
 interface VoyageAnalyticsDashboardProps {
   onNavigateToUpload?: () => void;
@@ -162,9 +163,10 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
   if (!isDataReady || !voyageAnalytics) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading voyage analytics data...</p>
+        <div className="text-center max-w-md bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-8">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 mb-2">Loading voyage analytics data...</p>
+          <p className="text-sm text-gray-500">Analyzing route patterns and vessel performance</p>
         </div>
       </div>
     );
@@ -173,148 +175,158 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">VOYAGE ANALYTICS</h2>
-          <p className="text-lg text-gray-600 font-medium">STRATEGIC ROUTE PLANNING & EXECUTION</p>
+      {/* Modern Header */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
+              <Route className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                Voyage Analytics
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Strategic route planning & execution performance insights
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-2xl font-bold text-blue-600">{voyageAnalytics.totalVoyages.toLocaleString()}</div>
+              <div className="text-sm text-gray-500">Total Voyages</div>
+            </div>
+            <button
+              onClick={onNavigateToUpload}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-gray-700 transition-all duration-200"
+            >
+              <ArrowLeft size={16} />
+              Back to Upload
+            </button>
+          </div>
         </div>
-        <button
-          onClick={onNavigateToUpload}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-          Back to Upload
-        </button>
       </div>
 
-      {/* Enhanced Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Calendar className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Period</label>
-                <select 
-                  className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-w-[180px]"
-                  value={filters.selectedMonth}
-                  onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
-                >
-                  {filterOptions.months.map(month => (
-                    <option key={month} value={month}>{month}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <Compass className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Voyage Purpose</label>
-                <select 
-                  className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
-                  value={filters.selectedVoyagePurpose}
-                  onChange={(e) => setFilters(prev => ({ ...prev, selectedVoyagePurpose: e.target.value }))}
-                >
-                  {filterOptions.purposes.map(purpose => (
-                    <option key={purpose} value={purpose}>{purpose}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Activity className="w-4 h-4" />
-            <span>{voyageAnalytics.peakSeasonIndicator}</span>
-          </div>
-        </div>
-      </div>
+      {/* Smart Filter Bar */}
+      <SmartFilterBar
+        timeFilter={filters.selectedMonth}
+        locationFilter={filters.selectedVoyagePurpose}
+        onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedMonth: value }))}
+        onLocationChange={(value) => setFilters(prev => ({ ...prev, selectedVoyagePurpose: value }))}
+        timeOptions={filterOptions.months.map(month => ({ value: month, label: month }))}
+        locationOptions={filterOptions.purposes.map(purpose => ({ value: purpose, label: purpose }))}
+        totalRecords={voyageList.length}
+        filteredRecords={voyageAnalytics.filteredVoyages.length}
+        showPresets={true}
+      />
 
       {/* Core Voyage KPIs */}
-      <div className="grid grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
         <KPICard 
           title="Total Voyages" 
-          value={voyageAnalytics.totalVoyages}
+          value={voyageAnalytics.totalVoyages.toLocaleString()}
           color="blue"
+          variant="secondary"
+          contextualHelp="Total number of voyages in the selected time period"
+          status="good"
         />
         <KPICard 
           title="Avg Duration" 
-          value={voyageAnalytics.averageVoyageDuration.toFixed(2)}
-          unit="hours"
-          trend={voyageAnalytics.avgVoyageDurationMoMChange}
-          isPositive={voyageAnalytics.avgVoyageDurationMoMChange < 0} // Shorter is better
+          value={voyageAnalytics.averageVoyageDuration.toFixed(1)}
+          unit="hrs"
+          trend={voyageAnalytics.avgVoyageDurationMoMChange || 0}
+          isPositive={voyageAnalytics.avgVoyageDurationMoMChange < 0}
           color="green"
-          tooltip="Average voyage duration in hours from port departure to final return. Shorter durations indicate better efficiency."
+          variant="secondary"
+          contextualHelp="Average voyage duration from port departure to final return. Shorter durations indicate better efficiency."
+          target={48}
+          status={voyageAnalytics.averageVoyageDuration <= 48 ? 'good' : voyageAnalytics.averageVoyageDuration <= 72 ? 'warning' : 'critical'}
         />
         <KPICard 
           title="Active Vessels" 
-          value={voyageAnalytics.activeVesselsThisMonth}
+          value={voyageAnalytics.activeVesselsThisMonth.toLocaleString()}
           color="purple"
+          variant="secondary"
+          contextualHelp="Number of unique vessels active in the selected period"
+          status="neutral"
         />
         <KPICard 
           title="Voyages/Vessel" 
-          value={voyageAnalytics.voyagesPerVessel.toFixed(2)}
+          value={voyageAnalytics.voyagesPerVessel.toFixed(1)}
           color="orange"
-          tooltip="Average number of voyages per active vessel in the period. Higher values indicate better vessel utilization."
+          variant="secondary"
+          contextualHelp="Average number of voyages per active vessel. Higher values indicate better vessel utilization."
+          target={2.5}
+          status={voyageAnalytics.voyagesPerVessel >= 2.5 ? 'good' : voyageAnalytics.voyagesPerVessel >= 2.0 ? 'warning' : 'critical'}
         />
         <KPICard 
           title="Multi-Stop %" 
-          value={voyageAnalytics.multiStopPercentage.toFixed(2)}
+          value={voyageAnalytics.multiStopPercentage.toFixed(1)}
           unit="%"
-          color="red"
-          tooltip="Percentage of voyages with more than 2 stops. Higher values indicate complex routes serving multiple locations."
+          color="yellow"
+          variant="secondary"
+          contextualHelp="Percentage of voyages with more than 2 stops. Higher values indicate complex routes."
+          status={voyageAnalytics.multiStopPercentage <= 30 ? 'good' : voyageAnalytics.multiStopPercentage <= 50 ? 'warning' : 'critical'}
         />
         <KPICard 
           title="On-Time %" 
-          value={voyageAnalytics.onTimeVoyagePercentage.toFixed(2)}
+          value={voyageAnalytics.onTimeVoyagePercentage.toFixed(1)}
           unit="%"
           color="indigo"
-          tooltip="Percentage of voyages completed within 2 hours of scheduled time. Higher values indicate better schedule reliability."
+          variant="secondary"
+          contextualHelp="Percentage of voyages completed within 2 hours of scheduled time."
+          target={85}
+          status={voyageAnalytics.onTimeVoyagePercentage >= 85 ? 'good' : voyageAnalytics.onTimeVoyagePercentage >= 70 ? 'warning' : 'critical'}
         />
       </div>
 
       {/* Route Performance KPIs */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <KPICard 
           title="Route Efficiency" 
           value={voyageAnalytics.routeEfficiencyScore.toFixed(2)}
           color="pink"
-          tooltip="Stops per day ratio. Higher values indicate more efficient route planning with better stop consolidation."
+          variant="secondary"
+          contextualHelp="Stops per day ratio. Higher values indicate more efficient route planning."
+          target={1.5}
+          status={voyageAnalytics.routeEfficiencyScore >= 1.5 ? 'good' : voyageAnalytics.routeEfficiencyScore >= 1.0 ? 'warning' : 'critical'}
         />
         <KPICard 
           title="Drilling Voyages" 
-          value={voyageAnalytics.drillingVoyagePercentage.toFixed(2)}
+          value={voyageAnalytics.drillingVoyagePercentage.toFixed(1)}
           unit="%"
-          color="yellow"
-          tooltip="Percentage of total voyages dedicated to drilling operations. Indicates fleet allocation to drilling support."
+          color="red"
+          variant="secondary"
+          contextualHelp="Percentage of total voyages dedicated to drilling operations."
+          status="neutral"
         />
         <KPICard 
           title="Mixed Efficiency" 
-          value={voyageAnalytics.mixedVoyageEfficiency.toFixed(2)}
+          value={voyageAnalytics.mixedVoyageEfficiency.toFixed(1)}
           unit="%"
           color="blue"
-          tooltip="Percentage of voyages serving multiple purposes (drilling + production). Higher values show better trip consolidation."
+          variant="secondary"
+          contextualHelp="Percentage of voyages serving multiple purposes. Higher values show better trip consolidation."
+          target={15}
+          status={voyageAnalytics.mixedVoyageEfficiency >= 15 ? 'good' : voyageAnalytics.mixedVoyageEfficiency >= 10 ? 'warning' : 'critical'}
         />
         <KPICard 
           title="Fourchon Routes" 
-          value={voyageAnalytics.routeConcentration.toFixed(2)}
+          value={voyageAnalytics.routeConcentration.toFixed(1)}
           unit="%"
           color="green"
-          tooltip="Percentage of voyages originating from Fourchon port. Shows operational concentration from this key hub."
+          variant="secondary"
+          contextualHelp="Percentage of voyages originating from Fourchon port."
+          status="neutral"
         />
         <KPICard 
-          title="Consolidation Benefit" 
-          value={voyageAnalytics.consolidationBenefit.toFixed(2)}
+          title="Consolidation Score" 
+          value={voyageAnalytics.consolidationBenefit.toFixed(1)}
           color="purple"
-          tooltip="Efficiency gain from consolidating multiple deliveries into single voyages. Higher values indicate better logistics optimization."
+          variant="secondary"
+          contextualHelp="Efficiency gain from consolidating multiple deliveries into single voyages."
+          target={2.0}
+          status={voyageAnalytics.consolidationBenefit >= 2.0 ? 'good' : voyageAnalytics.consolidationBenefit >= 1.5 ? 'warning' : 'critical'}
         />
       </div>
 
@@ -322,134 +334,107 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       <div className="space-y-6">
         {/* Voyage Analytics Row */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Voyage Purpose Distribution - Enhanced Design */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <Target className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Voyage Purpose Distribution</h3>
-                    <p className="text-sm text-purple-100 mt-0.5">Operational Focus Analysis</p>
-                  </div>
+          {/* Voyage Purpose Distribution - Modern Design */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                  <Target className="w-6 h-6 text-white" />
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-white">{voyageAnalytics.totalVoyages}</div>
-                  <div className="text-xs text-purple-100">Total Voyages</div>
+                <div>
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Voyage Purpose Distribution
+                  </h2>
+                  <p className="text-sm text-gray-600">Operational focus breakdown</p>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-6">
+              
               {voyageAnalytics.purposeDistributionData.length > 0 ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {voyageAnalytics.purposeDistributionData.map((item: { name: string; value: number; percentage: number }, index: number) => {
                     const colors = [
-                      { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
-                      { bg: 'bg-green-500', light: 'bg-green-50', ring: 'ring-green-200' },
-                      { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
-                      { bg: 'bg-orange-500', light: 'bg-orange-50', ring: 'ring-orange-200' }
+                      { gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                      { gradient: 'from-green-500 to-green-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                      { gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                      { gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' }
                     ];
                     const color = colors[index % colors.length];
                     
                     return (
-                      <div key={item.name} className={`group hover:${color.light} p-3 rounded-lg transition-colors duration-200`}>
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 ${color.bg} rounded-full ring-4 ring-opacity-30`} 
-                                 style={{ boxShadow: `0 0 0 4px ${color.bg}30` }}></div>
-                            <span className="text-sm font-semibold text-gray-800">{item.name}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-gray-900">{item.value}</div>
-                            <div className="text-xs text-gray-500">voyages</div>
-                          </div>
+                      <div key={item.name} className={`p-4 rounded-lg border ${color.bg} ${color.border} transition-all duration-200 hover:shadow-md`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-3 h-3 bg-gradient-to-r ${color.gradient} rounded-full`}></div>
+                          <span className="text-sm font-semibold text-gray-800">{item.name}</span>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                        <div className={`text-2xl font-bold ${color.text} mb-1`}>{item.value}</div>
+                        <div className="text-xs text-gray-600">{item.percentage.toFixed(1)}% of total</div>
+                        
+                        {/* Mini trend bar */}
+                        <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
                           <div 
-                            className={`absolute top-0 left-0 h-full ${color.bg} rounded-full transition-all duration-700 ease-out`}
+                            className={`h-full bg-gradient-to-r ${color.gradient} transition-all duration-1000 ease-out`}
                             style={{ width: `${Math.max(2, item.percentage)}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-between px-3">
-                            <span className="text-xs font-medium text-white">{item.percentage.toFixed(1)}%</span>
-                            {item.percentage > 20 && (
-                              <span className="text-xs font-medium text-white">
-                                {item.value} voyages
-                              </span>
-                            )}
-                          </div>
+                          ></div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center">
+                <div className="h-48 flex items-center justify-center" role="status" aria-label="No voyage purpose data available">
                   <div className="text-center">
-                    <div className="p-4 bg-purple-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
-                      <Target className="w-10 h-10 text-purple-400" />
+                    <div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Target className="w-8 h-8 text-purple-400" aria-hidden="true" />
                     </div>
-                    <p className="text-gray-700 font-semibold">No Purpose Data</p>
-                    <p className="text-sm text-gray-500 mt-2">Voyage purpose information will appear here</p>
+                    <p className="text-gray-600 font-medium">No Purpose Data</p>
+                    <p className="text-sm text-gray-500 mt-1">Voyage purpose information will appear here</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Route Complexity Analysis - Enhanced Design */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <Route className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Route Complexity</h3>
-                    <p className="text-sm text-orange-100 mt-0.5">Stop Count Analysis</p>
-                  </div>
+          {/* Route Complexity Analysis - Modern Design */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+                  <Route className="w-6 h-6 text-white" />
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-white">{voyageAnalytics.averageStopsPerVoyage.toFixed(1)}</div>
-                  <div className="text-xs text-orange-100">Avg Stops</div>
+                <div>
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Route Complexity
+                  </h2>
+                  <p className="text-sm text-gray-600">Stop count analysis • Avg: {voyageAnalytics.averageStopsPerVoyage.toFixed(1)} stops</p>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-6">
-              <div className="space-y-4">
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {voyageAnalytics.routeComplexityData.map((item: { name: string; value: number; color: string }, index: number) => {
                   const percentage = (item.value / voyageAnalytics.totalVoyages) * 100;
+                  const colorMapping = {
+                    'bg-green-500': { gradient: 'from-green-500 to-green-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                    'bg-yellow-500': { gradient: 'from-yellow-500 to-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700' },
+                    'bg-red-500': { gradient: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' }
+                  };
+                  const colorClass = colorMapping[item.color as keyof typeof colorMapping] || 
+                    { gradient: 'from-gray-500 to-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' };
                   
                   return (
-                    <div key={item.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${item.color} ring-4 ring-opacity-30`} 
-                               style={{ boxShadow: `0 0 0 4px ${item.color}30` }}></div>
-                          <span className="text-sm font-semibold text-gray-800">{item.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-gray-900">{item.value}</div>
-                          <div className="text-xs text-gray-500">voyages</div>
-                        </div>
+                    <div key={item.name} className={`p-4 rounded-lg border ${colorClass.bg} ${colorClass.border} transition-all duration-200 hover:shadow-md`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-3 h-3 bg-gradient-to-r ${colorClass.gradient} rounded-full`}></div>
+                        <span className="text-sm font-semibold text-gray-800">{item.name}</span>
                       </div>
-                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                      <div className={`text-2xl font-bold ${colorClass.text} mb-1`}>{item.value}</div>
+                      <div className="text-xs text-gray-600">{percentage.toFixed(1)}% of voyages</div>
+                      
+                      {/* Mini trend bar */}
+                      <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full ${item.color} rounded-full transition-all duration-700 ease-out`}
+                          className={`h-full bg-gradient-to-r ${colorClass.gradient} transition-all duration-1000 ease-out`}
                           style={{ width: `${Math.max(2, percentage)}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-xs font-medium text-white">{percentage.toFixed(1)}%</span>
-                          {percentage > 20 && (
-                            <span className="text-xs font-medium text-white">
-                              {item.value} voyages
-                            </span>
-                          )}
-                        </div>
+                        ></div>
                       </div>
                     </div>
                   );
@@ -460,50 +445,52 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
         </div>
 
         {/* Second Row - Destinations and Duration */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Popular Destinations - Enhanced Design */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-              <div className="flex items-center justify-between">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Popular Destinations - Modern Design */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <MapPin className="w-5 h-5 text-white" />
+                  <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+                    <MapPin className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Popular Destinations</h3>
-                    <p className="text-sm text-blue-100 mt-0.5">Top 5 Routes</p>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                      Popular Destinations
+                    </h2>
+                    <p className="text-sm text-gray-600">Top voyage routes by frequency</p>
                   </div>
                 </div>
-                <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                <span className="text-xs font-medium text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
                   TOP 5
                 </span>
               </div>
-            </div>
-            
-            <div className="p-6">
+              
               {voyageAnalytics.popularDestinations.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {voyageAnalytics.popularDestinations.map((destination: { destination: string; count: number; percentage: number }, index: number) => {
-                    const medals = [
-                      { icon: '🥇', bg: 'bg-yellow-50', border: 'border-yellow-300' },
-                      { icon: '🥈', bg: 'bg-gray-50', border: 'border-gray-300' },
-                      { icon: '🥉', bg: 'bg-orange-50', border: 'border-orange-300' },
-                      { icon: '4️⃣', bg: 'bg-blue-50', border: 'border-blue-300' },
-                      { icon: '5️⃣', bg: 'bg-purple-50', border: 'border-purple-300' }
+                    const rankings = [
+                      { position: '#1', gradient: 'from-yellow-500 to-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700' },
+                      { position: '#2', gradient: 'from-gray-500 to-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
+                      { position: '#3', gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                      { position: '#4', gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                      { position: '#5', gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' }
                     ];
-                    const medal = medals[index] || medals[4];
+                    const ranking = rankings[index] || rankings[4];
                     
                     return (
-                      <div key={destination.destination} className={`flex items-center justify-between p-4 rounded-lg ${medal.bg} border ${medal.border} transition-all duration-200 hover:shadow-md`}>
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{medal.icon}</span>
+                      <div key={destination.destination} className={`flex items-center justify-between p-4 rounded-lg ${ranking.bg} border ${ranking.border} transition-all duration-200 hover:shadow-md`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-8 h-8 bg-gradient-to-r ${ranking.gradient} rounded-lg flex items-center justify-center`}>
+                            <span className="text-xs font-bold text-white">{ranking.position}</span>
+                          </div>
                           <div>
-                            <span className="text-sm font-semibold text-gray-800">{destination.destination}</span>
-                            <div className="text-xs text-gray-500 mt-0.5">{destination.percentage.toFixed(1)}% of voyages</div>
+                            <div className="text-sm font-semibold text-gray-800">{destination.destination}</div>
+                            <div className="text-xs text-gray-500">{destination.percentage.toFixed(1)}% of total voyages</div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-900">{destination.count}</div>
+                          <div className={`text-xl font-bold ${ranking.text}`}>{destination.count}</div>
                           <div className="text-xs text-gray-500">voyages</div>
                         </div>
                       </div>
@@ -511,70 +498,61 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                   })}
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center">
+                <div className="h-48 flex items-center justify-center" role="status" aria-label="No destination data available">
                   <div className="text-center">
-                    <div className="p-4 bg-blue-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
-                      <MapPin className="w-10 h-10 text-blue-400" />
+                    <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <MapPin className="w-8 h-8 text-blue-400" aria-hidden="true" />
                     </div>
-                    <p className="text-gray-700 font-semibold">No Destination Data</p>
-                    <p className="text-sm text-gray-500 mt-2">Popular destinations will appear here</p>
+                    <p className="text-gray-600 font-medium">No Destination Data</p>
+                    <p className="text-sm text-gray-500 mt-1">Popular destinations will appear here</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Voyage Duration Distribution - Enhanced Design */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <Clock className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Duration Distribution</h3>
-                    <p className="text-sm text-green-100 mt-0.5">Trip Length Analysis</p>
-                  </div>
+          {/* Voyage Duration Distribution - Modern Design */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
+                  <Clock className="w-6 h-6 text-white" />
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-white">{voyageAnalytics.averageVoyageDuration.toFixed(0)}</div>
-                  <div className="text-xs text-green-100">Avg Hours</div>
+                <div>
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Duration Distribution
+                  </h2>
+                  <p className="text-sm text-gray-600">Trip length analysis • Avg: {voyageAnalytics.averageVoyageDuration.toFixed(1)} hrs</p>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-6">
-              <div className="space-y-4">
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {voyageAnalytics.durationDistributionData.map((item: { name: string; value: number; color: string }, index: number) => {
                   const percentage = (item.value / voyageAnalytics.totalVoyages) * 100;
+                  const colorMapping = {
+                    'bg-blue-500': { gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                    'bg-purple-500': { gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                    'bg-orange-500': { gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                    'bg-red-500': { gradient: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' }
+                  };
+                  const colorClass = colorMapping[item.color as keyof typeof colorMapping] || 
+                    { gradient: 'from-gray-500 to-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' };
                   
                   return (
-                    <div key={item.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${item.color} ring-4 ring-opacity-30`} 
-                               style={{ boxShadow: `0 0 0 4px ${item.color}30` }}></div>
-                          <span className="text-sm font-semibold text-gray-800">{item.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-gray-900">{item.value}</div>
-                          <div className="text-xs text-gray-500">voyages</div>
-                        </div>
+                    <div key={item.name} className={`p-4 rounded-lg border ${colorClass.bg} ${colorClass.border} transition-all duration-200 hover:shadow-md`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-3 h-3 bg-gradient-to-r ${colorClass.gradient} rounded-full`}></div>
+                        <span className="text-sm font-semibold text-gray-800">{item.name}</span>
                       </div>
-                      <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                      <div className={`text-2xl font-bold ${colorClass.text} mb-1`}>{item.value}</div>
+                      <div className="text-xs text-gray-600">{percentage.toFixed(1)}% of voyages</div>
+                      
+                      {/* Mini trend bar */}
+                      <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full ${item.color} rounded-full transition-all duration-700 ease-out`}
+                          className={`h-full bg-gradient-to-r ${colorClass.gradient} transition-all duration-1000 ease-out`}
                           style={{ width: `${Math.max(2, percentage)}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-xs font-medium text-white">{percentage.toFixed(1)}%</span>
-                          {percentage > 15 && (
-                            <span className="text-xs font-medium text-white">
-                              {item.value}
-                            </span>
-                          )}
-                        </div>
+                        ></div>
                       </div>
                     </div>
                   );
@@ -586,44 +564,62 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       </div>
 
       {/* Execution Performance Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Voyage Execution Performance</h3>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-            <span className="text-sm text-gray-600">
-              Planning vs Execution Analysis
-            </span>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+            <BarChart3 className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              Voyage Execution Performance
+            </h2>
+            <p className="text-sm text-gray-600">Planning vs execution analysis</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Execution Efficiency</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {(voyageAnalytics.averageExecutionEfficiency * 100).toFixed(2)}%
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 rounded-lg border bg-blue-50 border-blue-200 transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
+              <span className="text-sm font-semibold text-gray-800">Execution Efficiency</span>
             </div>
-            <div className="text-xs text-gray-500">Planned vs Actual</div>
+            <div className="text-2xl font-bold text-blue-700 mb-1">
+              {(voyageAnalytics.averageExecutionEfficiency * 100).toFixed(1)}%
+            </div>
+            <div className="text-xs text-gray-600">Planned vs Actual</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Average Stops</div>
-            <div className="text-2xl font-bold text-green-600">
-              {voyageAnalytics.averageStopsPerVoyage.toFixed(2)}
+          
+          <div className="p-4 rounded-lg border bg-green-50 border-green-200 transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3 h-3 bg-gradient-to-r from-green-500 to-green-600 rounded-full"></div>
+              <span className="text-sm font-semibold text-gray-800">Average Stops</span>
             </div>
-            <div className="text-xs text-gray-500">Stops per voyage</div>
+            <div className="text-2xl font-bold text-green-700 mb-1">
+              {voyageAnalytics.averageStopsPerVoyage.toFixed(1)}
+            </div>
+            <div className="text-xs text-gray-600">Stops per voyage</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Route Efficiency</div>
-            <div className="text-2xl font-bold text-purple-600">
-              {voyageAnalytics.routeEfficiencyScore.toFixed(2)}
+          
+          <div className="p-4 rounded-lg border bg-purple-50 border-purple-200 transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full"></div>
+              <span className="text-sm font-semibold text-gray-800">Route Efficiency</span>
             </div>
-            <div className="text-xs text-gray-500">Stops per day</div>
+            <div className="text-2xl font-bold text-purple-700 mb-1">
+              {voyageAnalytics.routeEfficiencyScore.toFixed(1)}
+            </div>
+            <div className="text-xs text-gray-600">Stops per day</div>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">On-Time Performance</div>
-            <div className="text-2xl font-bold text-orange-600">
-              {voyageAnalytics.onTimeVoyagePercentage.toFixed(2)}%
+          
+          <div className="p-4 rounded-lg border bg-orange-50 border-orange-200 transition-all duration-200 hover:shadow-md">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"></div>
+              <span className="text-sm font-semibold text-gray-800">On-Time Performance</span>
             </div>
-            <div className="text-xs text-gray-500">Within 2 hours</div>
+            <div className="text-2xl font-bold text-orange-700 mb-1">
+              {voyageAnalytics.onTimeVoyagePercentage.toFixed(1)}%
+            </div>
+            <div className="text-xs text-gray-600">Within 2 hours</div>
           </div>
         </div>
       </div>

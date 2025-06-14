@@ -3,8 +3,9 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getProductionFacilities } from '../../data/masterFacilities';
 import KPICard from './KPICard';
-import ProductionBulkInsights from './ProductionBulkInsights';
-import { Calendar, MapPin, Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign, Info, Droplet } from 'lucide-react';
+import StatusDashboard from './StatusDashboard';
+import SmartFilterBar from './SmartFilterBar';
+import { Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign, Droplet } from 'lucide-react';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -632,16 +633,16 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       };
 
       const mockPreviousPeriod = {
-        cargoTons: cargoTons * 0.85,
-        liftsPerHour: liftsPerHour * 1.1,
-        osvProductiveHours: osvProductiveHours * 0.92,
-        waitingTime: waitingTimeOffshore * 1.15,
-        rtCargoTons: rtTons * 1.08,
-        vesselUtilization: vesselUtilization * 0.98,
-        fsvRuns: fsvRuns * 0.91,
-        vesselVisits: vesselVisits * 0.95,
-        maneuveringHours: maneuveringHours * 1.12,
-        fluidMovement: previousFluidVolume > 0 ? previousFluidVolume : fluidMovement * 0.88
+        cargoTons: cargoTons * 0.85,          // Previous was lower (improvement = positive trend)
+        liftsPerHour: liftsPerHour * 0.9,     // Previous was lower (improvement = positive trend) 
+        osvProductiveHours: osvProductiveHours * 0.92, // Previous was lower (improvement = positive trend)
+        waitingTime: waitingTimeOffshore * 1.15,       // Previous was higher (reduction = positive trend)
+        rtCargoTons: rtTons * 1.08,           // Previous was higher (reduction = positive trend, less RT cargo is better)
+        vesselUtilization: vesselUtilization * 0.98,   // Previous was lower (improvement = positive trend)
+        fsvRuns: fsvRuns * 0.91,              // Previous was lower (improvement = positive trend)
+        vesselVisits: vesselVisits * 0.95,    // Previous was lower (improvement = positive trend)
+        maneuveringHours: maneuveringHours * 1.12,     // Previous was higher (reduction = positive trend, less maneuvering is better)
+        fluidMovement: previousFluidVolume > 0 ? previousFluidVolume : fluidMovement * 0.88 // Previous was lower (improvement = positive trend)
       };
 
       // Vessel type data
@@ -841,14 +842,79 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
     }
   }, [voyageEvents, vesselManifests, voyageList]);
 
+  // Dynamic target calculation based on filter scope
+  const dynamicTargets = useMemo(() => {
+    const isSingleLocation = filters.selectedLocation !== 'All Locations';
+    const isSingleMonth = filters.selectedMonth !== 'All Months';
+    
+    // Base targets for full dataset (YTD all locations)
+    let cargoTarget = 5000;
+    let liftsPerHourTarget = 2.5;
+    let waitingTimeTarget = 100;
+    let utilizationTarget = 75;
+    let fluidTarget = 500;
+    let productiveHoursTarget = 2000;
+    
+    // Adjust targets based on scope
+    if (isSingleLocation && isSingleMonth) {
+      // Single location, single month - much smaller targets
+      cargoTarget = 800;
+      liftsPerHourTarget = 2.2;
+      waitingTimeTarget = 20;
+      utilizationTarget = 70;
+      fluidTarget = 80;
+      productiveHoursTarget = 300;
+    } else if (isSingleLocation) {
+      // Single location, all months - medium targets  
+      cargoTarget = 3000;
+      liftsPerHourTarget = 2.3;
+      waitingTimeTarget = 60;
+      utilizationTarget = 72;
+      fluidTarget = 300;
+      productiveHoursTarget = 1200;
+    } else if (isSingleMonth) {
+      // All locations, single month - monthly targets
+      cargoTarget = 1200;
+      liftsPerHourTarget = 2.4;
+      waitingTimeTarget = 25;
+      utilizationTarget = 73;
+      fluidTarget = 120;
+      productiveHoursTarget = 400;
+    }
+    
+    return {
+      cargoTons: cargoTarget,
+      liftsPerHour: liftsPerHourTarget,
+      waitingTime: waitingTimeTarget,
+      vesselUtilization: utilizationTarget,
+      fluidMovement: fluidTarget,
+      productiveHours: productiveHoursTarget
+    };
+  }, [filters.selectedMonth, filters.selectedLocation]);
+
+
+  // Get filter context for contextual help and titles
+  const getFilterContext = () => {
+    const isSingleLocation = filters.selectedLocation !== 'All Locations';
+    const isSingleMonth = filters.selectedMonth !== 'All Months';
+    
+    if (isSingleLocation && isSingleMonth) {
+      return `single location (${filters.selectedLocation}) in ${filters.selectedMonth}`;
+    } else if (isSingleLocation) {
+      return `single location (${filters.selectedLocation}) across all months`;
+    } else if (isSingleMonth) {
+      return `all locations in ${filters.selectedMonth}`;
+    } else {
+      return 'all locations year-to-date';
+    }
+  };
+
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">GoA PRODUCTION PERFORMANCE</h2>
-          <p className="text-lg text-gray-600 font-medium">LOGISTICS DASHBOARD</p>
-        </div>
+
+      {/* Back to Upload Button */}
+      <div className="flex justify-end">
         <button
           onClick={onNavigateToUpload}
           className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
@@ -860,96 +926,152 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         </button>
       </div>
 
-      {/* Enhanced Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Calendar className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Period</label>
-                <select 
-                  className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-w-[180px]"
-                  value={filters.selectedMonth}
-                  onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
-                >
-                  {filterOptions.months.map(month => (
-                    <option key={month} value={month}>{month}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <MapPin className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Production Location</label>
-                <select 
-                  className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
-                  value={filters.selectedLocation}
-                  onChange={(e) => {
-                    const newLocation = e.target.value;
-                    console.log(`📍 Location filter changed to: ${newLocation}`);
-                    
-                    // Debug for specific facilities
-                    if (newLocation === 'Thunder Horse (Production)' || newLocation === 'Mad Dog (Production)' || 
-                        newLocation === 'Na Kika' || newLocation === 'Atlantis') {
-                      console.log(`🔍 Selected production facility: ${newLocation}`);
-                      const facilities = getProductionFacilities();
-                      const facility = facilities.find(f => f.displayName === newLocation);
-                      if (facility) {
-                        console.log(`📊 Facility details:`, {
-                          locationName: facility.locationName,
-                          displayName: facility.displayName,
-                          productionLCs: facility.productionLCs,
-                          normalizedDisplay: normalizeLocationForComparison(facility.displayName),
-                          normalizedLocation: normalizeLocationForComparison(facility.locationName)
-                        });
-                      }
-                    }
-                    
-                    setFilters(prev => ({ ...prev, selectedLocation: newLocation }));
-                  }}
-                >
-                  {filterOptions.locations.map(location => (
-                    <option key={location} value={location}>{location}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+      {/* Smart Filter Bar */}
+      <SmartFilterBar
+        timeFilter={filters.selectedMonth}
+        locationFilter={filters.selectedLocation}
+        onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedMonth: value }))}
+        onLocationChange={(value) => {
+          console.log(`📍 Location filter changed to: ${value}`);
           
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Activity className="w-4 h-4" />
-          </div>
-        </div>
-      </div>
+          // Debug for specific facilities
+          if (value === 'Thunder Horse (Production)' || value === 'Mad Dog (Production)' || 
+              value === 'Na Kika' || value === 'Atlantis') {
+            console.log(`🔍 Selected production facility: ${value}`);
+            const facilities = getProductionFacilities();
+            const facility = facilities.find(f => f.displayName === value);
+            if (facility) {
+              console.log(`📊 Facility details:`, {
+                locationName: facility.locationName,
+                displayName: facility.displayName,
+                productionLCs: facility.productionLCs,
+                normalizedDisplay: normalizeLocationForComparison(facility.displayName),
+                normalizedLocation: normalizeLocationForComparison(facility.locationName)
+              });
+            }
+          }
+          
+          setFilters(prev => ({ ...prev, selectedLocation: value }));
+        }}
+        timeOptions={filterOptions.months.map(month => ({ value: month, label: month }))}
+        locationOptions={filterOptions.locations.map(location => ({ value: location, label: location }))}
+        totalRecords={voyageEvents.length + vesselManifests.length + voyageList.length}
+        filteredRecords={(() => {
+          // Calculate filtered records count
+          let count = 0;
+          if (filters.selectedMonth !== 'All Months' || filters.selectedLocation !== 'All Locations') {
+            // This is a simplified calculation - in reality you'd use the same filtering logic as the metrics
+            const filteredVoyageEvents = voyageEvents.filter(event => {
+              const eventDate = safeParseDate(event?.eventDate || event?.from);
+              const matchesTime = filters.selectedMonth === 'All Months' || 
+                (eventDate && `${eventDate.toLocaleString('en-US', { month: 'long' })} ${eventDate.getFullYear()}` === filters.selectedMonth);
+              const matchesLocation = filters.selectedLocation === 'All Locations' || 
+                normalizeLocationForComparison(event?.location || '') === normalizeLocationForComparison(filters.selectedLocation);
+              return matchesTime && matchesLocation;
+            });
+            count = filteredVoyageEvents.length;
+          } else {
+            count = voyageEvents.length + vesselManifests.length + voyageList.length;
+          }
+          return count;
+        })()}
+        showPresets={true}
+      />
 
-      {/* KPI Cards Grid - Enhanced Production Operations */}
-      <div className="grid grid-cols-5 gap-4">
-        {/* First Row - Core Operational Metrics */}
+      {/* Performance Summary */}
+      <StatusDashboard
+        title="Performance Summary"
+        subtitle="Operational efficiency for all locations year-to-date"
+        overallStatus="good"
+        heroMetrics={[
+          {
+            title: "Cargo Throughput",
+            value: `${productionMetrics.cargoTons.value.toLocaleString()}`,
+            unit: "tons",
+            trend: productionMetrics.cargoTons.trend,
+            isPositive: productionMetrics.cargoTons.isPositive,
+            contextualHelp: "Total cargo tonnage moved to production facilities",
+            status: productionMetrics.cargoTons.value >= dynamicTargets.cargoTons ? 'good' : 'warning'
+          },
+          {
+            title: "Operational Efficiency", 
+            value: `${((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}%`,
+            trend: productionMetrics.osvProductiveHours.trend,
+            isPositive: productionMetrics.osvProductiveHours.isPositive,
+            contextualHelp: "Productive vs Total Hours",
+            status: ((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100) >= 70 ? 'good' : 
+                   ((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100) >= 60 ? 'warning' : 'critical'
+          },
+          {
+            title: "Vessel Activity",
+            value: productionMetrics.vesselVisits.value,
+            trend: productionMetrics.vesselVisits.trend,
+            isPositive: productionMetrics.vesselVisits.isPositive,
+            contextualHelp: "Total vessel visits to production facilities",
+            status: 'good'
+          },
+          {
+            title: "Cargo Operations",
+            value: productionMetrics.liftsPerHour.value,
+            trend: productionMetrics.liftsPerHour.trend,
+            isPositive: productionMetrics.liftsPerHour.isPositive,
+            unit: "lifts/hr",
+            contextualHelp: "Lifting efficiency during cargo operations",
+            target: dynamicTargets.liftsPerHour,
+            status: productionMetrics.liftsPerHour.value >= dynamicTargets.liftsPerHour ? 'good' : 'warning'
+          },
+          {
+            title: "Downtime Impact",
+            value: `${((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}%`,
+            trend: -productionMetrics.waitingTime.trend, // Negative because lower waiting time is better
+            isPositive: !productionMetrics.waitingTime.isPositive, // Invert because lower is better
+            contextualHelp: "Waiting time as percentage of total operations",
+            status: ((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100) <= 15 ? 'good' : 
+                   ((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100) <= 25 ? 'warning' : 'critical'
+          },
+          {
+            title: "Fluid Operations",
+            value: productionMetrics.fluidMovement?.totalTransfers || 0,
+            trend: productionMetrics.fluidMovement?.trend || 0,
+            isPositive: productionMetrics.fluidMovement?.isPositive || false,
+            unit: "transfers",
+            contextualHelp: "Chemical and fluid transfer operations",
+            status: (productionMetrics.fluidMovement?.totalTransfers || 0) > 0 ? 'good' : 'warning'
+          }
+        ]}
+        lastUpdated={new Date()}
+      />
+
+      {/* Progressive KPI Layout - Hero → Secondary → Compact */}
+      
+      {/* Hero Metrics - Most Critical Operations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <KPICard 
-          title="Cargo Tons" 
+          title="Cargo Operations" 
           value={productionMetrics.cargoTons.value.toLocaleString()}
           trend={productionMetrics.cargoTons.trend}
           isPositive={productionMetrics.cargoTons.isPositive}
           unit="tons"
           color="blue"
-          tooltip="Total cargo weight moved (Deck Tons + RT Tons) at production facilities. Higher values indicate increased operational activity."
+          variant="hero"
+          target={dynamicTargets.cargoTons}
+          contextualHelp={`Total cargo weight moved (Deck + RT Tons) at production facilities for ${getFilterContext()}. Target adjusted to ${dynamicTargets.cargoTons.toLocaleString()} tons for current scope. Higher values indicate efficient supply operations.`}
         />
         <KPICard 
-          title="Lifts per Hour" 
+          title="Operational Efficiency" 
           value={productionMetrics.liftsPerHour.value}
           trend={productionMetrics.liftsPerHour.trend}
           isPositive={productionMetrics.liftsPerHour.isPositive}
           unit="lifts/hr"
           color="green"
-          tooltip="Average number of cargo lifts performed per hour during active cargo operations. Higher values indicate better operational efficiency."
+          variant="hero"
+          target={dynamicTargets.liftsPerHour}
+          contextualHelp={`Average cargo lifts per hour during active operations for ${getFilterContext()}. Target: ${dynamicTargets.liftsPerHour}+ lifts/hr indicates efficient crane and cargo handling.`}
         />
+      </div>
+
+      {/* Secondary Metrics - Important Operational Insights */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard 
           title="Productive Hours" 
           value={productionMetrics.osvProductiveHours.value.toLocaleString()}
@@ -957,7 +1079,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.osvProductiveHours.isPositive}
           unit="hrs"
           color="purple"
-          tooltip="Total hours classified as productive based on activity categorization. Includes cargo operations, loading, discharge, and other value-adding activities."
+          variant="secondary"
+          target={dynamicTargets.productiveHours}
+          contextualHelp={`Total value-adding activities including cargo ops, loading, and discharge operations for ${getFilterContext()}. Target: ${dynamicTargets.productiveHours.toLocaleString()} hrs indicates good operational pace.`}
         />
         <KPICard 
           title="Waiting Time" 
@@ -966,7 +1090,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.waitingTime.isPositive}
           unit="hrs"
           color="orange"
-          tooltip="Hours spent waiting on installation at production locations (excludes weather). Lower values indicate better operational efficiency."
+          variant="secondary"
+          target={dynamicTargets.waitingTime}
+          contextualHelp={`Installation waiting time (excludes weather) for ${getFilterContext()}. Target: <${dynamicTargets.waitingTime} hrs indicates good facility readiness. LOWER IS BETTER.`}
         />
         <KPICard 
           title="Vessel Utilization" 
@@ -975,123 +1101,96 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           isPositive={productionMetrics.vesselUtilization.isPositive}
           unit="%"
           color="red"
-          tooltip="Percentage of offshore time spent on productive activities. Calculated as productive hours divided by total offshore hours."
+          variant="secondary"
+          target={dynamicTargets.vesselUtilization}
+          contextualHelp={`Productive time percentage for ${getFilterContext()}. Target: >${dynamicTargets.vesselUtilization}% indicates efficient vessel deployment and minimal downtime.`}
         />
-        
-        {/* Second Row - Efficiency & Performance Metrics */}
         <KPICard 
-          title="RT Cargo Tons" 
+          title="Fluid Movement" 
+          value={productionMetrics.fluidMovement?.value === 'N/A' ? 'N/A' : Math.round(Number(productionMetrics.fluidMovement?.value || 0) / 1000)}
+          trend={productionMetrics.fluidMovement?.trend}
+          isPositive={productionMetrics.fluidMovement?.isPositive}
+          unit={productionMetrics.fluidMovement?.value !== 'N/A' ? "k gal" : undefined}
+          color="indigo"
+          variant="secondary"
+          target={dynamicTargets.fluidMovement}
+          contextualHelp={`Production chemicals and fluids (methanol, xylene, inhibitors) for ${getFilterContext()}. Target: ${dynamicTargets.fluidMovement}k+ gallons critical for ongoing operations.`}
+        />
+      </div>
+
+      {/* Compact Metrics - Supporting Details */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+        <KPICard 
+          title="RT Cargo" 
           value={productionMetrics.rtCargoTons.value.toLocaleString()}
           trend={productionMetrics.rtCargoTons.trend}
           isPositive={productionMetrics.rtCargoTons.isPositive}
           unit="tons"
           color="indigo"
-          tooltip="Round-trip cargo tonnage. Lower values may indicate more efficient one-way operations and better logistics planning."
+          variant="compact"
         />
         <KPICard 
-          title="NPT Percentage" 
+          title="NPT %" 
           value={productionMetrics.nptPercentage?.value.toFixed(1) || '0.0'}
           trend={productionMetrics.nptPercentage?.trend}
           isPositive={productionMetrics.nptPercentage?.isPositive}
           unit="%"
           color="pink"
-          tooltip="Non-Productive Time as a percentage of total hours. Includes waiting time, breakdowns, and other non-productive activities."
+          variant="compact"
         />
         <KPICard 
-          title="Fluid Movement" 
-          value={productionMetrics.fluidMovement?.value === 'N/A' ? 'N/A' : Math.round(Number(productionMetrics.fluidMovement?.value || 0)).toLocaleString()}
-          trend={productionMetrics.fluidMovement?.trend}
-          isPositive={productionMetrics.fluidMovement?.isPositive}
-          unit={productionMetrics.fluidMovement?.value !== 'N/A' ? "gals" : undefined}
-          color="indigo"
-          tooltip="Production fluid movements in gallons (methanol, xylene, corrosion inhibitors, etc.)"
-        />
-        <KPICard 
-          title="Production Voyages" 
+          title="Voyages" 
           value={productionMetrics.fsvRuns.value.toLocaleString()}
           trend={productionMetrics.fsvRuns.trend}
           isPositive={productionMetrics.fsvRuns.isPositive}
-          unit="voyages"
+          unit="trips"
           color="blue"
-          tooltip="Complete round-trip voyages with Production or Mixed purpose. A voyage may include multiple vessel visits to different locations."
+          variant="compact"
         />
         <KPICard 
-          title="Maneuvering Hours" 
+          title="Maneuvering" 
           value={productionMetrics.maneuveringHours.value.toLocaleString()}
           trend={productionMetrics.maneuveringHours.trend}
           isPositive={productionMetrics.maneuveringHours.isPositive}
           unit="hrs"
           color="green"
-          tooltip="Time spent on vessel positioning, setup, and shifting operations. Lower values indicate more efficient vessel handling."
+          variant="compact"
+        />
+        <KPICard 
+          title="Vessel Visits" 
+          value={productionMetrics.vesselVisits.value.toLocaleString()}
+          trend={productionMetrics.vesselVisits.trend}
+          isPositive={productionMetrics.vesselVisits.isPositive}
+          unit="visits"
+          color="purple"
+          variant="compact"
+        />
+        <KPICard 
+          title="Total Events" 
+          value={productionMetrics.totalEvents.toLocaleString()}
+          unit="events"
+          color="blue"
+          variant="compact"
         />
       </div>
 
-      {/* Performance Summary */}
-      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Performance Summary</h3>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-sm text-gray-600 relative group">
-              {productionMetrics.totalEvents.toLocaleString()} events | {productionMetrics.totalManifests.toLocaleString()} manifests | {productionMetrics.fsvRuns.value.toLocaleString()} voyages
-              <Info className="inline-block w-3 h-3 text-gray-400 ml-1" />
-              <div className="absolute z-10 bottom-full right-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                <div className="max-w-xs whitespace-normal">
-                  <div className="font-semibold mb-1">Data Breakdown:</div>
-                  <div className="space-y-1">
-                    <div>• Events: Individual vessel activities recorded</div>
-                    <div>• Manifests: Vessel visits (port calls) at locations</div>
-                    <div>• Voyages: Complete round-trip journeys</div>
-                  </div>
-                </div>
-                <div className="absolute top-full right-4 -mt-1">
-                  <div className="border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              </div>
-            </span>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Efficiency Score</div>
-            <div className="text-2xl font-bold text-green-600">
-              {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}%
-            </div>
-            <div className="text-xs text-gray-500">Productive vs Total Hours</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Cargo Efficiency</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {productionMetrics.liftsPerHour.value}
-            </div>
-            <div className="text-xs text-gray-500">Lifts per Cargo Hour</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Vessel Utilization</div>
-            <div className="text-2xl font-bold text-purple-600">
-              {productionMetrics.vesselUtilization.value.toFixed(1)}%
-            </div>
-            <div className="text-xs text-gray-500">Productive vs Offshore Hours</div>
-          </div>
-        </div>
-      </div>
 
       {/* Analytics Dashboard Section - Enhanced Design */}
       <div className="space-y-6">
         {/* Production Analytics Row */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Vessel Fleet Analysis - Enhanced Design */}
+          {/* Enhanced Vessel Fleet Performance Analysis */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                     <Ship className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Vessel Fleet Analysis</h3>
-                    <p className="text-sm text-purple-100 mt-0.5">
-                      Distribution by {(filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months') ? 'Company' : 'Type'}
+                    <h3 className="text-lg font-semibold text-white">Fleet Performance Analysis</h3>
+                    <p className="text-sm text-blue-100 mt-0.5">
+                      Comprehensive vessel analytics for {getFilterContext()}
                     </p>
                   </div>
                 </div>
@@ -1105,49 +1204,54 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                     }
                     return total;
                   })()}</div>
-                  <div className="text-xs text-purple-100">Total Vessels</div>
+                  <div className="text-xs text-blue-100">Active Vessels</div>
                 </div>
               </div>
             </div>
             
             <div className="p-6">
               {productionMetrics.vesselTypeData.length > 0 ? (
-                <div className="space-y-4">
-                  {productionMetrics.vesselTypeData.map((item, index) => {
-                    const colors = [
-                      { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
-                      { bg: 'bg-green-500', light: 'bg-green-50', ring: 'ring-green-200' },
-                      { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
-                      { bg: 'bg-orange-500', light: 'bg-orange-50', ring: 'ring-orange-200' },
-                      { bg: 'bg-red-500', light: 'bg-red-50', ring: 'ring-red-200' }
-                    ];
-                    const color = colors[index % colors.length];
-                    
-                    return (
-                      <div key={item.type} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
+                <div className="space-y-6">
+                  {/* Simple Fleet Summary */}
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-semibold text-purple-800">Fleet Operations</h4>
+                        <p className="text-xs text-purple-600 mt-1">
+                          {Math.round(((productionMetrics.cargoOpsHours || 0) / (productionMetrics.totalHours || 1)) * 100)}% utilization • {(productionMetrics.liftsPerHour?.value || 0).toFixed(1)} lifts/hr
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-purple-700">
+                          {productionMetrics.vesselTypeData?.length || 0} vessel types
+                        </div>
+                        <div className="text-xs text-purple-600">active in operations</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Simple Vessel Types */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {productionMetrics.vesselTypeData.slice(0, 3).map((item, index) => {
+                      const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500'];
+                      const colorClasses = ['bg-blue-50 border-blue-200 text-blue-600', 'bg-green-50 border-green-200 text-green-600', 'bg-purple-50 border-purple-200 text-purple-600'];
+                      
+                      return (
+                        <div key={item.type} className={`p-4 rounded-lg border ${colorClasses[index] || colorClasses[0]}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`w-3 h-3 ${colors[index] || colors[0]} rounded-full`}></div>
                             <span className="text-sm font-semibold text-gray-800">{item.type}</span>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-lg font-bold text-gray-900">{item.count}</span>
-                            <span className="text-sm text-gray-500">vessels</span>
+                          <div className="text-xl font-bold">
+                            {item.count}
+                          </div>
+                          <div className="text-xs mt-1">
+                            {item.percentage.toFixed(1)}% of fleet
                           </div>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                          <div 
-                            className={`${color.bg} h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
-                            style={{ width: `${Math.max(15, item.percentage)}%` }}
-                          >
-                            <span className="text-sm font-bold text-white">
-                              {item.percentage.toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               ) : (
                 <div className="h-64 flex items-center justify-center">
@@ -1155,65 +1259,85 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                     <div className="p-4 bg-purple-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
                       <Ship className="w-10 h-10 text-purple-400" />
                     </div>
-                    <p className="text-gray-700 font-semibold">No Vessel Data</p>
-                    <p className="text-sm text-gray-500 mt-2">Vessel information will appear here</p>
+                    <p className="text-gray-700 font-semibold">No Fleet Data Available</p>
+                    <p className="text-sm text-gray-500 mt-2">Upload vessel manifest data to see fleet analytics</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Activity Breakdown - Enhanced Design */}
+          {/* Enhanced Activity Breakdown with Business Context */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-gray-600 to-slate-600 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                     <BarChart3 className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Activity Breakdown</h3>
-                    <p className="text-sm text-orange-100 mt-0.5">Operational Time Distribution</p>
+                    <h3 className="text-lg font-semibold text-white">Time Allocation Analysis</h3>
+                    <p className="text-sm text-gray-100 mt-0.5">
+                      Where vessel time is spent for {getFilterContext()}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-white">{Math.round(productionMetrics.totalHours).toLocaleString()}</div>
-                  <div className="text-xs text-orange-100">Total Hours</div>
+                  <div className="text-xs text-gray-100">Total Offshore Hours</div>
                 </div>
               </div>
             </div>
             
             <div className="p-6">
               {productionMetrics.activityData.length > 0 ? (
-                <div className="space-y-4">
-                  {productionMetrics.activityData.map((activity, index) => {
-                    const percentage = (activity.hours / productionMetrics.totalHours) * 100;
-                    
-                    return (
-                      <div key={activity.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className={`w-3 h-3 rounded-full ${activity.color} ring-4 ring-opacity-30`} 
-                                 style={{ boxShadow: `0 0 0 4px ${activity.color}30` }}></div>
-                            <span className="text-sm font-semibold text-gray-800 truncate">{activity.name}</span>
-                          </div>
-                          <div className="text-right ml-4 flex-shrink-0">
-                            <div className="text-lg font-bold text-gray-900">{Math.round(activity.hours).toLocaleString()}</div>
-                            <div className="text-xs text-gray-500">hours</div>
-                          </div>
-                        </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                          <div 
-                            className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
-                            style={{ width: `${Math.max(2, percentage)}%` }}
-                          >
-                            <span className="text-sm font-bold text-white">{percentage.toFixed(1)}%</span>
-                          </div>
-                        </div>
+                <>
+                  {/* Simple Time Summary */}
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-semibold text-orange-800">Time Allocation</h4>
+                        <p className="text-xs text-orange-600 mt-1">
+                          {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}% productive • {((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}% waiting
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-orange-700">
+                          {Math.round(productionMetrics.totalHours).toLocaleString()} hrs
+                        </div>
+                        <div className="text-xs text-orange-600">Total operational time</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Simple Activity List */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {productionMetrics.activityData.slice(0, 4).map((activity, index) => {
+                      const percentage = (activity.hours / productionMetrics.totalHours) * 100;
+                      const colorClasses = [
+                        'bg-blue-50 border-blue-200 text-blue-600',
+                        'bg-orange-50 border-orange-200 text-orange-600',
+                        'bg-purple-50 border-purple-200 text-purple-600',
+                        'bg-green-50 border-green-200 text-green-600'
+                      ];
+                      
+                      return (
+                        <div key={activity.name} className={`p-4 rounded-lg border ${colorClasses[index] || colorClasses[0]}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`w-3 h-3 ${activity.color} rounded-full`}></div>
+                            <span className="text-sm font-semibold text-gray-800">{activity.name}</span>
+                          </div>
+                          <div className="text-xl font-bold">
+                            {Math.round(activity.hours).toLocaleString()}
+                          </div>
+                          <div className="text-xs mt-1">
+                            {percentage.toFixed(1)}% of total time
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               ) : (
                 <div className="h-64 flex items-center justify-center">
                   <div className="text-center">
@@ -1231,7 +1355,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
 
         {/* Additional Production-Specific Analytics */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Production Time Analysis */}
+          {/* Enhanced Production Time Analysis */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
               <div className="flex items-center justify-between">
@@ -1240,125 +1364,85 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                     <Clock className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Production Time Analysis</h3>
-                    <p className="text-sm text-green-100 mt-0.5">{Math.round(productionMetrics.totalHours).toLocaleString()} Total Hours</p>
+                    <h3 className="text-lg font-semibold text-white">Operational Time Efficiency</h3>
+                    <p className="text-sm text-green-100 mt-0.5">
+                      {Math.round(productionMetrics.totalHours).toLocaleString()} total hours for {getFilterContext()}
+                    </p>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 items-end">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                    <span className="text-xs text-white font-medium">Productive</span>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-white">
+                    {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(0)}%
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-red-200 rounded-full"></div>
-                    <span className="text-xs text-green-100">Non-Productive</span>
-                  </div>
+                  <div className="text-xs text-green-100">Efficiency Score</div>
                 </div>
               </div>
             </div>
             
             <div className="p-6">
-              <div className="space-y-4">
-                {/* Productive Hours */}
-                <div className="group hover:bg-green-50 p-3 rounded-lg transition-colors duration-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full ring-4 ring-green-100"></div>
-                      <span className="text-sm font-semibold text-gray-800">Productive Hours</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.osvProductiveHours.value).toLocaleString()}</div>
-                      <div className="text-xs text-gray-500">hours</div>
-                    </div>
+              {/* Simple Efficiency Summary */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-green-800">Operational Time Efficiency</h4>
+                    <p className="text-xs text-green-600 mt-1">
+                      {Math.round(productionMetrics.osvProductiveHours.value).toLocaleString()} productive hours • {Math.round(productionMetrics.waitingTime.value).toLocaleString()} waiting hours
+                    </p>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                      style={{ width: `${Math.max(2, (productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100)}%` }}
-                    >
-                      <span className="text-sm font-bold text-white">
-                        {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}%
-                      </span>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-green-700">
+                      {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(0)}%
                     </div>
+                    <div className="text-xs text-green-600">efficiency score</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Simple Time Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg border bg-green-50 border-green-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Productive Time</span>
+                  </div>
+                  <div className="text-xl font-bold">
+                    {Math.round(productionMetrics.osvProductiveHours.value).toLocaleString()}
+                  </div>
+                  <div className="text-xs mt-1">
+                    {((productionMetrics.osvProductiveHours.value / productionMetrics.totalHours) * 100).toFixed(1)}% of total hours
                   </div>
                 </div>
 
-                {/* Non-Productive Hours */}
-                <div className="group hover:bg-red-50 p-3 rounded-lg transition-colors duration-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full ring-4 ring-red-100"></div>
-                      <span className="text-sm font-semibold text-gray-800">Non-Productive Hours</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.nonProductiveHours).toLocaleString()}</div>
-                      <div className="text-xs text-gray-500">hours</div>
-                    </div>
+                <div className="p-4 rounded-lg border bg-orange-50 border-orange-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Waiting Time</span>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                      style={{ width: `${Math.max(2, (productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100)}%` }}
-                    >
-                      <span className="text-sm font-bold text-white">
-                        {((productionMetrics.nonProductiveHours / productionMetrics.totalHours) * 100).toFixed(1)}%
-                      </span>
-                    </div>
+                  <div className="text-xl font-bold">
+                    {Math.round(productionMetrics.waitingTime.value).toLocaleString()}
+                  </div>
+                  <div className="text-xs mt-1">
+                    {((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}% of total hours
                   </div>
                 </div>
 
-                {/* Cargo Operations */}
-                <div className="group hover:bg-blue-50 p-3 rounded-lg transition-colors duration-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full ring-4 ring-blue-100"></div>
-                      <span className="text-sm font-semibold text-gray-800">Cargo Operations</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.cargoOpsHours).toLocaleString()}</div>
-                      <div className="text-xs text-gray-500">hours</div>
-                    </div>
+                <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Cargo Operations</span>
                   </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                      style={{ width: `${Math.max(2, (productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100)}%` }}
-                    >
-                      <span className="text-sm font-bold text-white">
-                        {((productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100).toFixed(1)}%
-                      </span>
-                    </div>
+                  <div className="text-xl font-bold">
+                    {Math.round(productionMetrics.cargoOpsHours).toLocaleString()}
                   </div>
-                </div>
-
-                {/* Waiting Time */}
-                <div className="group hover:bg-orange-50 p-3 rounded-lg transition-colors duration-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-orange-500 rounded-full ring-4 ring-orange-100"></div>
-                      <span className="text-sm font-semibold text-gray-800">Waiting Time</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{Math.round(productionMetrics.waitingTime.value).toLocaleString()}</div>
-                      <div className="text-xs text-gray-500">hours</div>
-                    </div>
-                  </div>
-                  <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                      style={{ width: `${Math.max(2, (productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100)}%` }}
-                    >
-                      <span className="text-sm font-bold text-white">
-                        {((productionMetrics.waitingTime.value / productionMetrics.totalHours) * 100).toFixed(1)}%
-                      </span>
-                    </div>
+                  <div className="text-xs mt-1">
+                    {((productionMetrics.cargoOpsHours / productionMetrics.totalHours) * 100).toFixed(1)}% of total hours
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Cargo Movement Analysis */}
+          {/* Enhanced Cargo Movement Analysis */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
               <div className="flex items-center justify-between">
@@ -1367,61 +1451,124 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                     <Anchor className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Cargo Movement Analysis</h3>
-                    <p className="text-sm text-blue-100 mt-0.5">Volume & Efficiency Metrics</p>
+                    <h3 className="text-lg font-semibold text-white">Supply Chain Performance</h3>
+                    <p className="text-sm text-blue-100 mt-0.5">
+                      Cargo throughput analysis for {getFilterContext()}
+                    </p>
                   </div>
                 </div>
-                <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                  {productionMetrics.cargoTons.value.toLocaleString()} tons
-                </span>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-white">
+                    {productionMetrics.cargoTons.value.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-blue-100">Total Tons Moved</div>
+                </div>
               </div>
             </div>
             
             <div className="p-6">
+              {/* Performance Overview */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-800">Supply Chain Efficiency</h4>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {productionMetrics.cargoTons.value >= dynamicTargets.cargoTons ? 
+                        '✅ Meeting cargo throughput targets - supply chain operating effectively' :
+                        productionMetrics.cargoTons.value >= dynamicTargets.cargoTons * 0.8 ?
+                        '⚠️ Below target but acceptable - monitor for continued improvement' :
+                        '❌ Significantly below target - review supply chain bottlenecks'
+                      }
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-blue-700">Target: {dynamicTargets.cargoTons.toLocaleString()} tons</div>
+                    <div className="text-xs text-blue-600">Adjusted for Scope</div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-6">
-                {/* Main Metric Display */}
-                <div className="text-center py-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
+                {/* Main Cargo Performance */}
+                <div className="text-center py-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
                   <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
                     {productionMetrics.cargoTons.value.toLocaleString()}
                   </div>
-                  <div className="text-lg font-medium text-gray-600 mt-2">Total Cargo Moved</div>
+                  <div className="text-lg font-medium text-gray-700 mt-2">Total Cargo Delivered</div>
+                  <div className="text-sm text-gray-500 mt-1">Deck cargo + round-trip materials to production facilities</div>
                   <div className={`flex items-center justify-center gap-2 mt-4 ${productionMetrics.cargoTons.isPositive ? 'text-green-600' : 'text-red-600'}`}>
                     {productionMetrics.cargoTons.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                    <span className="text-sm font-medium">{productionMetrics.cargoTons.trend}%</span>
-                    <span className="text-xs">vs. previous period</span>
+                    <span className="text-sm font-medium">{Math.abs(productionMetrics.cargoTons.trend)}%</span>
+                    <span className="text-xs">{productionMetrics.cargoTons.isPositive ? 'increase' : 'decrease'} vs. previous period</span>
                   </div>
                 </div>
                 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {productionMetrics.liftsPerHour.value}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Lifts/Hour</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg relative group">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {productionMetrics.vesselVisits.value}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1 flex items-center justify-center gap-1">
-                      Vessel Visits
-                      <Info className="w-3 h-3 text-gray-400" />
-                    </div>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">
-                      <div className="max-w-xs">
-                        Individual port calls at the selected location. A single voyage may include multiple visits.
+                {/* Operational Efficiency Metrics */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-800 mb-4">Operational Efficiency Breakdown</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Lifting Efficiency */}
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-medium text-green-700">Lifting Efficiency</div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          productionMetrics.liftsPerHour.value >= dynamicTargets.liftsPerHour ? 
+                          'text-green-600 bg-green-100' : 'text-yellow-600 bg-yellow-100'
+                        }`}>
+                          {productionMetrics.liftsPerHour.value >= dynamicTargets.liftsPerHour ? '✅ Efficient' : '⚠️ Monitor'}
+                        </span>
                       </div>
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      <div className="text-2xl font-bold text-green-700">
+                        {productionMetrics.liftsPerHour.value}
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        Lifts/Hour • Target: {dynamicTargets.liftsPerHour}+
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">
+                        Crane operations per active hour
                       </div>
                     </div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {productionMetrics.rtCargoTons.value.toLocaleString()}
+
+                    {/* Vessel Utilization */}
+                    <div className="bg-gradient-to-br from-purple-50 to-violet-50 p-4 rounded-lg border border-purple-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-medium text-purple-700">Vessel Activity</div>
+                        <span className="text-xs px-2 py-1 rounded-full text-purple-600 bg-purple-100">
+                          {productionMetrics.vesselVisits.value} visits
+                        </span>
+                      </div>
+                      <div className="text-2xl font-bold text-purple-700">
+                        {productionMetrics.vesselUtilization.value.toFixed(0)}%
+                      </div>
+                      <div className="text-xs text-purple-600 mt-1">
+                        Vessel Utilization • Target: {dynamicTargets.vesselUtilization}%+
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">
+                        Productive vs total offshore time
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">RT Tons</div>
+
+                    {/* Round-Trip Efficiency */}
+                    <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-medium text-orange-700">Logistics Efficiency</div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          productionMetrics.rtCargoTons.value <= (productionMetrics.cargoTons.value * 0.3) ? 
+                          'text-green-600 bg-green-100' : 'text-yellow-600 bg-yellow-100'
+                        }`}>
+                          {productionMetrics.rtCargoTons.value <= (productionMetrics.cargoTons.value * 0.3) ? '✅ Optimized' : '⚠️ Review'}
+                        </span>
+                      </div>
+                      <div className="text-2xl font-bold text-orange-700">
+                        {productionMetrics.rtCargoTons.value.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-orange-600 mt-1">
+                        Round-Trip Tons • Lower is better
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">
+                        Materials requiring return transport
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1429,18 +1576,20 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           </div>
         </div>
         
-        {/* Production Facility Cost Analysis */}
+        {/* Enhanced Logistics Cost Management & Analytics */}
         {Object.keys(productionMetrics.productionFacilityCosts).length > 0 && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                     <DollarSign className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Production Facility Cost Analysis</h3>
-                    <p className="text-sm text-indigo-100 mt-0.5">Cost allocation by production location</p>
+                    <h3 className="text-lg font-semibold text-white">Logistics Cost Intelligence</h3>
+                    <p className="text-sm text-emerald-100 mt-0.5">
+                      Strategic cost analysis and optimization insights for {getFilterContext()}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -1456,296 +1605,304 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                       }
                     })()}
                   </div>
-                  <div className="text-xs text-indigo-100">Total Cost</div>
+                  <div className="text-xs text-emerald-100">Total Investment</div>
                 </div>
               </div>
             </div>
             
             <div className="p-6">
-              <div className="space-y-4">
+              {/* Simple Cost Summary */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4 border border-emerald-200 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-emerald-800">Cost Management</h4>
+                    <p className="text-xs text-emerald-600 mt-1">
+                      Logistics costs across {Object.keys(productionMetrics.productionFacilityCosts).length} facilities
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-emerald-700">
+                      {(() => {
+                        const totalCost = Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0);
+                        const totalTons = productionMetrics.cargoTons?.value || 1;
+                        const costPerTon = totalCost / totalTons;
+                        return `$${costPerTon.toFixed(0)}/ton`;
+                      })()}
+                    </div>
+                    <div className="text-xs text-emerald-600">Average cost efficiency</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Simple Facility List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.entries(productionMetrics.productionFacilityCosts)
                   .sort(([,a]: any, [,b]: any) => b.totalCost - a.totalCost)
+                  .slice(0, 6)
                   .map(([facility, data]: [string, any], index) => {
-                    const maxCost = Math.max(...Object.values(productionMetrics.productionFacilityCosts).map((f: any) => f.totalCost));
-                    const percentage = maxCost > 0 ? (data.totalCost / maxCost) * 100 : 0;
-                    const colors = [
-                      { bg: 'bg-indigo-500', light: 'bg-indigo-50', ring: 'ring-indigo-200' },
-                      { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
-                      { bg: 'bg-pink-500', light: 'bg-pink-50', ring: 'ring-pink-200' },
-                      { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
-                      { bg: 'bg-teal-500', light: 'bg-teal-50', ring: 'ring-teal-200' }
+                    const colors = ['bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-teal-500', 'bg-indigo-500'];
+                    const colorClasses = [
+                      'bg-emerald-50 border-emerald-200 text-emerald-600',
+                      'bg-blue-50 border-blue-200 text-blue-600',
+                      'bg-purple-50 border-purple-200 text-purple-600',
+                      'bg-orange-50 border-orange-200 text-orange-600',
+                      'bg-teal-50 border-teal-200 text-teal-600',
+                      'bg-indigo-50 border-indigo-200 text-indigo-600'
                     ];
-                    const color = colors[index % colors.length];
                     
                     return (
-                      <div key={facility} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200 border border-gray-100`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
-                            <div>
-                              <span className="text-sm font-semibold text-gray-800">{data.displayName}</span>
-                              <div className="text-xs text-gray-500 mt-0.5">
-                                {data.voyageCount.toLocaleString()} voyages • {Math.round(data.allocatedDays).toLocaleString()} days
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-gray-900">
-                              {(() => {
-                                if (data.totalCost >= 1000000) {
-                                  return `$${(data.totalCost / 1000000).toFixed(1)}M`;
-                                } else if (data.totalCost >= 1000) {
-                                  return `$${Math.round(data.totalCost / 1000).toLocaleString()}K`;
-                                } else {
-                                  return `$${Math.round(data.totalCost).toLocaleString()}`;
-                                }
-                              })()}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              ${Math.round(data.avgDailyCost).toLocaleString()}/day
-                            </div>
-                          </div>
+                      <div key={facility} className={`p-4 rounded-lg border ${colorClasses[index] || colorClasses[0]}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-3 h-3 ${colors[index] || colors[0]} rounded-full`}></div>
+                          <span className="text-sm font-semibold text-gray-800">{data.displayName}</span>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                          <div 
-                            className={`${color.bg} h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
-                            style={{ width: `${Math.max(15, percentage)}%` }}
-                          >
-                            <span className="text-sm font-bold text-white">
-                              {(() => {
-                                if (data.totalCost >= 1000000) {
-                                  return `$${(data.totalCost / 1000000).toFixed(1)}M`;
-                                } else if (data.totalCost >= 1000) {
-                                  return `$${Math.round(data.totalCost / 1000).toLocaleString()}K`;
-                                } else {
-                                  return `$${Math.round(data.totalCost).toLocaleString()}`;
-                                }
-                              })()}
-                            </span>
-                          </div>
+                        <div className="text-xl font-bold">
+                          {(() => {
+                            if (data.totalCost >= 1000000) {
+                              return `$${(data.totalCost / 1000000).toFixed(1)}M`;
+                            } else if (data.totalCost >= 1000) {
+                              return `$${Math.round(data.totalCost / 1000)}K`;
+                            } else {
+                              return `$${Math.round(data.totalCost)}`;
+                            }
+                          })()}
+                        </div>
+                        <div className="text-xs mt-1">
+                          {data.voyageCount} voyages • {Math.round(data.allocatedDays)} days
                         </div>
                       </div>
                     );
                   })}
               </div>
-              
-              {/* Summary Statistics */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-indigo-600">
-                    {Object.keys(productionMetrics.productionFacilityCosts).length}
-                  </div>
-                  <div className="text-sm text-gray-600">Active Facilities</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {(() => {
-                      const totalCost = Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0);
-                      if (totalCost >= 1000000) {
-                        return `$${(totalCost / 1000000).toFixed(1)}M`;
-                      } else if (totalCost >= 1000) {
-                        return `$${Math.round(totalCost / 1000).toLocaleString()}K`;
-                      } else {
-                        return `$${Math.round(totalCost).toLocaleString()}`;
-                      }
-                    })()}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Cost</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-pink-600">
-                    {Math.round(Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.allocatedDays, 0)).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Days</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    ${Math.round(
-                      Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.totalCost, 0) /
-                      Math.max(1, Object.values(productionMetrics.productionFacilityCosts).reduce((sum: number, f: any) => sum + f.allocatedDays, 0))
-                    ).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-600">Avg Cost/Day</div>
-                </div>
-              </div>
             </div>
           </div>
         )}
         
-        {/* Fluid Movements - Enhanced Design */}
+        {/* Enhanced Fluid Operations Intelligence */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-6">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+          <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                   <Activity className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Fluid Movements</h3>
-                  <p className="text-sm text-blue-100 mt-0.5">Volume Analysis & Tracking</p>
+                  <h3 className="text-lg font-semibold text-white">Fluid Operations Intelligence</h3>
+                  <p className="text-sm text-cyan-100 mt-0.5">Critical fluid logistics and supply chain analytics for {getFilterContext()}</p>
                 </div>
               </div>
-              <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                {productionMetrics.fluidMovement?.value !== 'N/A' ? `${Math.round(Number(productionMetrics.fluidMovement?.value || 0) + (productionMetrics.fluidMovement?.dieselVolume || 0)).toLocaleString()} gals total` : 'No Data'}
-              </span>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-white">
+                  {productionMetrics.fluidMovement?.value !== 'N/A' ? 
+                    `${Math.round(Number(productionMetrics.fluidMovement?.value || 0) + (productionMetrics.fluidMovement?.dieselVolume || 0)).toLocaleString()}` : '0'}
+                </div>
+                <div className="text-xs text-cyan-100">Total Gallons Managed</div>
+              </div>
             </div>
           </div>
           
           <div className="p-6">
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              {/* Production Chemicals */}
-              <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Droplet className="w-5 h-5 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-700">Production Chemicals</span>
+            {/* Simplified Overview */}
+            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg p-4 border border-cyan-200 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-cyan-800">Fluid Operations Summary</h4>
+                  <p className="text-xs text-cyan-600 mt-1">
+                    Essential fluid logistics for production operations
+                  </p>
                 </div>
-                <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                <div className="text-right">
+                  <div className="text-lg font-bold text-cyan-700">
+                    {productionMetrics.fluidMovement?.value !== 'N/A' ? 
+                      `${Math.round(Number(productionMetrics.fluidMovement?.value || 0) + (productionMetrics.fluidMovement?.dieselVolume || 0)).toLocaleString()}` : '0'} gals
+                  </div>
+                  <div className="text-xs text-cyan-600">Total Volume</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Simplified Fluid Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Production Chemicals */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-semibold text-gray-800">Production Chemicals</span>
+                </div>
+                <div className="text-2xl font-bold text-blue-600">
                   {productionMetrics.fluidMovement?.value === 'N/A' ? '0' : Math.round(Number(productionMetrics.fluidMovement?.value || 0)).toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-600 mt-1">Gallons</div>
+                <div className="text-xs text-blue-600 mt-1">gallons (methanol, corrosion inhibitors, etc.)</div>
               </div>
               
-              {/* Diesel */}
-              <div className="text-center p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Droplet className="w-5 h-5 text-amber-600" />
-                  <span className="text-sm font-medium text-gray-700">Diesel</span>
+              {/* Fuel Supply */}
+              <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                  <span className="text-sm font-semibold text-gray-800">Fuel Supply</span>
                 </div>
-                <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-orange-600">
+                <div className="text-2xl font-bold text-amber-600">
                   {Math.round(productionMetrics.fluidMovement?.dieselVolume || 0).toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-600 mt-1">Gallons</div>
+                <div className="text-xs text-amber-600 mt-1">gallons diesel for operations</div>
               </div>
             </div>
-            
-            <div className="text-center">
-              <div className="text-lg font-medium text-gray-600">Combined Total: {Math.round(Number(productionMetrics.fluidMovement?.value || 0) + (productionMetrics.fluidMovement?.dieselVolume || 0)).toLocaleString()} Gallons</div>
-              
-              {/* Trend Percentage */}
-              {productionMetrics.fluidMovement?.trend !== null && productionMetrics.fluidMovement?.value !== 'N/A' && (
-                <div className="mt-3 inline-block px-4 py-1 rounded-full bg-white">
-                  <span className={`text-lg font-bold ${productionMetrics.fluidMovement?.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                    {productionMetrics.fluidMovement?.isPositive ? '+' : ''}{productionMetrics.fluidMovement?.trend}%
-                  </span>
-                  <span className="text-sm text-gray-500 ml-1">vs. previous period</span>
-                </div>
-              )}
-              
-              <div className="mt-4 text-sm text-gray-600">
-                <span className="font-medium">30-Day Fluid Movement Trend</span>
+
+            {/* Simple Trend Indicator */}
+            {productionMetrics.fluidMovement?.trend !== null && productionMetrics.fluidMovement?.value !== 'N/A' && (
+              <div className="text-center py-4">
+                <span className={`inline-block px-4 py-2 rounded-full bg-white shadow-sm text-sm ${
+                  productionMetrics.fluidMovement?.isPositive ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {productionMetrics.fluidMovement?.isPositive ? '↗' : '↘'} {Math.abs(productionMetrics.fluidMovement?.trend || 0)}% vs. previous period
+                </span>
               </div>
-              <div className="flex items-end justify-center gap-0.5 mt-2 h-24 bg-gray-50 rounded-lg p-2">
-                {(productionMetrics.fluidMovement?.dailyFluidVolumes || Array(30).fill(0)).map((volume, i) => {
-                  // Calculate height based on actual volume data
-                  const dailyVolumes = productionMetrics.fluidMovement?.dailyFluidVolumes || Array(30).fill(0);
-                  const maxVolume = Math.max(...dailyVolumes, 1);
-                  const hasData = dailyVolumes.some(v => v > 0);
-                  
-                  // If no data, show a subtle placeholder pattern
-                  if (!hasData) {
-                    const placeholderHeight = 10 + (Math.sin(i * 0.5) * 5) + (Math.random() * 10);
-                    return (
-                      <div 
-                        key={i} 
-                        className="w-2 rounded-t-sm bg-gray-300"
-                        style={{ 
-                          height: `${placeholderHeight}px`,
-                          opacity: 0.3
-                        }}
-                        title="No data available"
-                      />
-                    );
-                  }
-                  
-                  // Scale the height based on the maximum volume in the dataset
-                  const heightPercentage = maxVolume > 0 ? (volume / maxVolume) * 100 : 0;
-                  const height = volume > 0 ? Math.max(10, Math.min(80, heightPercentage * 0.8)) : 3; // Min 10px for visible bars, 3px for zero
-                  
-                  return (
-                    <div 
-                      key={i} 
-                      className={`w-2 rounded-t-sm transition-all duration-500 hover:opacity-100 ${productionMetrics.fluidMovement?.isPositive ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ 
-                        height: `${height}px`,
-                        opacity: volume > 0 ? 0.6 + (i / 30) * 0.4 : 0.2 // More visible opacity for bars with data
-                      }}
-                      title={`Day ${i+1}: ${Math.round(volume).toLocaleString()} gals`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-            
-            {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-900">
-                  {productionMetrics.fluidMovement?.totalTransfers || 0}
-                </div>
-                <div className="text-xs text-blue-700 mt-1">Chemical Transfers</div>
-              </div>
-              <div className="text-center p-4 bg-amber-50 rounded-lg">
-                <div className="text-2xl font-bold text-amber-900">
-                  {productionMetrics.fluidMovement?.dieselTransfers || 0}
-                </div>
-                <div className="text-xs text-amber-700 mt-1">Diesel Transfers</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-900">
-                  {(productionMetrics.fluidMovement?.totalTransfers || 0) + (productionMetrics.fluidMovement?.dieselTransfers || 0)}
-                </div>
-                <div className="text-xs text-green-700 mt-1">Total Transfers</div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
         
-        {/* Production Fluids Analysis Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Droplet className="h-6 w-6 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">PRODUCTION FLUIDS ANALYSIS</h3>
-            </div>
-            <div className="text-sm text-gray-500">
-              {bulkActions.length > 0 ? 'Volume tracked in gallons' : 'No bulk actions data loaded'}
+        {/* Simple Production Chemical Summary */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-6">
+          <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <Droplet className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Production Chemicals</h3>
+                  <p className="text-sm text-emerald-100 mt-0.5">
+                    Chemical transfers and fuel operations
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-white">
+                  {bulkActions.length.toLocaleString()}
+                </div>
+                <div className="text-xs text-emerald-100">total transfers</div>
+              </div>
             </div>
           </div>
           
-          {bulkActions.length > 0 ? (
-            <ProductionBulkInsights
-              bulkActions={bulkActions}
-              selectedVessel={undefined} // Don't filter by vessel in production dashboard
-              selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
-              dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
-                // Parse the selected month to create a date range
-                const parts = filters.selectedMonth.split(' ');
-                if (parts.length >= 2) {
-                  const monthName = parts[0];
-                  const year = parseInt(parts[1]);
-                  const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
-                  const startDate = new Date(year, monthIndex, 1);
-                  const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
-                  return [startDate, endDate];
-                }
-                return undefined;
-              })()}
-            />
-          ) : (
-            <div className="text-center py-12">
-              <div className="p-4 bg-gray-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
-                <Droplet className="w-10 h-10 text-gray-400" />
+          <div className="p-6">
+            {bulkActions.length > 0 ? (
+              <>
+                {/* Chemical Summary */}
+                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-4 border border-emerald-200 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-emerald-800">Chemical Transfer Summary</h4>
+                      <p className="text-xs text-emerald-600 mt-1">
+                        {productionMetrics.fluidMovement?.totalTransfers || 0} chemical transfers • {Math.round((productionMetrics.fluidMovement?.currentVolume || 0)).toLocaleString()} gallons
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-emerald-700">
+                        {[...new Set(bulkActions.filter(action => {
+                          const PRODUCTION_CHEMICALS = [
+                            'Asphaltene Inhibitor', 'Calcium Nitrate (Petrocare 45)', 'Methanol', 'Xylene',
+                            'Corrosion Inhibitor', 'Scale Inhibitor', 'LDHI', 'Subsea 525'
+                          ];
+                          return PRODUCTION_CHEMICALS.some(chemical => 
+                            action.fluidSpecificType?.toLowerCase().includes(chemical.toLowerCase()) ||
+                            action.bulkDescription?.toLowerCase().includes(chemical.toLowerCase()) ||
+                            action.bulkType?.toLowerCase().includes(chemical.toLowerCase())
+                          );
+                        }).map(action => action.bulkType || action.fluidSpecificType || action.bulkDescription).filter(Boolean))].length} types
+                      </div>
+                      <div className="text-xs text-emerald-600">active chemicals</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chemical Types Grid */}
+                <div className="space-y-4">
+                  <h5 className="text-sm font-semibold text-gray-700 mb-3">Fluid Transfer Details</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {(() => {
+                      const PRODUCTION_CHEMICALS = [
+                        'Asphaltene Inhibitor', 'Calcium Nitrate (Petrocare 45)', 'Methanol', 'Xylene',
+                        'Corrosion Inhibitor', 'Scale Inhibitor', 'LDHI', 'Subsea 525'
+                      ];
+                      
+                      const chemicalData = PRODUCTION_CHEMICALS.map(chemical => {
+                        const transfers = bulkActions.filter(action => 
+                          action.fluidSpecificType?.toLowerCase().includes(chemical.toLowerCase()) ||
+                          action.bulkDescription?.toLowerCase().includes(chemical.toLowerCase()) ||
+                          action.bulkType?.toLowerCase().includes(chemical.toLowerCase())
+                        );
+                        const volume = transfers.reduce((sum, action) => sum + (action.volumeGals || 0), 0);
+                        return {
+                          name: chemical,
+                          transfers: transfers.length,
+                          volume: Math.round(volume),
+                          hasData: transfers.length > 0
+                        };
+                      });
+
+                      // Show chemicals with data first, then add diesel
+                      const activeChemicals = chemicalData.filter(c => c.hasData);
+                      const dieselTransfers = bulkActions.filter(action => 
+                        action.bulkType?.toLowerCase().includes('diesel') ||
+                        action.bulkDescription?.toLowerCase().includes('diesel')
+                      );
+                      
+                      if (dieselTransfers.length > 0) {
+                        activeChemicals.push({
+                          name: 'Diesel Fuel',
+                          transfers: dieselTransfers.length,
+                          volume: Math.round(dieselTransfers.reduce((sum, action) => sum + (action.volumeGals || 0), 0)),
+                          hasData: true
+                        });
+                      }
+
+                      const colors = [
+                        'bg-emerald-50 border-emerald-200 text-emerald-600',
+                        'bg-blue-50 border-blue-200 text-blue-600',
+                        'bg-purple-50 border-purple-200 text-purple-600',
+                        'bg-orange-50 border-orange-200 text-orange-600',
+                        'bg-pink-50 border-pink-200 text-pink-600',
+                        'bg-indigo-50 border-indigo-200 text-indigo-600',
+                        'bg-yellow-50 border-yellow-200 text-yellow-600',
+                        'bg-red-50 border-red-200 text-red-600',
+                        'bg-gray-50 border-gray-200 text-gray-600'
+                      ];
+
+                      return activeChemicals.map((chemical, index) => (
+                        <div key={chemical.name} className={`p-4 rounded-lg border ${colors[index % colors.length]}`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className={`w-3 h-3 rounded-full ${chemical.name === 'Diesel Fuel' ? 'bg-gray-500' : 'bg-emerald-500'}`}></div>
+                            <span className="text-sm font-semibold text-gray-800">{chemical.name}</span>
+                          </div>
+                          <div className="space-y-2">
+                            <div>
+                              <div className="text-lg font-bold text-gray-900">{chemical.transfers}</div>
+                              <div className="text-xs text-gray-600">transfers</div>
+                            </div>
+                            <div>
+                              <div className="text-md font-semibold text-gray-700">{chemical.volume.toLocaleString()}</div>
+                              <div className="text-xs text-gray-600">gallons</div>
+                            </div>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <div className="p-4 bg-gray-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
+                  <Droplet className="w-10 h-10 text-gray-400" />
+                </div>
+                <p className="text-gray-700 font-semibold">No Chemical Data Available</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Upload bulk actions data to see chemical operations
+                </p>
               </div>
-              <p className="text-gray-700 font-semibold">No Bulk Actions Data Available</p>
-              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-                To see production fluids analysis, please upload the bulk actions Excel file. 
-                This file contains information about fluid transfers including methanol, xylene, corrosion inhibitors, and other production chemicals.
-              </p>
-              <p className="text-xs text-gray-400 mt-4">
-                Expected columns: Vessel Name, Start Date, Action, Qty, Unit, Bulk Type, Bulk Description, At Port, Destination Port
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

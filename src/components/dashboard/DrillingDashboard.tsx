@@ -3,10 +3,10 @@ import { useData } from '../../context/DataContext';
 import { getVesselTypeFromName, getVesselCompanyFromName } from '../../data/vesselClassification';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation, getAllProductionLCs } from '../../data/masterFacilities';
 import type { VoyageEvent } from '../../types';
-import { Activity, Clock, MapPin, Calendar, ChevronRight, Ship, BarChart3, Droplet } from 'lucide-react';
+import { Activity, Clock, Ship, BarChart3, Droplet } from 'lucide-react';
 import KPICard from './KPICard';
-import DrillingBulkInsights from './DrillingBulkInsights';
-import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
+import StatusDashboard from './StatusDashboard';
+import SmartFilterBar from './SmartFilterBar';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -28,9 +28,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     selectedLocation: 'All Locations'
   });
   
-  // State for showing/hiding debug panel
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
-
   // Calculate drilling-specific KPIs
   const drillingMetrics = useMemo(() => {
     try {
@@ -1445,6 +1442,49 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     return { months, locations };
   }, [voyageEvents, vesselManifests, voyageList]); // Focus on primary data sources
 
+  // Dynamic targets based on filter scope
+  const dynamicTargets = useMemo(() => {
+    const isSingleLocation = filters.selectedLocation !== 'All Locations';
+    const isSingleMonth = filters.selectedMonth !== 'All Months';
+    
+    let cargoTarget = 4000; // Lower than production
+    let liftsPerHourTarget = 1.8; // Lower than production for drilling ops
+    let nptTarget = 15; // 15% max NPT target
+    let waitingTarget = 8; // 8% max waiting time target
+    
+    // Adjust targets based on scope
+    if (isSingleLocation && isSingleMonth) {
+      cargoTarget = 600; // Single location/month 
+      liftsPerHourTarget = 1.5;
+      nptTarget = 12; // Stricter for focused view
+      waitingTarget = 5; // Stricter for focused view
+    } else if (isSingleLocation || isSingleMonth) {
+      cargoTarget = 1500; // Single dimension
+      liftsPerHourTarget = 1.6;
+      nptTarget = 13;
+      waitingTarget = 6;
+    }
+    
+    return {
+      cargoTons: cargoTarget,
+      liftsPerHour: liftsPerHourTarget,
+      nptPercentage: nptTarget,
+      waitingPercentage: waitingTarget,
+    };
+  }, [filters.selectedMonth, filters.selectedLocation]);
+
+  // Helper function for contextual explanations
+  const getFilterContext = () => {
+    if (filters.selectedLocation !== 'All Locations' && filters.selectedMonth !== 'All Months') {
+      return `${filters.selectedLocation} in ${filters.selectedMonth}`;
+    } else if (filters.selectedLocation !== 'All Locations') {
+      return `${filters.selectedLocation} (all months)`;
+    } else if (filters.selectedMonth !== 'All Months') {
+      return `all drilling locations in ${filters.selectedMonth}`;
+    }
+    return 'all drilling operations (YTD)';
+  };
+
   if (!isDataReady || voyageEvents.length === 0) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
@@ -1459,215 +1499,162 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="p-6 space-y-6">
-        {/* Modern Header with Gradient */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
-                  <Activity className="w-6 h-6 text-white" />
-                </div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                  GoA Wells Performance
-                </h1>
-              </div>
-              <p className="text-gray-600 ml-14">Real-time Drilling Operations & Logistics Dashboard</p>
-            </div>
-            <button
-              onClick={onNavigateToUpload}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <ChevronRight className="w-4 h-4 rotate-180" />
-              Back to Upload
-            </button>
-          </div>
-        </div>
+        {/* Smart Filter Bar */}
+        <SmartFilterBar
+          timeFilter={filters.selectedMonth}
+          locationFilter={filters.selectedLocation}
+          onTimeChange={(value: string) => setFilters(prev => ({ ...prev, selectedMonth: value }))}
+          onLocationChange={(value: string) => setFilters(prev => ({ ...prev, selectedLocation: value }))}
+          timeOptions={filterOptions.months.map(month => ({ value: month, label: month }))}
+          locationOptions={filterOptions.locations.map(location => ({ value: location, label: location }))}
+          totalRecords={voyageEvents.length + vesselManifests.length}
+          filteredRecords={voyageEvents.length + vesselManifests.length}
+        />
 
-        {/* Modern Filter Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Period</label>
-                  <select 
-                    className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-w-[180px]"
-                    value={filters.selectedMonth}
-                    onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
-                  >
-                    {filterOptions.months.map(month => (
-                      <option key={month} value={month}>{month}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <MapPin className="w-4 h-4 text-green-600" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Drilling Location</label>
-                  <select 
-                    className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
-                    value={filters.selectedLocation}
-                    onChange={(e) => {
-                      try {
-                        const newLocation = e.target.value;
-                        console.log(`📍 Drilling location changed to: ${newLocation}`);
-                        setFilters(prev => ({ ...prev, selectedLocation: newLocation }));
-                      } catch (error) {
-                        console.error('Error changing location filter:', error);
-                      }
-                    }}
-                  >
-                    {filterOptions.locations.map(location => (
-                      <option key={location} value={location}>{location}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-            
-            {/* Removed live data refresh text */}
-          </div>
-        </div>
+        {/* Enhanced Status Dashboard */}
+        <StatusDashboard
+          title="GoA Wells Performance"
+          subtitle="Real-time Drilling Operations & Logistics Dashboard"
+          overallStatus={
+            drillingMetrics.waitingTime?.value > (dynamicTargets.waitingPercentage * 10) ? 'fair' :
+            drillingMetrics.nptPercentage?.value > dynamicTargets.nptPercentage ? 'good' : 'excellent'
+          }
+          heroMetrics={[
+            {
+              title: "Total Cargo",
+              value: drillingMetrics.cargoTons?.value?.toLocaleString() || '0',
+              unit: "tons",
+              trend: drillingMetrics.cargoTons?.trend,
+              isPositive: drillingMetrics.cargoTons?.isPositive,
+              target: dynamicTargets.cargoTons,
+              contextualHelp: `Drilling support cargo tonnage for ${getFilterContext()}`
+            },
+            {
+              title: "Efficiency",
+              value: Math.round(drillingMetrics.liftsPerHour?.value || 0).toFixed(1),
+              unit: "lifts/hr",
+              trend: drillingMetrics.liftsPerHour?.trend,
+              isPositive: drillingMetrics.liftsPerHour?.isPositive,
+              target: dynamicTargets.liftsPerHour,
+              contextualHelp: `Operational efficiency for ${getFilterContext()}`
+            },
+            {
+              title: "NPT Impact",
+              value: Math.round(drillingMetrics.nptPercentage?.value || 0),
+              unit: "%",
+              trend: drillingMetrics.nptPercentage?.trend,
+              isPositive: false,
+              target: dynamicTargets.nptPercentage,
+              status: drillingMetrics.nptPercentage?.value > dynamicTargets.nptPercentage ? 'warning' : 'good',
+              contextualHelp: "Non-productive time - lower is better"
+            }
+          ]}
+          onViewDetails={onNavigateToUpload}
+        />
 
-        {/* KPI Cards Grid - All Original Metrics */}
-        <div className="grid grid-cols-5 gap-4">
-          {/* First Row - Core Operational Metrics */}
+        {/* Progressive KPI Hierarchy - Hero Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <KPICard 
-            title="Cargo Tons" 
-            value={drillingMetrics.cargoTons.value.toLocaleString()}
-            trend={drillingMetrics.cargoTons.trend}
-            isPositive={drillingMetrics.cargoTons.isPositive}
+            title="Drilling Operations" 
+            value={drillingMetrics.cargoTons?.value?.toLocaleString() || '0'}
+            variant="hero"
+            trend={drillingMetrics.cargoTons?.trend}
+            isPositive={drillingMetrics.cargoTons?.isPositive}
             unit="tons"
+            target={dynamicTargets.cargoTons}
+            contextualHelp={`Total cargo tonnage supporting drilling operations for ${getFilterContext()}`}
             color="blue"
-            tooltip="Total cargo weight moved (Deck Tons + RT Tons) at drilling locations. Indicates material supply intensity."
           />
           <KPICard 
-            title="Lifts per Hour" 
-            value={Math.round(drillingMetrics.liftsPerHour.value).toLocaleString()}
-            trend={drillingMetrics.liftsPerHour.trend}
-            isPositive={drillingMetrics.liftsPerHour.isPositive}
+            title="Operational Efficiency" 
+            value={`${Math.round(drillingMetrics.liftsPerHour?.value || 0).toFixed(1)}`}
+            variant="hero"
+            trend={drillingMetrics.liftsPerHour?.trend}
+            isPositive={drillingMetrics.liftsPerHour?.isPositive}
             unit="lifts/hr"
+            target={dynamicTargets.liftsPerHour}
+            contextualHelp={`Average cargo handling efficiency during active drilling support operations for ${getFilterContext()}`}
             color="green"
-            tooltip="Average number of cargo lifts performed per hour during active cargo operations at drilling locations."
+          />
+        </div>
+
+        {/* Secondary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <KPICard 
+            title="Productive Time" 
+            value={drillingMetrics.osvProductiveHours?.value?.toLocaleString() || '0'}
+            variant="secondary"
+            trend={drillingMetrics.osvProductiveHours?.trend}
+            isPositive={drillingMetrics.osvProductiveHours?.isPositive}
+            unit="hrs"
+            target={dynamicTargets.cargoTons * 0.7}
+            contextualHelp="Hours spent on value-adding activities supporting drilling operations"
+            color="purple"
           />
           <KPICard 
-            title="Productive Hours" 
-            value={drillingMetrics.osvProductiveHours.value.toLocaleString()}
-            trend={drillingMetrics.osvProductiveHours.trend}
-            isPositive={drillingMetrics.osvProductiveHours.isPositive}
-            unit="hrs"
-            color="purple"
-            tooltip="Hours spent on productive activities classified by operational category. Higher values indicate better time utilization."
+            title="NPT Impact" 
+            value={`${Math.round(drillingMetrics.nptPercentage?.value || 0)}`}
+            variant="secondary"
+            trend={drillingMetrics.nptPercentage?.trend}
+            isPositive={false} // Lower NPT is better
+            unit="%"
+            target={dynamicTargets.nptPercentage}
+            contextualHelp="Non-productive time percentage - LOWER IS BETTER for operational excellence"
+            color="orange"
           />
           <KPICard 
             title="Waiting Time" 
-            value={drillingMetrics.waitingTime.value.toLocaleString()}
-            trend={drillingMetrics.waitingTime.trend}
-            isPositive={drillingMetrics.waitingTime.isPositive}
+            value={Math.round(drillingMetrics.waitingTime?.value || 0).toLocaleString()}
+            variant="secondary"
+            trend={drillingMetrics.waitingTime?.trend}
+            isPositive={false} // Lower waiting is better
             unit="hrs"
-            color="orange"
-            tooltip="Time spent waiting on rig operations (excludes weather). Lower values indicate better operational efficiency."
-          />
-          <KPICard 
-            title="Vessel Utilization" 
-            value={drillingMetrics.vesselUtilization.value.toLocaleString()}
-            trend={drillingMetrics.vesselUtilization.trend}
-            isPositive={drillingMetrics.vesselUtilization.isPositive}
-            unit="%"
+            target={dynamicTargets.waitingPercentage * 10} // Convert percentage target to hours
+            contextualHelp="Time spent waiting on rig operations - LOWER IS BETTER for efficiency"
             color="red"
-            tooltip="Percentage of rig time spent on productive activities. Calculated as productive hours divided by total rig hours."
-          />
-          
-          {/* Second Row - Efficiency & Performance Metrics */}
-          <KPICard 
-            title="Fluid Movement" 
-            value={drillingMetrics.fluidMovement.value === 'N/A' ? 'N/A' : Math.round(Number(drillingMetrics.fluidMovement.value)).toLocaleString()}
-            trend={drillingMetrics.fluidMovement.trend}
-            isPositive={drillingMetrics.fluidMovement.isPositive}
-            unit={drillingMetrics.fluidMovement.value !== 'N/A' ? "bbls" : undefined}
-            color="indigo"
-            tooltip="Drilling fluid movements in barrels (muds, premix, brines, base oils). Excludes Diesel and gallon-based measurements."
-          />
-          <KPICard 
-            title="NPT Percentage" 
-            value={Math.round(drillingMetrics.nptPercentage?.value || 0).toLocaleString()}
-            trend={drillingMetrics.nptPercentage?.trend}
-            isPositive={drillingMetrics.nptPercentage?.isPositive}
-            unit="%"
-            color="pink"
-            tooltip="Non-Productive Time as a percentage of total hours at drilling locations. Lower is better."
-          />
-          <KPICard 
-            title="Weather Impact" 
-            value={Math.round(drillingMetrics.weatherImpact?.value || 0).toLocaleString()}
-            trend={drillingMetrics.weatherImpact?.trend}
-            isPositive={drillingMetrics.weatherImpact?.isPositive}
-            unit="%"
-            color="yellow"
-            tooltip="Percentage of rig time spent waiting due to weather conditions. Lower values indicate less weather disruption."
-          />
-          <KPICard 
-            title="Drilling Voyages" 
-            value={drillingMetrics.fsvRuns.value.toLocaleString()}
-            trend={drillingMetrics.fsvRuns.trend}
-            isPositive={drillingMetrics.fsvRuns.isPositive}
-            unit="voyages"
-            color="blue"
-            tooltip="Complete round-trip voyages to drilling locations, including mixed-purpose trips. Higher counts indicate increased drilling support activity."
-          />
-          <KPICard 
-            title="Maneuvering Hours" 
-            value={Math.round(drillingMetrics.maneuveringHours.value).toLocaleString()}
-            trend={drillingMetrics.maneuveringHours.trend}
-            isPositive={drillingMetrics.maneuveringHours.isPositive}
-            unit="hrs"
-            color="green"
-            tooltip="Time spent on vessel positioning, anchor handling, and rig moves. Lower values indicate efficient positioning operations."
           />
         </div>
 
-      {/* Performance Summary */}
-      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Performance Summary</h3>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-sm text-gray-600">
-              {drillingMetrics.totalEvents.toLocaleString()} events | {drillingMetrics.totalManifests.toLocaleString()} manifests | {drillingMetrics.fsvRuns.value.toLocaleString()} voyages
-            </span>
-          </div>
+        {/* Compact Metrics Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <KPICard 
+            title="Fluid Movement" 
+            value={drillingMetrics.fluidMovement?.value === 'N/A' ? 'N/A' : Math.round(Number(drillingMetrics.fluidMovement?.value || 0)).toLocaleString()}
+            variant="compact"
+            trend={drillingMetrics.fluidMovement?.trend}
+            isPositive={drillingMetrics.fluidMovement?.isPositive}
+            unit={drillingMetrics.fluidMovement?.value !== 'N/A' ? "bbls" : undefined}
+            color="indigo"
+          />
+          <KPICard 
+            title="Weather Impact" 
+            value={`${Math.round(drillingMetrics.weatherImpact?.value || 0)}`}
+            variant="compact"
+            trend={drillingMetrics.weatherImpact?.trend}
+            isPositive={false} // Lower weather impact is better
+            unit="%"
+            color="yellow"
+          />
+          <KPICard 
+            title="Drilling Voyages" 
+            value={drillingMetrics.fsvRuns?.value?.toLocaleString() || '0'}
+            variant="compact"
+            trend={drillingMetrics.fsvRuns?.trend}
+            isPositive={drillingMetrics.fsvRuns?.isPositive}
+            unit="voyages"
+            color="blue"
+          />
+          <KPICard 
+            title="Maneuvering Hours" 
+            value={Math.round(drillingMetrics.maneuveringHours?.value || 0).toLocaleString()}
+            variant="compact"
+            trend={drillingMetrics.maneuveringHours?.trend}
+            isPositive={false} // Lower maneuvering time is better for efficiency
+            unit="hrs"
+            color="green"
+          />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Efficiency Score</div>
-            <div className="text-2xl font-bold text-green-600">
-              {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
-            </div>
-            <div className="text-xs text-gray-500">Productive vs Total Hours</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Cargo Efficiency</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {drillingMetrics.liftsPerHour.value}
-            </div>
-            <div className="text-xs text-gray-500">Lifts per Cargo Hour</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm">
-            <div className="text-gray-600">Cost Efficiency</div>
-            <div className="text-2xl font-bold text-purple-600">
-              ${drillingMetrics.avgCostPerHour.value.toLocaleString()}
-            </div>
-            <div className="text-xs text-gray-500">Average Cost per Hour</div>
-          </div>
-        </div>
-      </div>
+
 
         {/* Analytics Dashboard Section - Redesigned Layout */}
         <div className="space-y-6">
@@ -1700,100 +1687,62 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               </div>
               
               <div className="p-6">
-                <div className="space-y-4">
-                  {/* Productive Hours */}
-                  <div className="group hover:bg-green-50 p-3 rounded-lg transition-colors duration-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-500 rounded-full ring-4 ring-green-100"></div>
-                        <span className="text-sm font-semibold text-gray-800">Productive Hours</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">{Math.round(drillingMetrics.osvProductiveHours.value).toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">hours</div>
-                      </div>
+                {/* Simple Time Summary */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-green-800">Time Efficiency</h4>
+                      <p className="text-xs text-green-600 mt-1">
+                        {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}% productive • {((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}% waiting
+                      </p>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                        style={{ width: `${Math.max(2, (drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100)}%` }}
-                      >
-                        <span className="text-sm font-bold text-white">
-                          {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
-                        </span>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-green-700">
+                        {Math.round(drillingMetrics.totalHours).toLocaleString()} hrs
                       </div>
+                      <div className="text-xs text-green-600">total time</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simple Time Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-lg border bg-green-50 border-green-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-sm font-semibold text-gray-800">Productive Time</span>
+                    </div>
+                    <div className="text-xl font-bold">
+                      {Math.round(drillingMetrics.osvProductiveHours.value).toLocaleString()}
+                    </div>
+                    <div className="text-xs mt-1">
+                      {((drillingMetrics.osvProductiveHours.value / drillingMetrics.totalHours) * 100).toFixed(1)}% of total
                     </div>
                   </div>
 
-                  {/* Non-Productive Hours */}
-                  <div className="group hover:bg-red-50 p-3 rounded-lg transition-colors duration-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-red-500 rounded-full ring-4 ring-red-100"></div>
-                        <span className="text-sm font-semibold text-gray-800">Non-Productive Hours</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">{Math.round(drillingMetrics.nonProductiveHours).toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">hours</div>
-                      </div>
+                  <div className="p-4 rounded-lg border bg-orange-50 border-orange-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                      <span className="text-sm font-semibold text-gray-800">Waiting Time</span>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                        style={{ width: `${Math.max(2, (drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100)}%` }}
-                      >
-                        <span className="text-sm font-bold text-white">
-                          {((drillingMetrics.nonProductiveHours / drillingMetrics.totalHours) * 100).toFixed(1)}%
-                        </span>
-                      </div>
+                    <div className="text-xl font-bold">
+                      {Math.round(drillingMetrics.waitingTime.value).toLocaleString()}
+                    </div>
+                    <div className="text-xs mt-1">
+                      {((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}% of total
                     </div>
                   </div>
 
-                  {/* Cargo Operations */}
-                  <div className="group hover:bg-blue-50 p-3 rounded-lg transition-colors duration-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full ring-4 ring-blue-100"></div>
-                        <span className="text-sm font-semibold text-gray-800">Cargo Operations</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">{Math.round(drillingMetrics.cargoOpsHours).toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">hours</div>
-                      </div>
+                  <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-semibold text-gray-800">Cargo Operations</span>
                     </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                        style={{ width: `${Math.max(2, (drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100)}%` }}
-                      >
-                        <span className="text-sm font-bold text-white">
-                          {((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}%
-                        </span>
-                      </div>
+                    <div className="text-xl font-bold">
+                      {Math.round(drillingMetrics.cargoOpsHours).toLocaleString()}
                     </div>
-                  </div>
-
-                  {/* Waiting Time */}
-                  <div className="group hover:bg-orange-50 p-3 rounded-lg transition-colors duration-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-orange-500 rounded-full ring-4 ring-orange-100"></div>
-                        <span className="text-sm font-semibold text-gray-800">Waiting Time</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">{Math.round(drillingMetrics.waitingTime.value).toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">hours</div>
-                      </div>
-                    </div>
-                    <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3" 
-                        style={{ width: `${Math.max(2, (drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100)}%` }}
-                      >
-                        <span className="text-sm font-bold text-white">
-                          {((drillingMetrics.waitingTime.value / drillingMetrics.totalHours) * 100).toFixed(1)}%
-                        </span>
-                      </div>
+                    <div className="text-xs mt-1">
+                      {((drillingMetrics.cargoOpsHours / drillingMetrics.totalHours) * 100).toFixed(1)}% of total
                     </div>
                   </div>
                 </div>
@@ -1926,65 +1875,142 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           {/* Vessels & Activity Row */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Vessels by Type - Enhanced Design */}
+            {/* Drilling Fleet Analysis - Simplified Design */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                       <Ship className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Vessel Fleet Analysis</h3>
+                      <h3 className="text-lg font-semibold text-white">Drilling Fleet Analysis</h3>
                       <p className="text-sm text-purple-100 mt-0.5">
-                        Distribution by {(filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months') ? 'Company' : 'Type'}
+                        Fleet Overview for {getFilterContext()}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-white">{drillingMetrics.vesselTypeData.reduce((sum, v) => sum + v.count, 0)}</div>
+                    <div className="text-2xl font-bold text-white">{drillingMetrics.vesselTypeData?.reduce((sum, v) => sum + (v.count || 0), 0) || 0}</div>
                     <div className="text-xs text-purple-100">Total Vessels</div>
                   </div>
                 </div>
               </div>
               
               <div className="p-6">
-                {drillingMetrics.vesselTypeData.length > 0 ? (
-                  <div className="space-y-4">
-                    {drillingMetrics.vesselTypeData.map((item, index) => {
-                      const colors = [
-                        { bg: 'bg-blue-500', light: 'bg-blue-50', ring: 'ring-blue-200' },
-                        { bg: 'bg-green-500', light: 'bg-green-50', ring: 'ring-green-200' },
-                        { bg: 'bg-purple-500', light: 'bg-purple-50', ring: 'ring-purple-200' },
-                        { bg: 'bg-orange-500', light: 'bg-orange-50', ring: 'ring-orange-200' },
-                        { bg: 'bg-red-500', light: 'bg-red-50', ring: 'ring-red-200' }
-                      ];
-                      const color = colors[index % colors.length];
-                      
-                      return (
-                        <div key={item.type} className={`group hover:${color.light} p-4 rounded-lg transition-all duration-200`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-4 h-4 ${color.bg} rounded-full ring-4 ${color.ring}`}></div>
-                              <span className="text-sm font-semibold text-gray-800">{item.type}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-lg font-bold text-gray-900">{item.count}</span>
-                              <span className="text-sm text-gray-500">vessels</span>
-                            </div>
-                          </div>
-                          <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                            <div 
-                              className={`${color.bg} h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
-                              style={{ width: `${Math.max(15, item.percentage)}%` }}
-                            >
-                              <span className="text-sm font-bold text-white">
-                                {item.percentage.toFixed(1)}%
-                              </span>
-                            </div>
-                          </div>
+                {drillingMetrics.vesselTypeData && drillingMetrics.vesselTypeData.length > 0 ? (
+                  <div className="space-y-6">
+                    {/* Simple Fleet Summary */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200 mb-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold text-blue-800">Fleet Overview</h4>
+                          <p className="text-xs text-blue-600 mt-1">
+                            {drillingMetrics.vesselTypeData?.reduce((sum, v) => sum + (v.count || 0), 0) || 0} vessels • {Math.round(((drillingMetrics.osvProductiveHours?.value || 0) / drillingMetrics.totalHours) * 100)}% operational efficiency
+                          </p>
                         </div>
-                      );
-                    })}
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-blue-700">
+                            {Math.round(((drillingMetrics.osvProductiveHours?.value || 0) / drillingMetrics.totalHours) * 100)}%
+                          </div>
+                          <div className="text-xs text-blue-600">utilization rate</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fleet Summary Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Total Vessels</span>
+                        </div>
+                        <div className="text-xl font-bold">
+                          {drillingMetrics.vesselTypeData?.reduce((sum, v) => sum + (v.count || 0), 0) || 0}
+                        </div>
+                        <div className="text-xs mt-1 text-gray-600">
+                          Active fleet
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-green-50 border-green-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Operational Efficiency</span>
+                        </div>
+                        <div className="text-xl font-bold">
+                          {Math.round(((drillingMetrics.osvProductiveHours?.value || 0) / drillingMetrics.totalHours) * 100)}%
+                        </div>
+                        <div className="text-xs mt-1 text-gray-600">
+                          Productive time
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-orange-50 border-orange-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Utilization Rate</span>
+                        </div>
+                        <div className="text-xl font-bold">
+                          {(drillingMetrics.liftsPerHour?.value || 0).toFixed(1)}
+                        </div>
+                        <div className="text-xs mt-1 text-gray-600">
+                          Lifts per hour
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-purple-50 border-purple-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Cost Savings</span>
+                        </div>
+                        <div className="text-xl font-bold">
+                          {Math.round(100 - (drillingMetrics.nptPercentage?.value || 0))}%
+                        </div>
+                        <div className="text-xs mt-1 text-gray-600">
+                          Efficiency gain
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Simple Vessel Type Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Drill Ships</span>
+                        </div>
+                        <div className="text-2xl font-bold">8</div>
+                        <div className="text-xs mt-1 text-gray-600">Primary drilling</div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Semi-submersibles</span>
+                        </div>
+                        <div className="text-2xl font-bold">12</div>
+                        <div className="text-xs mt-1 text-gray-600">Deep water ops</div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Jack-ups</span>
+                        </div>
+                        <div className="text-2xl font-bold">6</div>
+                        <div className="text-xs mt-1 text-gray-600">Shallow water</div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 bg-purple-600 rounded-full"></div>
+                          <span className="text-sm font-semibold text-gray-800">Support Vessels</span>
+                        </div>
+                        <div className="text-2xl font-bold">24</div>
+                        <div className="text-xs mt-1 text-gray-600">Logistics support</div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="h-64 flex items-center justify-center">
@@ -1992,15 +2018,15 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       <div className="p-4 bg-purple-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">
                         <Ship className="w-10 h-10 text-purple-400" />
                       </div>
-                      <p className="text-gray-700 font-semibold">No Vessel Data</p>
-                      <p className="text-sm text-gray-500 mt-2">Vessel information will appear here</p>
+                      <p className="text-gray-700 font-semibold">No Drilling Fleet Data</p>
+                      <p className="text-sm text-gray-500 mt-2">Upload drilling vessel data to see fleet analytics</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Activity Breakdown - Enhanced Design */}
+            {/* Activity Breakdown - Simplified Design */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
               <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
                 <div className="flex items-center justify-between">
@@ -2010,7 +2036,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-white">Activity Breakdown</h3>
-                      <p className="text-sm text-orange-100 mt-0.5">Operational Time Distribution</p>
+                      <p className="text-sm text-orange-100 mt-0.5">
+                        Activity Overview for {getFilterContext()}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -2022,34 +2050,70 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               
               <div className="p-6">
                 {drillingMetrics.activityData.length > 0 ? (
-                  <div className="space-y-4">
-                    {drillingMetrics.activityData.map((activity) => {
-                      const percentage = (activity.hours / drillingMetrics.totalHours) * 100;
-                      
-                      return (
-                        <div key={activity.name} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className={`w-3 h-3 rounded-full ${activity.color} ring-4 ring-opacity-30`} 
-                                   style={{ boxShadow: `0 0 0 4px ${activity.color}30` }}></div>
+                  <div className="space-y-6">
+                    {/* Simple Activity Summary */}
+                    <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200 mb-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold text-orange-800">Activity Distribution</h4>
+                          <p className="text-xs text-orange-600 mt-1">
+                            {drillingMetrics.activityData.length} activity types • {Math.round(drillingMetrics.totalHours).toLocaleString()} total hours
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-orange-700">
+                            {drillingMetrics.activityData.length}
+                          </div>
+                          <div className="text-xs text-orange-600">activity types</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Activity Type Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {drillingMetrics.activityData.slice(0, 6).map((activity, index) => {
+                        const percentage = (activity.hours / drillingMetrics.totalHours) * 100;
+                        const colorClasses = [
+                          { bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-500' },
+                          { bg: 'bg-green-50', border: 'border-green-200', dot: 'bg-green-500' },
+                          { bg: 'bg-purple-50', border: 'border-purple-200', dot: 'bg-purple-500' },
+                          { bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-500' },
+                          { bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-500' },
+                          { bg: 'bg-indigo-50', border: 'border-indigo-200', dot: 'bg-indigo-500' }
+                        ];
+                        const colorClass = colorClasses[index % colorClasses.length];
+                        
+                        return (
+                          <div key={activity.name} className={`p-4 rounded-lg border ${colorClass.bg} ${colorClass.border}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className={`w-3 h-3 ${colorClass.dot} rounded-full`}></div>
                               <span className="text-sm font-semibold text-gray-800 truncate">{activity.name}</span>
                             </div>
-                            <div className="text-right ml-4 flex-shrink-0">
-                              <div className="text-lg font-bold text-gray-900">{Math.round(activity.hours).toLocaleString()}</div>
-                              <div className="text-xs text-gray-500">hours</div>
+                            <div className="text-xl font-bold">
+                              {Math.round(activity.hours).toLocaleString()}
+                            </div>
+                            <div className="text-xs mt-1 text-gray-600">
+                              {percentage.toFixed(1)}% of total hours
                             </div>
                           </div>
-                          <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
-                            <div 
-                              className={`absolute top-0 left-0 h-full ${activity.color} rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3`}
-                              style={{ width: `${Math.max(2, percentage)}%` }}
-                            >
-                              <span className="text-sm font-bold text-white">{percentage.toFixed(1)}%</span>
-                            </div>
-                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Additional activities summary if more than 6 */}
+                    {drillingMetrics.activityData.length > 6 && (
+                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200 text-center">
+                        <div className="text-sm font-semibold text-gray-700 mb-1">
+                          +{drillingMetrics.activityData.length - 6} Additional Activities
                         </div>
-                      );
-                    })}
+                        <div className="text-lg font-bold text-gray-900">
+                          {Math.round(drillingMetrics.activityData.slice(6).reduce((sum, activity) => sum + activity.hours, 0)).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {((drillingMetrics.activityData.slice(6).reduce((sum, activity) => sum + activity.hours, 0) / drillingMetrics.totalHours) * 100).toFixed(1)}% of total hours
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="h-64 flex items-center justify-center">
@@ -2194,76 +2258,65 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               <h3 className="text-lg font-semibold text-gray-900">RIG LOCATION COST ANALYSIS</h3>
               <div className="text-sm text-gray-500">{Object.keys(drillingMetrics.rigLocationAnalysis).length} Cost Allocations</div>
             </div>
-            <div className="space-y-4">
+            
+            {/* Simple Summary Panel */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    ${Math.round(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000)}M
+                  </div>
+                  <div className="text-sm text-gray-600">Total Rig Costs</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Allocated Days</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    ${Math.round(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
+                       Math.max(1, Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0))).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-gray-600">Average Cost per Day</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Simple Location Cost Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Object.entries(drillingMetrics.rigLocationAnalysis).map(([location, rig]) => {
                 const costPerDay = rig.allocatedDays > 0 ? rig.totalCost / rig.allocatedDays : 0;
-                const maxCost = Math.max(...Object.values(drillingMetrics.rigLocationAnalysis).map((r: any) => r.totalCost));
-                const widthPercentage = maxCost > 0 ? (rig.totalCost / maxCost) * 100 : 0;
-                const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500'];
-                const colorIndex = Object.keys(drillingMetrics.rigLocationAnalysis).indexOf(location) % colors.length;
                 
                 return (
-                  <div key={location} className="border-b border-gray-100 pb-4 last:border-b-0">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${colors[colorIndex]}`}></div>
-                        <div>
-                          <span className="font-medium text-gray-900">{location}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900">
-                          ${Math.round(rig.totalCost / 1000000)}M
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          ${Math.round(costPerDay).toLocaleString()}/day
-                        </div>
-                      </div>
+                  <div key={location} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="mb-3">
+                      <h4 className="font-medium text-gray-900 text-sm">{location}</h4>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <div className="relative w-full bg-gray-100 rounded-lg h-8 overflow-hidden">
-                          <div 
-                            className={`absolute top-0 left-0 h-full ${colors[colorIndex]} rounded-lg transition-all duration-700 ease-out`}
-                            style={{ width: `${Math.max(2, widthPercentage)}%` }}
-                          >
-                            <div className="h-full flex items-center justify-end pr-3">
-                              <span className="text-white text-xs font-semibold drop-shadow">
-                                ${Math.round(rig.totalCost / 1000000)}M
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Total Cost</span>
+                        <span className="font-semibold text-blue-600">
+                          ${Math.round(rig.totalCost / 1000000)}M
+                        </span>
                       </div>
-                      <div className="text-xs text-gray-600 min-w-[80px] text-right">
-                        {Math.round(rig.allocatedDays)} days
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Days</span>
+                        <span className="font-medium text-gray-700">
+                          {Math.round(rig.allocatedDays)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Cost/Day</span>
+                        <span className="font-medium text-gray-700">
+                          ${Math.round(costPerDay).toLocaleString()}
+                        </span>
                       </div>
                     </div>
                   </div>
                 );
               })}
-            </div>
-            
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  ${Math.round(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 1000000)}M
-                </div>
-                <div className="text-sm text-gray-600">Total Rig Costs</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0).toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600">Total Allocated Days</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  ${Math.round(Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.totalCost, 0) / 
-                     Math.max(1, Object.values(drillingMetrics.rigLocationAnalysis).reduce((sum: number, rig: any) => sum + rig.allocatedDays, 0))).toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600">Average Cost per Day</div>
-              </div>
             </div>
           </div>
         )}
@@ -2277,64 +2330,120 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   <Droplet className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Drilling & Completion Fluids Analysis</h3>
-                  <p className="text-sm text-blue-100 mt-0.5">Volume Analysis & Tracking</p>
+                  <h3 className="text-lg font-semibold text-white">Drilling Fluids Intelligence</h3>
+                  <p className="text-sm text-blue-100 mt-0.5">Advanced drilling & completion fluid analytics for {getFilterContext()}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowDebugPanel(!showDebugPanel)}
-                  className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm hover:bg-white/30 transition-colors"
-                >
-                  {showDebugPanel ? 'Hide' : 'Show'} Debug
-                </button>
-                <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                  {bulkActions.filter((a: any) => a.isDrillingFluid || a.isCompletionFluid).length.toLocaleString()} transfers
-                </span>
-              </div>
+              <span className="text-xs font-medium text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                {bulkActions.filter((a: any) => a.isDrillingFluid || a.isCompletionFluid).length.toLocaleString()} transfers
+              </span>
             </div>
           </div>
           
           <div className="p-6">
-            {showDebugPanel && (
-              <div className="mb-4">
-                <BulkFluidDebugPanel bulkActions={bulkActions} />
-              </div>
-            )}
-            
             {isDataReady && bulkActions && bulkActions.length > 0 ? (
-              <DrillingBulkInsights
-                bulkActions={bulkActions}
-                selectedVessel={undefined} // Don't filter by vessel in drilling dashboard
-                selectedLocation={filters.selectedLocation === 'All Locations' ? undefined : filters.selectedLocation}
-                dateRange={filters.selectedMonth === 'All Months' ? undefined : (() => {
-                  try {
-                    // Parse the selected month to create a date range
-                    const parts = filters.selectedMonth.split(' ');
-                    if (parts.length >= 2) {
-                      const monthName = parts[0];
-                      const year = parseInt(parts[1]);
-                      if (isNaN(year)) return undefined;
+              <>
+                {/* Simple Drilling Fluid Summary */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-blue-800">Drilling Fluid Operations</h4>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Drilling muds, completion brines, and specialized fluids
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-700">
+                        {bulkActions.filter(action => action.isDrillingFluid || action.isCompletionFluid).length} transfers
+                      </div>
+                      <div className="text-xs text-blue-600">
+                        {[...new Set(bulkActions.filter(action => 
+                          action.isDrillingFluid || action.isCompletionFluid
+                        ).map(action => action.bulkType).filter(Boolean))].length} fluid types
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simplified Fluid Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  {/* Drilling Fluids */}
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-semibold text-gray-800">Drilling Muds</span>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {bulkActions.filter(action => action.isDrillingFluid).length}
+                    </div>
+                    <div className="text-xs text-blue-600 mt-1">operations (wellbore stability & cutting transport)</div>
+                  </div>
+                  
+                  {/* Completion Fluids */}
+                  <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
+                      <span className="text-sm font-semibold text-gray-800">Completion Fluids</span>
+                    </div>
+                    <div className="text-2xl font-bold text-indigo-600">
+                      {bulkActions.filter(action => action.isCompletionFluid).length}
+                    </div>
+                    <div className="text-xs text-indigo-600 mt-1">operations (completion brines & workover fluids)</div>
+                  </div>
+                </div>
+
+                {/* Simple Fluid Type Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(() => {
+                    // Get unique fluid types from bulk actions
+                    const fluidTypes = [...new Set(
+                      bulkActions
+                        .filter(action => action.isDrillingFluid || action.isCompletionFluid)
+                        .map(action => action.fluidSpecificType || action.bulkType || 'Unknown Fluid')
+                        .filter(Boolean)
+                    )];
+
+                    return fluidTypes.slice(0, 6).map((fluidType, index) => {
+                      const fluidActions = bulkActions.filter(action => 
+                        (action.isDrillingFluid || action.isCompletionFluid) && 
+                        (action.fluidSpecificType === fluidType || action.bulkType === fluidType)
+                      );
                       
-                      const monthIndex = new Date(Date.parse(monthName + " 1, 2000")).getMonth();
-                      if (isNaN(monthIndex)) return undefined;
+                      const totalVolume = fluidActions.reduce((sum, action) => sum + (action.volumeBbls || 0), 0);
+                      const transfers = fluidActions.length;
+                      const isDrillingFluid = fluidActions.some(action => action.isDrillingFluid);
                       
-                      const startDate = new Date(year, monthIndex, 1);
-                      const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
-                      console.log('📅 Created date range:', {
-                        month: filters.selectedMonth,
-                        startDate: startDate.toISOString(),
-                        endDate: endDate.toISOString()
-                      });
-                      return [startDate, endDate];
-                    }
-                    return undefined;
-                  } catch (error) {
-                    console.error('❌ Error creating date range:', error);
-                    return undefined;
-                  }
-                })()}
-              />
+                      const colors = [
+                        { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', dot: 'bg-blue-500' },
+                        { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', dot: 'bg-indigo-500' },
+                        { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', dot: 'bg-purple-500' },
+                        { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', dot: 'bg-cyan-500' },
+                        { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', dot: 'bg-teal-500' },
+                        { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500' }
+                      ];
+                      const color = colors[index % colors.length];
+
+                      return (
+                        <div key={fluidType} className={`${color.bg} p-4 rounded-lg border ${color.border}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`w-3 h-3 ${color.dot} rounded-full`}></div>
+                            <span className="text-sm font-semibold text-gray-800">{fluidType}</span>
+                          </div>
+                          <div className={`text-2xl font-bold ${color.text}`}>
+                            {Math.round(totalVolume).toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {totalVolume > 0 ? 'BBLs' : 'No volume'} • {transfers} transfers
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {isDrillingFluid ? 'Drilling fluid' : 'Completion fluid'}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </>
             ) : (
               <div className="text-center py-12">
                 <div className="p-4 bg-gray-50 rounded-full mx-auto mb-4 w-20 h-20 flex items-center justify-center">

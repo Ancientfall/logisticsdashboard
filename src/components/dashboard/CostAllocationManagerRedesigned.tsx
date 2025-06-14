@@ -3,13 +3,10 @@ import {
   DollarSign, 
   TrendingUp, 
   TrendingDown, 
-  Activity, 
   MapPin, 
-  Calendar, 
-  ChevronRight,
+  ArrowLeft,
   BarChart3,
   Building2,
-  Target,
   PieChart,
   Ship,
   Filter
@@ -21,6 +18,8 @@ import {
 } from '../../utils/formatters';
 import { useCostAnalysisRedesigned } from './cost-allocation/hooks/useCostAnalysis';
 import { useFilteredCostAllocation } from './cost-allocation/hooks/useFilteredCostAllocation';
+import KPICard from './KPICard';
+import SmartFilterBar from './SmartFilterBar';
 
 interface CostAllocationManagerRedesignedProps {
   onNavigateToUpload?: () => void;
@@ -167,148 +166,53 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     }
   }
 
-  // KPI Card component
-  const KPICard: React.FC<{
-    title: string;
-    value: string | number;
-    trend?: number | null;
-    isPositive?: boolean | null;
-    unit?: string;
-    color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | 'pink' | 'yellow';
-    tooltip?: string;
-  }> = ({ title, value, trend, isPositive, unit, color = 'blue', tooltip }) => {
-    const colorClasses = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-      red: 'bg-red-500',
-      indigo: 'bg-indigo-500',
-      pink: 'bg-pink-500',
-      yellow: 'bg-yellow-500'
-    };
-    
-    return (
-      <div className="relative overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 group"
-           title={tooltip}>
-        <div className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{title}</p>
-            {trend !== null && trend !== undefined && (
-              <div className={`flex items-center gap-1 text-xs font-medium ${
-                isPositive ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {isPositive ? (
-                  <TrendingUp className="w-3 h-3" />
-                ) : (
-                  <TrendingDown className="w-3 h-3" />
-                )}
-                <span>{Math.abs(trend)}%</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-baseline gap-1">
-            <p className="text-lg font-bold text-gray-900">{value}</p>
-            {unit && <span className="text-sm font-normal text-gray-500">{unit}</span>}
-          </div>
-        </div>
-        <div className={`absolute bottom-0 left-0 right-0 h-1 ${colorClasses[color]}`} />
-      </div>
-    );
-  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="p-6 space-y-6">
-        {/* Modern Header with Gradient */}
+    <div className="space-y-6">
+        {/* Modern Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-white" />
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
+                <DollarSign className="w-8 h-8 text-white" />
+              </div>
+              <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                   Cost Allocation Dashboard
                 </h1>
-              </div>
-              <p className="text-gray-600 ml-14">Real-time Budget Performance & Cost Analytics</p>
-            </div>
-            <button
-              onClick={onNavigateToUpload}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <ChevronRight className="w-4 h-4 rotate-180" />
-              Back to Upload
-            </button>
-          </div>
-        </div>
-
-        {/* Modern Filter Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Period</label>
-                  <select 
-                    className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-w-[180px]"
-                    value={filters.selectedMonth}
-                    onChange={(e) => setFilters(prev => ({ ...prev, selectedMonth: e.target.value }))}
-                  >
-                    {filterOptions.months.map(month => (
-                      <option key={month} value={month}>{month}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <MapPin className="w-4 h-4 text-green-600" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Location</label>
-                  <select 
-                    className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 min-w-[200px]"
-                    value={filters.selectedLocation}
-                    onChange={(e) => setFilters(prev => ({ ...prev, selectedLocation: e.target.value }))}
-                  >
-                    {filterOptions.locations.map(location => (
-                      <option key={location} value={location}>{location}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <Target className="w-4 h-4 text-purple-600" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Project Type</label>
-                  <select 
-                    className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 min-w-[150px]"
-                    value={filters.selectedProjectType}
-                    onChange={(e) => setFilters(prev => ({ ...prev, selectedProjectType: e.target.value }))}
-                  >
-                    {filterOptions.projectTypes.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
+                <p className="text-gray-600 mt-1">
+                  Real-time budget performance & cost analytics
+                </p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Activity className="w-4 h-4" />
-              <span>{filteredCostAllocation.length} allocations</span>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-blue-600">{formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}</div>
+                <div className="text-sm text-gray-500">Total Spend</div>
+              </div>
+              <button
+                onClick={onNavigateToUpload}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-gray-700 transition-all duration-200"
+              >
+                <ArrowLeft size={16} />
+                Back to Upload
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Smart Filter Bar */}
+        <SmartFilterBar
+          timeFilter={filters.selectedMonth}
+          locationFilter={filters.selectedLocation}
+          onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedMonth: value }))}
+          onLocationChange={(value) => setFilters(prev => ({ ...prev, selectedLocation: value }))}
+          timeOptions={filterOptions.months.map(month => ({ value: month, label: month }))}
+          locationOptions={filterOptions.locations.map(location => ({ value: location, label: location }))}
+          totalRecords={costAllocation.length}
+          filteredRecords={filteredCostAllocation.length}
+          showPresets={true}
+        />
 
         {/* Dashboard Content */}
             {/* Debug Info - Temporary */}
@@ -329,171 +233,187 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
                 )}
               </div>
             )}
-            {/* KPI Cards Grid - First Row (Financial Overview) */}
-            <div className="grid grid-cols-4 gap-4">
+            {/* Core Financial KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KPICard 
             title="Total Spend" 
             value={formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}
             color="blue"
-            tooltip="Total spend across all allocations in the selected period"
+            variant="secondary"
+            contextualHelp="Total spend across all allocations in the selected period"
+            status="good"
           />
           <KPICard 
             title="Avg Cost per Voyage" 
             value={formatLargeCurrency(costMetrics.avgCostPerVoyage)}
             color="purple"
-            tooltip="Average cost per voyage in the selected period"
+            variant="secondary"
+            contextualHelp="Average cost per voyage in the selected period"
+            target={50000}
+            status={costMetrics.avgCostPerVoyage <= 50000 ? 'good' : costMetrics.avgCostPerVoyage <= 75000 ? 'warning' : 'critical'}
           />
           <KPICard 
             title="Voyages Covered" 
-            value={filteredCostAllocation.length}
-            color="red"
-            tooltip="Number of cost allocation records in the current view"
+            value={filteredCostAllocation.length.toLocaleString()}
+            color="green"
+            variant="secondary"
+            contextualHelp="Number of cost allocation records in the current view"
+            status="neutral"
           />
           <KPICard 
             title="Active Departments" 
-            value={costMetrics.departmentBreakdown.length}
-            color="green"
-            tooltip="Number of unique departments with cost allocations in the selected period"
+            value={costMetrics.departmentBreakdown.length.toLocaleString()}
+            color="orange"
+            variant="secondary"
+            contextualHelp="Number of unique departments with cost allocations in the selected period"
+            status="neutral"
           />
         </div>
 
-            {/* KPI Cards Grid - Second Row (Operational Metrics) */}
-            <div className="grid grid-cols-4 gap-4">
+            {/* Operational Performance KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard 
             title="Project Types" 
-            value={costMetrics.projectTypeBreakdown.length}
-            color="orange"
-            tooltip="Number of different project types identified in cost allocations"
+            value={costMetrics.projectTypeBreakdown.length.toLocaleString()}
+            color="red"
+            variant="secondary"
+            contextualHelp="Number of different project types identified in cost allocations"
+            status="neutral"
           />
           <KPICard 
             title="Avg Cost per Day" 
             value={formatCurrencyWhole(costMetrics.avgCostPerDay)}
             color="pink"
-            tooltip="Average cost per allocated vessel day (Total Spend ÷ Total Days)"
+            variant="secondary"
+            contextualHelp="Average cost per allocated vessel day (Total Spend ÷ Total Days)"
+            target={5000}
+            status={costMetrics.avgCostPerDay <= 5000 ? 'good' : costMetrics.avgCostPerDay <= 7500 ? 'warning' : 'critical'}
           />
           <KPICard 
-            title="Top Location by Spend" 
+            title="Top Location" 
             value={costMetrics.locationBreakdown[0]?.location || 'N/A'}
             color="indigo"
-            tooltip="Location with the highest total spend in the selected period"
+            variant="secondary"
+            contextualHelp="Location with the highest total spend in the selected period"
+            status="neutral"
           />
           <KPICard 
-            title="Largest Department by Spend" 
+            title="Top Department" 
             value={costMetrics.departmentBreakdown[0]?.department || 'N/A'}
             color="yellow"
-            tooltip="Department with the highest total spend in the selected period"
+            variant="secondary"
+            contextualHelp="Department with the highest total spend in the selected period"
+            status="neutral"
           />
         </div>
 
-            {/* Overview Summary (formerly Budget Performance Summary) */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Overview</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-            <div className="bg-white rounded-lg p-3 shadow-sm" title="Total spend across all allocations in the selected period">
-              <div className="text-gray-600">Total Spend</div>
-              <div className="text-2xl font-bold text-blue-600">
-                {formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}
+            {/* Cost Performance Summary */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Cost Performance Summary
+                  </h2>
+                  <p className="text-sm text-gray-600">Budget allocation and spending analysis</p>
+                </div>
               </div>
-              <div className="text-xs text-gray-500">in selected period</div>
-            </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm" title="Average cost per voyage calculated from manifest and voyage data">
-              <div className="text-gray-600">Avg Cost per Voyage</div>
-              <div className="text-2xl font-bold text-purple-600">
-                {formatLargeCurrency(costMetrics.avgCostPerVoyage)}
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 rounded-lg border bg-blue-50 border-blue-200 transition-all duration-200 hover:shadow-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Total Spend</span>
+                  </div>
+                  <div className="text-2xl font-bold text-blue-700 mb-1">
+                    {formatLargeCurrency(costMetrics.totalAllocatedCost || 0)}
+                  </div>
+                  <div className="text-xs text-gray-600">in selected period</div>
+                </div>
+                
+                <div className="p-4 rounded-lg border bg-purple-50 border-purple-200 transition-all duration-200 hover:shadow-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Avg Cost per Voyage</span>
+                  </div>
+                  <div className="text-2xl font-bold text-purple-700 mb-1">
+                    {formatLargeCurrency(costMetrics.avgCostPerVoyage)}
+                  </div>
+                  <div className="text-xs text-gray-600">average per trip</div>
+                </div>
+                
+                <div className="p-4 rounded-lg border bg-green-50 border-green-200 transition-all duration-200 hover:shadow-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-gradient-to-r from-green-500 to-green-600 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Active Departments</span>
+                  </div>
+                  <div className="text-2xl font-bold text-green-700 mb-1">
+                    {costMetrics.departmentBreakdown.length}
+                  </div>
+                  <div className="text-xs text-gray-600">active departments</div>
+                </div>
+                
+                <div className="p-4 rounded-lg border bg-orange-50 border-orange-200 transition-all duration-200 hover:shadow-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"></div>
+                    <span className="text-sm font-semibold text-gray-800">Project Types</span>
+                  </div>
+                  <div className="text-2xl font-bold text-orange-700 mb-1">
+                    {costMetrics.projectTypeBreakdown.length}
+                  </div>
+                  <div className="text-xs text-gray-600">different types</div>
+                </div>
               </div>
-              <div className="text-xs text-gray-500">average per trip</div>
             </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm" title="Number of unique departments with cost allocations">
-              <div className="text-gray-600">Active Departments</div>
-              <div className="text-2xl font-bold text-green-600">
-                {costMetrics.departmentBreakdown.length}
-              </div>
-              <div className="text-xs text-gray-500">active departments</div>
-            </div>
-            <div className="bg-white rounded-lg p-3 shadow-sm" title="Number of different project types identified in cost allocations">
-              <div className="text-gray-600">Project Types</div>
-              <div className="text-2xl font-bold text-orange-600">
-                {costMetrics.projectTypeBreakdown.length}
-              </div>
-              <div className="text-xs text-gray-500">different types</div>
-            </div>
-          </div>
-        </div>
 
             {/* Analytics Dashboard Section */}
             <div className="space-y-6">
           {/* Department Cost Analysis & Location Breakdown Row */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* Department Cost Analysis */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <Building2 className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">Department Cost Analysis</h3>
-                      <p className="text-sm text-blue-100 mt-0.5">Budget allocation by department</p>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Department Cost Analysis - Modern Design */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+                    <Building2 className="w-6 h-6 text-white" />
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-white">{costMetrics.departmentBreakdown.length}</div>
-                    <div className="text-xs text-blue-100">Departments</div>
+                  <div>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                      Department Cost Analysis
+                    </h2>
+                    <p className="text-sm text-gray-600">Budget allocation by department • {costMetrics.departmentBreakdown.length} departments</p>
                   </div>
                 </div>
-              </div>
               
-              <div className="p-6">
-                <div className="space-y-4">
-                  {costMetrics.departmentBreakdown.slice(0, 5).map((dept, index) => {
-                    const colors = ['blue', 'green', 'purple', 'orange', 'red'];
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {costMetrics.departmentBreakdown.slice(0, 6).map((dept, index) => {
+                    const colors = [
+                      { gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                      { gradient: 'from-green-500 to-green-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                      { gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                      { gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                      { gradient: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+                      { gradient: 'from-indigo-500 to-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' }
+                    ];
                     const color = colors[index % colors.length];
+                    
                     return (
-                      <div key={dept.department} className="group hover:bg-gray-50 p-3 rounded-lg transition-colors duration-200">
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ring-4 ring-opacity-30 ${
-                              color === 'blue' ? 'bg-blue-500' :
-                              color === 'green' ? 'bg-green-500' :
-                              color === 'purple' ? 'bg-purple-500' :
-                              color === 'orange' ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`} style={{ boxShadow: `0 0 0 4px ${
-                              color === 'blue' ? '#3b82f630' :
-                              color === 'green' ? '#10b98130' :
-                              color === 'purple' ? '#8b5cf630' :
-                              color === 'orange' ? '#f5970030' :
-                              '#ef444430'
-                            }` }}></div>
-                            <span className="text-sm font-semibold text-gray-800">{dept.department}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-gray-900">{formatLargeCurrency(dept.cost)}</div>
-                            <div className="text-xs text-gray-500">{dept.percentage.toFixed(1)}%</div>
-                          </div>
+                      <div key={dept.department} className={`p-4 rounded-lg border ${color.bg} ${color.border} transition-all duration-200 hover:shadow-md`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-3 h-3 bg-gradient-to-r ${color.gradient} rounded-full`}></div>
+                          <span className="text-sm font-semibold text-gray-800">{dept.department}</span>
                         </div>
-                        <div className="relative w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                        <div className={`text-xl font-bold ${color.text} mb-1`}>{formatLargeCurrency(dept.cost)}</div>
+                        <div className="text-xs text-gray-600">{dept.percentage.toFixed(1)}% of total</div>
+                        
+                        {/* Mini trend bar */}
+                        <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
                           <div 
-                            className={`absolute left-0 top-0 h-full rounded-full transition-all duration-700 ease-out ${
-                              color === 'blue' ? 'bg-blue-500' :
-                              color === 'green' ? 'bg-green-500' :
-                              color === 'purple' ? 'bg-purple-500' :
-                              color === 'orange' ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`}
+                            className={`h-full bg-gradient-to-r ${color.gradient} transition-all duration-1000 ease-out`}
                             style={{ width: `${Math.max(2, dept.percentage)}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-between px-3">
-                            <span className="text-xs font-medium text-white">{dept.percentage.toFixed(1)}%</span>
-                            {dept.percentage > 20 && (
-                              <span className="text-xs font-medium text-white">
-                                {formatLargeCurrency(dept.cost)}
-                              </span>
-                            )}
-                          </div>
+                          ></div>
                         </div>
                       </div>
                     );
@@ -502,90 +422,104 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
               </div>
             </div>
 
-            {/* Location Cost Breakdown */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-                <div className="flex items-center justify-between">
+            {/* Location Cost Breakdown - Modern Design */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <MapPin className="w-5 h-5 text-white" />
+                    <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
+                      <MapPin className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Location Cost Analysis</h3>
-                      <p className="text-sm text-green-100 mt-0.5">Top spending locations</p>
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                        Location Cost Analysis
+                      </h2>
+                      <p className="text-sm text-gray-600">Top spending locations by cost</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-white">{costMetrics.activeRigs}</div>
-                    <div className="text-xs text-green-100">Active Sites</div>
-                  </div>
+                  <span className="text-xs font-medium text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                    TOP 5
+                  </span>
                 </div>
-              </div>
-              
-              <div className="p-6">
+                
                 <div className="space-y-3">
-                  {costMetrics.locationBreakdown.slice(0, 5).map((loc, index) => (
-                    <div key={loc.location} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-sm font-bold text-green-700">
-                          {index + 1}
+                  {costMetrics.locationBreakdown.slice(0, 5).map((loc, index) => {
+                    const rankings = [
+                      { position: '#1', gradient: 'from-yellow-500 to-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700' },
+                      { position: '#2', gradient: 'from-gray-500 to-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
+                      { position: '#3', gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                      { position: '#4', gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                      { position: '#5', gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' }
+                    ];
+                    const ranking = rankings[index] || rankings[4];
+                    
+                    return (
+                      <div key={loc.location} className={`flex items-center justify-between p-4 rounded-lg ${ranking.bg} border ${ranking.border} transition-all duration-200 hover:shadow-md`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-8 h-8 bg-gradient-to-r ${ranking.gradient} rounded-lg flex items-center justify-center`}>
+                            <span className="text-xs font-bold text-white">{ranking.position}</span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-800">{loc.location}</div>
+                            <div className="text-xs text-gray-500">{loc.percentage.toFixed(1)}% of total spend</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{loc.location}</div>
-                          <div className="text-xs text-gray-500">{loc.percentage.toFixed(1)}% of total</div>
+                        <div className="text-right">
+                          <div className={`text-xl font-bold ${ranking.text}`}>{formatLargeCurrency(loc.cost)}</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-gray-900">{formatLargeCurrency(loc.cost)}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
           </div>
 
           {/* Project Type Analysis & Monthly Trend Row */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* Project Type Distribution */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <PieChart className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">Project Type Distribution</h3>
-                      <p className="text-sm text-purple-100 mt-0.5">Cost allocation by project category</p>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Project Type Distribution - Modern Design */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg">
+                    <PieChart className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                      Project Type Distribution
+                    </h2>
+                    <p className="text-sm text-gray-600">Cost allocation by project category</p>
                   </div>
                 </div>
-              </div>
-              
-              <div className="p-6">
-                <div className="grid grid-cols-2 gap-3">
-                  {costMetrics.projectTypeBreakdown.slice(0, 6).map((project) => {
-                    const iconColors = {
-                      'Drilling': 'text-blue-600 bg-blue-100',
-                      'Completions': 'text-green-600 bg-green-100',
-                      'Production': 'text-purple-600 bg-purple-100',
-                      'Maintenance': 'text-orange-600 bg-orange-100',
-                      'P&A': 'text-red-600 bg-red-100',
-                      'Other': 'text-gray-600 bg-gray-100'
-                    };
-                    const style = iconColors[project.projectType as keyof typeof iconColors] || iconColors['Other'];
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {costMetrics.projectTypeBreakdown.slice(0, 6).map((project, index) => {
+                    const colors = [
+                      { gradient: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                      { gradient: 'from-green-500 to-green-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                      { gradient: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                      { gradient: 'from-orange-500 to-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                      { gradient: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+                      { gradient: 'from-indigo-500 to-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' }
+                    ];
+                    const color = colors[index % colors.length];
                     
                     return (
-                      <div key={project.projectType} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                      <div key={project.projectType} className={`p-4 rounded-lg border ${color.bg} ${color.border} transition-all duration-200 hover:shadow-md`}>
                         <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${style}`}>
-                            <Target className="w-4 h-4" />
-                          </div>
+                          <div className={`w-3 h-3 bg-gradient-to-r ${color.gradient} rounded-full`}></div>
                           <span className="text-sm font-semibold text-gray-800">{project.projectType}</span>
                         </div>
-                        <div className="text-lg font-bold text-gray-900">{formatLargeCurrency(project.cost)}</div>
-                        <div className="text-xs text-gray-500">{project.percentage.toFixed(1)}% of total</div>
+                        <div className={`text-xl font-bold ${color.text} mb-1`}>{formatLargeCurrency(project.cost)}</div>
+                        <div className="text-xs text-gray-600">{project.percentage.toFixed(1)}% of total</div>
+                        
+                        {/* Mini trend bar */}
+                        <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r ${color.gradient} transition-all duration-1000 ease-out`}
+                            style={{ width: `${Math.max(2, project.percentage)}%` }}
+                          ></div>
+                        </div>
                       </div>
                     );
                   })}
@@ -593,43 +527,51 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
               </div>
             </div>
 
-            {/* Monthly Cost Trend */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <BarChart3 className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">Monthly Cost Trend</h3>
-                      <p className="text-sm text-orange-100 mt-0.5">Last 6 months performance</p>
-                    </div>
+            {/* Monthly Cost Trend - Modern Design */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+                    <BarChart3 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                      Monthly Cost Trend
+                    </h2>
+                    <p className="text-sm text-gray-600">Last 6 months performance analysis</p>
                   </div>
                 </div>
-              </div>
-              
-              <div className="p-6">
+                
                 <div className="space-y-3">
                   {costMetrics.monthlyTrend.slice(-6).map((month, index, array) => {
                     const isLatest = index === array.length - 1;
                     const isActive = hoveredMonth === month.month || (!hoveredMonth && isLatest);
+                    const colors = [
+                      { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                      { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+                      { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                      { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                      { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                      { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' }
+                    ];
+                    const color = colors[index % colors.length];
+                    
                     return (
                       <div
                         key={month.month}
-                        className={`p-3 rounded-lg transition-colors ${
-                          isActive ? 'bg-orange-50 border border-orange-200' : 'hover:bg-gray-50'
+                        className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md ${
+                          isActive ? `${color.bg} ${color.border}` : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                         }`}
                         onMouseEnter={() => setHoveredMonth(month.month)}
                         onMouseLeave={() => setHoveredMonth(null)}
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-medium text-gray-900">{month.month}</div>
+                            <div className={`font-semibold ${isActive ? color.text : 'text-gray-900'}`}>{month.month}</div>
                             <div className="text-xs text-gray-500">{Math.round(month.days)} days allocated</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold text-gray-900">{formatLargeCurrency(month.cost)}</div>
+                            <div className={`text-xl font-bold ${isActive ? color.text : 'text-gray-900'}`}>{formatLargeCurrency(month.cost)}</div>
                             {month.trend !== null && (
                               <div className={`flex items-center justify-end gap-1 text-xs font-medium ${
                                 month.trend < 0 ? 'text-green-600' : 'text-red-600'
@@ -821,9 +763,6 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
             </div>
           )}
             </div>
-
-
-      </div>
     </div>
   );
 };
