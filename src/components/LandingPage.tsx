@@ -13,7 +13,6 @@ import {
   Layers,
   Target,
   ChevronRight,
-  FileText,
   Sparkles
 } from 'lucide-react';
 
@@ -95,9 +94,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   const workflow = [
     {
       step: '01',
-      title: 'Upload Your Data',
-      description: 'Seamlessly import Excel files with vessel operations, drilling data, and cost records',
-      icon: FileText,
+      title: 'Access Real-Time Data',
+      description: 'Connect to live operational data streams from vessels, drilling platforms, and production facilities',
+      icon: Database,
       color: 'text-blue-500'
     },
     {
@@ -200,16 +199,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   onClick={onGetStarted}
                   className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
                 >
-                  <Database size={20} />
-                  Upload Your Data
+                  <BarChart3 size={20} />
+                  View Analytics
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
                 </button>
                 <button 
                   onClick={hasData ? onViewDashboard : undefined}
                   className="group bg-white text-gray-900 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-50 transition-all duration-300 shadow-lg border border-gray-200 flex items-center gap-3 justify-center"
                 >
-                  <Play size={20} />
-                  Watch Demo
+                  <Activity size={20} />
+                  Explore Dashboards
                 </button>
               </div>
             </div>
@@ -364,15 +363,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               onClick={onGetStarted}
               className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
             >
-              <Database size={20} />
-              Upload Your Data
+              <BarChart3 size={20} />
+              Access Analytics
               <ArrowRight size={20} />
             </button>
             <button 
               onClick={hasData ? onViewDashboard : onGetStarted}
               className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border-2 border-white/30"
             >
-              {hasData ? 'Go to Dashboard' : 'Schedule Demo'}
+              {hasData ? 'Go to Dashboard' : 'Request Access'}
             </button>
           </div>
         </div>
