@@ -100,21 +100,34 @@ const EnhancedFileUpload: React.FC = () => {
 		try {
 			const preview = await ExcelValidator.getPreview(file, 5)
 			const headers = preview.headers.map(h => h.toLowerCase())
+			const originalHeaders = preview.headers
 			
 			console.log(`Detecting file type for ${file.name}`)
-			console.log('Headers found:', headers)
+			console.log('Headers found:', originalHeaders)
+			console.log('Headers (lowercase):', headers)
 			
 			// More flexible detection based on headers
+			// Check for cost allocation - MOST IMPORTANT, check this first
+			if (headers.some(h => h.includes('lc') && h.includes('number')) ||
+			    headers.some(h => h.includes('month') && h.includes('year')) ||
+			    headers.some(h => h.includes('alloc') || h.includes('days')) ||
+			    headers.some(h => h.includes('cost') || h.includes('amount'))) {
+				console.log('Detected as cost_allocation')
+				console.log('Cost allocation columns detected:')
+				originalHeaders.forEach((h, i) => {
+					if (headers[i].includes('lc') || headers[i].includes('month') || 
+					    headers[i].includes('year') || headers[i].includes('alloc') || 
+					    headers[i].includes('cost')) {
+						console.log(`  - "${h}"`)
+					}
+				})
+				return 'cost_allocation'
+			}
 			// Check for voyage events (look for mission or event columns)
-			if (headers.some(h => h.includes('mission')) || 
-			    headers.some(h => h.includes('event') && !h.includes('voyage event'))) {
+			else if (headers.some(h => h.includes('mission')) || 
+			         headers.some(h => h.includes('event') && !h.includes('voyage event'))) {
 				console.log('Detected as voyage_events')
 				return 'voyage_events'
-			}
-			// Check for cost allocation
-			else if (headers.some(h => h.includes('cost') || h.includes('amount') || h.includes('allocation'))) {
-				console.log('Detected as cost_allocation')
-				return 'cost_allocation'
 			}
 			// Check for voyage list
 			else if (headers.some(h => h.includes('voyage') && (h.includes('id') || h.includes('#') || h.includes('number')))) {
@@ -127,13 +140,13 @@ const EnhancedFileUpload: React.FC = () => {
 				return 'vessel_manifests'
 			}
 			// Additional fallback checks based on common patterns
-			else if (file.name.toLowerCase().includes('voyage') && file.name.toLowerCase().includes('event')) {
-				console.log('Detected as voyage_events based on filename')
-				return 'voyage_events'
-			}
 			else if (file.name.toLowerCase().includes('cost')) {
 				console.log('Detected as cost_allocation based on filename')
 				return 'cost_allocation'
+			}
+			else if (file.name.toLowerCase().includes('voyage') && file.name.toLowerCase().includes('event')) {
+				console.log('Detected as voyage_events based on filename')
+				return 'voyage_events'
 			}
 			else if (file.name.toLowerCase().includes('manifest')) {
 				console.log('Detected as vessel_manifests based on filename')
@@ -141,6 +154,10 @@ const EnhancedFileUpload: React.FC = () => {
 			}
 			
 			console.log('Could not detect file type')
+			console.log('Showing first row of data for debugging:')
+			if (preview.data[0]) {
+				console.log(preview.data[0])
+			}
 			return null
 		} catch (error) {
 			console.error('Error detecting file type:', error)
