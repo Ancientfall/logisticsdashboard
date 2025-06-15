@@ -13,7 +13,8 @@ import {
 	FileSpreadsheet,
 	Ship,
 	DollarSign,
-	ClipboardList
+	ClipboardList,
+	Package
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button, Progress, Card, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@nextui-org/react'
@@ -27,6 +28,7 @@ interface FileUploadState {
 	costAllocation: File | null
 	voyageList: File | null
 	vesselManifests: File | null
+	bulkActions: File | null
 }
 
 interface ProcessingProgress {
@@ -34,6 +36,7 @@ interface ProcessingProgress {
 	costAllocation: number
 	voyageList: number
 	vesselManifests: number
+	bulkActions: number
 }
 
 interface FilePreview {
@@ -50,14 +53,16 @@ const EnhancedFileUploadFixed: React.FC = () => {
 		voyageEvents: null,
 		costAllocation: null,
 		voyageList: null,
-		vesselManifests: null
+		vesselManifests: null,
+		bulkActions: null
 	})
 	
 	const [uploadProgress, setUploadProgress] = useState<ProcessingProgress>({
 		voyageEvents: 0,
 		costAllocation: 0,
 		voyageList: 0,
-		vesselManifests: 0
+		vesselManifests: 0,
+		bulkActions: 0
 	})
 	
 	const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
@@ -109,6 +114,13 @@ const EnhancedFileUploadFixed: React.FC = () => {
 			color: 'warning' as const,
 			required: false,
 			description: 'Vessel operations and manifest data'
+		},
+		bulkActions: {
+			label: 'Bulk Actions',
+			icon: Package,
+			color: 'default' as const,
+			required: false,
+			description: 'Bulk fluid transfers and operations'
 		}
 	}
 
@@ -214,7 +226,8 @@ const EnhancedFileUploadFixed: React.FC = () => {
 			voyageEvents: 0,
 			costAllocation: 0,
 			voyageList: 0,
-			vesselManifests: 0
+			vesselManifests: 0,
+			bulkActions: 0
 		})
 		
 		try {
@@ -229,7 +242,8 @@ const EnhancedFileUploadFixed: React.FC = () => {
 					voyageEvents: Math.min(prev.voyageEvents + 10, 90),
 					costAllocation: Math.min(prev.costAllocation + 10, 90),
 					voyageList: files.voyageList ? Math.min(prev.voyageList + 10, 90) : 0,
-					vesselManifests: files.vesselManifests ? Math.min(prev.vesselManifests + 10, 90) : 0
+					vesselManifests: files.vesselManifests ? Math.min(prev.vesselManifests + 10, 90) : 0,
+					bulkActions: files.bulkActions ? Math.min(prev.bulkActions + 10, 90) : 0
 				}))
 			}, 300)
 			
@@ -240,7 +254,7 @@ const EnhancedFileUploadFixed: React.FC = () => {
 				vesselManifestsFile: files.vesselManifests,
 				costAllocationFile: files.costAllocation,
 				vesselClassificationsFile: null,
-				bulkActionsFile: null,
+				bulkActionsFile: files.bulkActions,
 				useMockData: false
 			})
 			
@@ -251,7 +265,8 @@ const EnhancedFileUploadFixed: React.FC = () => {
 				voyageEvents: 100,
 				costAllocation: 100,
 				voyageList: files.voyageList ? 100 : 0,
-				vesselManifests: files.vesselManifests ? 100 : 0
+				vesselManifests: files.vesselManifests ? 100 : 0,
+				bulkActions: files.bulkActions ? 100 : 0
 			})
 			
 			// Update individual data arrays (same as original)
@@ -430,6 +445,7 @@ const EnhancedFileUploadFixed: React.FC = () => {
 				<FileUploadZone fileType="costAllocation" />
 				<FileUploadZone fileType="voyageList" />
 				<FileUploadZone fileType="vesselManifests" />
+				<FileUploadZone fileType="bulkActions" />
 			</div>
 
 			{/* Error Message */}
