@@ -1973,42 +1973,104 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       </div>
                     </div>
 
-                    {/* Simple Vessel Type Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                          <span className="text-sm font-semibold text-gray-800">Drill Ships</span>
-                        </div>
-                        <div className="text-2xl font-bold">8</div>
-                        <div className="text-xs mt-1 text-gray-600">Primary drilling</div>
+                    {/* Dynamic Vessel Type/Company Cards */}
+                    <div className="mt-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                        {(filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months') 
+                          ? 'Vessels by Company' 
+                          : 'Vessels by Type'}
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {drillingMetrics.vesselTypeData && drillingMetrics.vesselTypeData.length > 0 ? (
+                          drillingMetrics.vesselTypeData
+                            .sort((a, b) => b.count - a.count)
+                            .slice(0, 4)
+                            .map((vesselGroup, index) => {
+                              const colorClasses = [
+                                { bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-600' },
+                                { bg: 'bg-green-50', border: 'border-green-200', dot: 'bg-green-600' },
+                                { bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-600' },
+                                { bg: 'bg-purple-50', border: 'border-purple-200', dot: 'bg-purple-600' }
+                              ];
+                              const colorClass = colorClasses[index % colorClasses.length];
+                              
+                              // Get a short display name for vessel types
+                              const displayName = vesselGroup.type === 'Unknown' ? 'Other' : vesselGroup.type;
+                              
+                              return (
+                                <div key={vesselGroup.type} className={`p-4 rounded-lg border ${colorClass.bg} ${colorClass.border}`}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-3 h-3 ${colorClass.dot} rounded-full`}></div>
+                                    <span className="text-sm font-semibold text-gray-800 truncate" title={displayName}>
+                                      {displayName}
+                                    </span>
+                                  </div>
+                                  <div className="text-2xl font-bold">{vesselGroup.count}</div>
+                                  <div className="text-xs mt-1 text-gray-600">
+                                    {Math.round(vesselGroup.percentage)}% of fleet
+                                  </div>
+                                </div>
+                              );
+                            })
+                        ) : (
+                          <>
+                            {/* Default placeholder cards when no data */}
+                            <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                <span className="text-sm font-semibold text-gray-600">No Data</span>
+                              </div>
+                              <div className="text-2xl font-bold text-gray-400">-</div>
+                              <div className="text-xs mt-1 text-gray-500">Upload data</div>
+                            </div>
+                          </>
+                        )}
                       </div>
+                    </div>
 
-                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                          <span className="text-sm font-semibold text-gray-800">Semi-submersibles</span>
+                    {/* Key Operational Metrics */}
+                    <div className="mt-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Drilling Support Metrics</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Activity className="w-4 h-4 text-indigo-600" />
+                            <span className="text-xs font-medium text-gray-700">Cargo Ops</span>
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {Math.round(drillingMetrics.cargoOpsHours?.value || 0).toLocaleString()}h
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold">12</div>
-                        <div className="text-xs mt-1 text-gray-600">Deep water ops</div>
-                      </div>
 
-                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
-                          <span className="text-sm font-semibold text-gray-800">Jack-ups</span>
+                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Clock className="w-4 h-4 text-amber-600" />
+                            <span className="text-xs font-medium text-gray-700">Wait Time</span>
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {Math.round(drillingMetrics.waitingTimeOffshore?.value || 0).toLocaleString()}h
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold">6</div>
-                        <div className="text-xs mt-1 text-gray-600">Shallow water</div>
-                      </div>
 
-                      <div className="p-4 rounded-lg border bg-gray-50 border-gray-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-3 h-3 bg-purple-600 rounded-full"></div>
-                          <span className="text-sm font-semibold text-gray-800">Support Vessels</span>
+                        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Ship className="w-4 h-4 text-emerald-600" />
+                            <span className="text-xs font-medium text-gray-700">Voyages</span>
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {drillingMetrics.fsvRuns?.value || 0}
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold">24</div>
-                        <div className="text-xs mt-1 text-gray-600">Logistics support</div>
+
+                        <div className="p-3 rounded-lg bg-cyan-50 border border-cyan-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Droplet className="w-4 h-4 text-cyan-600" />
+                            <span className="text-xs font-medium text-gray-700">Fluids</span>
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {Math.round((drillingMetrics.fluidMovement?.value || 0) / 1000)}k bbls
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
