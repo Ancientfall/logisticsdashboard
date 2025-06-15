@@ -163,10 +163,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                 {hasData ? 'View Analytics' : 'Demo'}
               </button>
               <button 
-                onClick={onGetStarted}
+                onClick={hasData ? onViewDashboard : onGetStarted}
                 className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg"
               >
-                Get Started
+                {hasData ? 'Select Dashboard' : 'Get Started'}
               </button>
             </div>
           </nav>
@@ -195,19 +195,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
                 <button 
-                  onClick={onGetStarted}
+                  onClick={hasData ? onViewDashboard : onGetStarted}
                   className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
                 >
                   <BarChart3 size={20} />
-                  View Analytics
+                  {hasData ? 'View Analytics' : 'Get Started'}
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
                 </button>
                 <button 
-                  onClick={hasData ? onViewDashboard : undefined}
+                  onClick={hasData ? onViewDashboard : onGetStarted}
                   className="group bg-white text-gray-900 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-50 transition-all duration-300 shadow-lg border border-gray-200 flex items-center gap-3 justify-center"
                 >
                   <Activity size={20} />
-                  Explore Dashboards
+                  {hasData ? 'Select Dashboard' : 'Upload Data'}
                 </button>
               </div>
             </div>
@@ -359,18 +359,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
-              onClick={onGetStarted}
+              onClick={hasData ? onViewDashboard : onGetStarted}
               className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
             >
               <BarChart3 size={20} />
-              Access Analytics
+              {hasData ? 'Select Analytics Dashboard' : 'Get Started'}
               <ArrowRight size={20} />
             </button>
             <button 
               onClick={hasData ? onViewDashboard : onGetStarted}
               className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border-2 border-white/30"
             >
-              {hasData ? 'Go to Dashboard' : 'Request Access'}
+              {hasData ? 'View All Dashboards' : 'Request Access'}
             </button>
           </div>
         </div>

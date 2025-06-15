@@ -4,6 +4,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import FileUploadPage from './components/dashboard/FileUploadPage';
 import MainDashboard from './components/dashboard/MainDashboard';
 import LandingPage from './components/LandingPage';
+import DashboardSelector from './components/DashboardSelector';
 import { DataProvider, useData } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
 import './index.css';
@@ -20,7 +21,7 @@ const AppContent: React.FC = () => {
   // Initialize notification integration
   useNotificationIntegration();
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'selector' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('landing');
   
   // Handle navigation based on data ready state
   useEffect(() => {
@@ -32,11 +33,11 @@ const AppContent: React.FC = () => {
     });
     console.log('🎯 App: Current view:', currentView);
     
-    // Only auto-redirect to dashboard if data becomes ready and we're on upload page
+    // Only auto-redirect to selector if data becomes ready and we're on upload page
     if (isDataReady && currentView === 'upload') {
-      console.log('🎯 App: Data is ready, navigating to dashboard...');
-      setCurrentView('dashboard');
-    } else if (!isDataReady && (currentView === 'dashboard' || currentView === 'drilling' || currentView === 'production' || currentView === 'comparison' || currentView === 'voyage' || currentView === 'cost' || currentView === 'bulk')) {
+      console.log('🎯 App: Data is ready, navigating to dashboard selector...');
+      setCurrentView('selector');
+    } else if (!isDataReady && (currentView === 'selector' || currentView === 'dashboard' || currentView === 'drilling' || currentView === 'production' || currentView === 'comparison' || currentView === 'voyage' || currentView === 'cost' || currentView === 'bulk')) {
       console.log('❌ App: Data not ready, redirecting to upload...');
       setCurrentView('upload');
     }
@@ -67,7 +68,7 @@ const AppContent: React.FC = () => {
 
   const handleViewDashboard = () => {
     if (isDataReady) {
-      setCurrentView('dashboard');
+      setCurrentView('selector');
     } else {
       setCurrentView('upload');
     }
@@ -138,6 +139,16 @@ const AppContent: React.FC = () => {
           onGetStarted={handleGetStarted}
           onViewDashboard={handleViewDashboard}
           hasData={isDataReady}
+        />
+      )}
+      {currentView === 'selector' && (
+        <DashboardSelector
+          onNavigateToDrilling={handleNavigateToDrilling}
+          onNavigateToProduction={handleNavigateToProduction}
+          onNavigateToComparison={handleNavigateToComparison}
+          onNavigateToVoyage={handleNavigateToVoyage}
+          onNavigateToCost={handleNavigateToCost}
+          onNavigateToOverview={handleNavigateToDashboard}
         />
       )}
       {currentView === 'dashboard' && (
