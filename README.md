@@ -218,7 +218,7 @@ REACT_APP_ENVIRONMENT=production
 
 ## 📄 License
 
-This project is proprietary software owned by BP p.l.c. All rights reserved.
+This project is proprietary software owned by Neal Smothers & BP p.l.c. All rights reserved.
 
 ## 🤝 Support
 
