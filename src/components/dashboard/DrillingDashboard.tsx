@@ -2038,7 +2038,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                             <span className="text-xs font-medium text-gray-700">Cargo Ops</span>
                           </div>
                           <div className="text-lg font-bold text-gray-900">
-                            {Math.round(drillingMetrics.cargoOpsHours?.value || 0).toLocaleString()}h
+                            {Math.round(drillingMetrics.cargoOpsHours || 0).toLocaleString()}h
                           </div>
                         </div>
 
@@ -2048,7 +2048,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                             <span className="text-xs font-medium text-gray-700">Wait Time</span>
                           </div>
                           <div className="text-lg font-bold text-gray-900">
-                            {Math.round(drillingMetrics.waitingTimeOffshore?.value || 0).toLocaleString()}h
+                            {Math.round(drillingMetrics.waitingTime?.value || 0).toLocaleString()}h
                           </div>
                         </div>
 
@@ -2068,7 +2068,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                             <span className="text-xs font-medium text-gray-700">Fluids</span>
                           </div>
                           <div className="text-lg font-bold text-gray-900">
-                            {Math.round((drillingMetrics.fluidMovement?.value || 0) / 1000)}k bbls
+                            {typeof drillingMetrics.fluidMovement?.value === 'number' 
+                              ? `${Math.round(drillingMetrics.fluidMovement.value / 1000)}k bbls`
+                              : 'N/A'
+                            }
                           </div>
                         </div>
                       </div>
