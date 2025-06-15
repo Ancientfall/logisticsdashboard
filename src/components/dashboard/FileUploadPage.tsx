@@ -5,7 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
 import { VoyageEvent, VesselManifest, MasterFacility, CostAllocation, VoyageList, VesselClassification, BulkAction } from '../../types';
-import EnhancedFileUpload from './EnhancedFileUpload';
+import EnhancedFileUploadFixed from './EnhancedFileUploadFixed';
 
 interface ProcessingLogEntry {
   id: number;
@@ -879,7 +879,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
 
           {/* Conditional Rendering */}
           {useEnhancedUpload ? (
-            <EnhancedFileUpload />
+            <EnhancedFileUploadFixed />
           ) : (
             <div className="max-w-6xl mx-auto space-y-6">
         {/* Page Header */}
