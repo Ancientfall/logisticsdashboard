@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Home, Package } from 'lucide-react';
+import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Home, Package, Grid3X3 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
 import NotificationPanel from '../notifications/NotificationPanel';
@@ -196,9 +196,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               <div className="flex items-center gap-2 text-sm">
                 <button 
                   onClick={onNavigateHome}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors px-2 py-1 rounded hover:bg-gray-100"
+                  title="Return to Dashboard Selection"
                 >
-                  <Home size={16} />
+                  <Grid3X3 size={16} />
+                  <span className="font-medium">All Dashboards</span>
                 </button>
                 <ChevronRight size={16} className="text-gray-400" />
                 <span className="text-gray-700 font-medium">

@@ -21,6 +21,7 @@ interface DashboardSelectorProps {
 	onNavigateToVoyage: () => void
 	onNavigateToCost: () => void
 	onNavigateToOverview: () => void
+	onNavigateToLanding?: () => void
 }
 
 interface DashboardOption {
@@ -41,7 +42,8 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 	onNavigateToComparison,
 	onNavigateToVoyage,
 	onNavigateToCost,
-	onNavigateToOverview
+	onNavigateToOverview,
+	onNavigateToLanding
 }) => {
 	const [hoveredCard, setHoveredCard] = useState<string | null>(null)
 	const [selectedCategory, setSelectedCategory] = useState<'all' | 'operations' | 'analytics' | 'financial'>('all')
@@ -195,9 +197,24 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 			<div className="bg-white shadow-sm border-b border-gray-200">
 				<div className="max-w-7xl mx-auto px-6 py-6">
 					<div className="flex items-center justify-between">
-						<div>
-							<h1 className="text-3xl font-bold text-gray-900">Select Your Dashboard</h1>
-							<p className="text-gray-600 mt-1">Choose the analytics view that best suits your needs</p>
+						<div className="flex items-center gap-8">
+							{/* Logo - clickable to go back to landing */}
+							<div 
+								onClick={onNavigateToLanding}
+								className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+							>
+								<div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+									<span className="text-white font-bold text-xl">bp</span>
+								</div>
+								<div>
+									<h2 className="text-xl font-bold text-gray-900">Logistics Analytics</h2>
+									<p className="text-xs text-gray-600">Dashboard Selection</p>
+								</div>
+							</div>
+							<div className="border-l border-gray-200 pl-8">
+								<h1 className="text-2xl font-bold text-gray-900">Select Your Dashboard</h1>
+								<p className="text-gray-600 mt-1">Choose the analytics view that best suits your needs</p>
+							</div>
 						</div>
 						<div className="flex items-center gap-3">
 							<div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg">

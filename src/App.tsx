@@ -75,7 +75,12 @@ const AppContent: React.FC = () => {
   };
 
   const handleNavigateHome = () => {
-    setCurrentView('landing');
+    // If data is loaded, go to dashboard selector instead of landing page
+    if (isDataReady) {
+      setCurrentView('selector');
+    } else {
+      setCurrentView('landing');
+    }
   };
 
   const handleNavigateToDashboard = () => {
@@ -149,6 +154,7 @@ const AppContent: React.FC = () => {
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
           onNavigateToOverview={handleNavigateToDashboard}
+          onNavigateToLanding={() => setCurrentView('landing')}
         />
       )}
       {currentView === 'dashboard' && (
