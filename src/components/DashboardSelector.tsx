@@ -105,7 +105,7 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 				{ label: 'Routes', value: '32' },
 				{ label: 'On-Time', value: '87%' }
 			],
-			action: onNavigageToVoyage
+			action: onNavigateToVoyage
 		},
 		{
 			id: 'cost',
