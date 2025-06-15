@@ -232,41 +232,70 @@ const EnhancedFileUpload: React.FC = () => {
 		})
 		
 		try {
-			for (let i = 0; i < validFiles.length; i++) {
-				const fileItem = validFiles[i]
-				
+			// Update all files to processing status
+			validFiles.forEach(file => {
 				setFiles(prev => prev.map(f => 
-					f.id === fileItem.id ? { ...f, status: 'processing', progress: 0 } : f
+					f.id === file.id ? { ...f, status: 'processing', progress: 0 } : f
 				))
+			})
+			
+			// Build the processing options with ALL files
+			const processingOptions: any = {
+				voyageEventsFile: null,
+				costAllocationFile: null,
+				voyageListFile: null,
+				vesselManifestsFile: null
+			}
+			
+			// Map each file to its correct option
+			validFiles.forEach(fileItem => {
+				console.log('Processing file:', fileItem.file.name, 'Type:', fileItem.type)
+				switch(fileItem.type) {
+					case 'voyage_events':
+						processingOptions.voyageEventsFile = fileItem.file
+						break
+					case 'cost_allocation':
+						processingOptions.costAllocationFile = fileItem.file
+						break
+					case 'voyage_list':
+						processingOptions.voyageListFile = fileItem.file
+						break
+					case 'vessel_manifests':
+						processingOptions.vesselManifestsFile = fileItem.file
+						break
+				}
+			})
+			
+			console.log('Processing options:', processingOptions)
+			
+			setProcessingStats(prev => prev ? {
+				...prev,
+				currentStage: 'Processing all files...'
+			} : null)
+			
+			// Simulate progress for all files
+			const progressInterval = setInterval(() => {
+				setFiles(prev => prev.map(f => 
+					f.status === 'processing' 
+						? { ...f, progress: Math.min(f.progress + 5, 90) } 
+						: f
+				))
+			}, 500)
+			
+			try {
+				// Process ALL files together
+				const result = await processExcelFiles(processingOptions)
+				console.log('Processing result:', result)
 				
-				setProcessingStats(prev => prev ? {
-					...prev,
-					currentFile: fileItem.file.name,
-					currentStage: 'Reading file...'
-				} : null)
+				clearInterval(progressInterval)
 				
-				// Simulate progress during processing
-				const progressInterval = setInterval(() => {
-					setFiles(prev => prev.map(f => 
-						f.id === fileItem.id && f.status === 'processing' 
-							? { ...f, progress: Math.min(f.progress + 10, 90) } 
-							: f
-					))
-				}, 500)
+				// Clear data if in replace mode
+				if (uploadMode === 'replace') {
+					clearAllData()
+				}
 				
-				try {
-					// Process the file
-					const processingOptions: any = {
-						voyageEventsFile: fileItem.type === 'voyage_events' ? fileItem.file : null,
-						costAllocationFile: fileItem.type === 'cost_allocation' ? fileItem.file : null,
-						voyageListFile: fileItem.type === 'voyage_list' ? fileItem.file : null,
-						vesselManifestsFile: fileItem.type === 'vessel_manifests' ? fileItem.file : null
-					}
-					const result = await processExcelFiles(processingOptions)
-					
-					clearInterval(progressInterval)
-					
-					// Update with results
+				// Update all files with their results
+				validFiles.forEach(fileItem => {
 					let recordsProcessed = 0
 					switch(fileItem.type) {
 						case 'voyage_events':
@@ -295,46 +324,43 @@ const EnhancedFileUpload: React.FC = () => {
 							}
 						} : f
 					))
-					
-					// Update global state if needed
-					if (uploadMode === 'replace' && i === 0) {
-						clearAllData()
-					}
-					
-					// Store the processed data
-					switch(fileItem.type) {
-						case 'voyage_events':
-							if (result.voyageEvents) setVoyageEvents(result.voyageEvents)
-							break
-						case 'cost_allocation':
-							if (result.costAllocation) setCostAllocation(result.costAllocation)
-							break
-						case 'voyage_list':
-							if (result.voyageList) setVoyageList(result.voyageList)
-							break
-						case 'vessel_manifests':
-							if (result.vesselManifests) setVesselManifests(result.vesselManifests)
-							break
-					}
-					
-					setProcessingStats(prev => prev ? {
-						...prev,
-						completedFiles: i + 1,
-						processedRecords: prev.processedRecords + recordsProcessed
-					} : null)
-					
-				} catch (error) {
-					clearInterval(progressInterval)
-					
+				})
+				
+				// Store all the processed data
+				if (result.voyageEvents) setVoyageEvents(result.voyageEvents)
+				if (result.costAllocation) setCostAllocation(result.costAllocation)
+				if (result.voyageList) setVoyageList(result.voyageList)
+				if (result.vesselManifests) setVesselManifests(result.vesselManifests)
+				
+				// Update processing stats
+				const totalProcessed = 
+					(result.voyageEvents?.length || 0) +
+					(result.costAllocation?.length || 0) +
+					(result.voyageList?.length || 0) +
+					(result.vesselManifests?.length || 0)
+				
+				setProcessingStats(prev => prev ? {
+					...prev,
+					completedFiles: validFiles.length,
+					processedRecords: totalProcessed
+				} : null)
+				
+			} catch (error) {
+				clearInterval(progressInterval)
+				
+				// Mark all processing files as error
+				validFiles.forEach(fileItem => {
 					setFiles(prev => prev.map(f => 
-						f.id === fileItem.id ? { 
+						f.id === fileItem.id && f.status === 'processing' ? { 
 							...f, 
 							status: 'error',
 							progress: 0,
 							error: error instanceof Error ? error.message : 'Processing failed'
 						} : f
 					))
-				}
+				})
+				
+				throw error // Re-throw to be caught by outer try-catch
 			}
 			
 			addNotification('processing-complete', { message: 'All files processed successfully!' })
