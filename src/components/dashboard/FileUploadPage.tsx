@@ -1,10 +1,11 @@
 // src/components/dashboard/FileUploadPage.tsx
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Upload, Plus, RefreshCw, CheckCircle, FileText, BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, Home, Package } from 'lucide-react';
+import { Upload, Plus, RefreshCw, CheckCircle, FileText, BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, Home, Package, Sparkles } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
 import { VoyageEvent, VesselManifest, MasterFacility, CostAllocation, VoyageList, VesselClassification, BulkAction } from '../../types';
+import EnhancedFileUpload from './EnhancedFileUpload';
 
 interface ProcessingLogEntry {
   id: number;
@@ -118,6 +119,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
 
   const [uploadMode, setUploadMode] = useState<'initial' | 'incremental'>('initial');
   const [processingState, setProcessingState] = useState<'idle' | 'processing' | 'complete' | 'error'>('idle');
+  const [useEnhancedUpload, setUseEnhancedUpload] = useState(false);
   const isProcessingRef = React.useRef(false); // Add ref to track if we're currently processing
   
   // Initialize processing log from localStorage
@@ -848,7 +850,38 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       {/* Main Content */}
       <main className="flex-1">
         <div className="max-w-screen-2xl mx-auto px-6 py-8">
-          <div className="max-w-6xl mx-auto space-y-6">
+          {/* Enhanced Upload Toggle */}
+          <div className="max-w-6xl mx-auto mb-6">
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="text-purple-600" size={24} />
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Try Enhanced Upload Experience</h3>
+                    <p className="text-sm text-gray-600">Real-time progress, data preview, and better error handling</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setUseEnhancedUpload(!useEnhancedUpload)}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                    useEnhancedUpload ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                      useEnhancedUpload ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Conditional Rendering */}
+          {useEnhancedUpload ? (
+            <EnhancedFileUpload />
+          ) : (
+            <div className="max-w-6xl mx-auto space-y-6">
         {/* Page Header */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-6">
           <div className="flex items-center justify-between">
@@ -1014,6 +1047,7 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
       </div>
       
           </div>
+          )}
         </div>
       </main>
       
