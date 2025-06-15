@@ -101,19 +101,49 @@ const EnhancedFileUpload: React.FC = () => {
 			const preview = await ExcelValidator.getPreview(file, 5)
 			const headers = preview.headers.map(h => h.toLowerCase())
 			
-			// Smart detection based on headers
-			if (headers.some(h => h.includes('voyage') && h.includes('event'))) {
+			console.log(`Detecting file type for ${file.name}`)
+			console.log('Headers found:', headers)
+			
+			// More flexible detection based on headers
+			// Check for voyage events (look for mission or event columns)
+			if (headers.some(h => h.includes('mission')) || 
+			    headers.some(h => h.includes('event') && !h.includes('voyage event'))) {
+				console.log('Detected as voyage_events')
 				return 'voyage_events'
-			} else if (headers.some(h => h.includes('cost') || h.includes('allocation'))) {
+			}
+			// Check for cost allocation
+			else if (headers.some(h => h.includes('cost') || h.includes('amount') || h.includes('allocation'))) {
+				console.log('Detected as cost_allocation')
 				return 'cost_allocation'
-			} else if (headers.some(h => h.includes('voyage') && h.includes('list'))) {
+			}
+			// Check for voyage list
+			else if (headers.some(h => h.includes('voyage') && (h.includes('id') || h.includes('#') || h.includes('number')))) {
+				console.log('Detected as voyage_list')
 				return 'voyage_list'
-			} else if (headers.some(h => h.includes('vessel') || h.includes('manifest'))) {
+			}
+			// Check for vessel manifests
+			else if (headers.some(h => h.includes('vessel') || h.includes('manifest'))) {
+				console.log('Detected as vessel_manifests')
+				return 'vessel_manifests'
+			}
+			// Additional fallback checks based on common patterns
+			else if (file.name.toLowerCase().includes('voyage') && file.name.toLowerCase().includes('event')) {
+				console.log('Detected as voyage_events based on filename')
+				return 'voyage_events'
+			}
+			else if (file.name.toLowerCase().includes('cost')) {
+				console.log('Detected as cost_allocation based on filename')
+				return 'cost_allocation'
+			}
+			else if (file.name.toLowerCase().includes('manifest')) {
+				console.log('Detected as vessel_manifests based on filename')
 				return 'vessel_manifests'
 			}
 			
+			console.log('Could not detect file type')
 			return null
 		} catch (error) {
+			console.error('Error detecting file type:', error)
 			return null
 		}
 	}
@@ -165,7 +195,8 @@ const EnhancedFileUpload: React.FC = () => {
 			const detectedType = await detectFileType(fileItem.file)
 			
 			if (!detectedType) {
-				throw new Error('Unable to detect file type. Please ensure headers match expected format.')
+				// Don't throw error, just leave type as null and let user select manually
+				console.warn(`Could not auto-detect file type for ${fileItem.file.name}. User can select manually.`)
 			}
 			
 			// Get preview data
@@ -202,7 +233,18 @@ const EnhancedFileUpload: React.FC = () => {
 		const validFiles = files.filter(f => f.status === 'pending' && f.type)
 		
 		if (validFiles.length === 0) {
-			addNotification('processing-complete', { message: 'No valid files to process' })
+			addNotification('processing-complete', { message: 'No valid files to process. Please select file types for undetected files.' })
+			return
+		}
+		
+		// Check if we have at least the required files (voyage events and cost allocation)
+		const hasVoyageEvents = validFiles.some(f => f.type === 'voyage_events')
+		const hasCostAllocation = validFiles.some(f => f.type === 'cost_allocation')
+		
+		if (!hasVoyageEvents || !hasCostAllocation) {
+			addNotification('processing-complete', { 
+				message: 'Missing required files. You must upload both Voyage Events and Cost Allocation files.' 
+			})
 			return
 		}
 		
@@ -473,6 +515,9 @@ const EnhancedFileUpload: React.FC = () => {
 				<p className="text-sm text-gray-500 mt-4">
 					Supports .xlsx, .xls, and .csv files up to 50MB
 				</p>
+				<p className="text-xs text-gray-400 mt-2">
+					<strong>Required:</strong> Voyage Events and Cost Allocation files
+				</p>
 			</div>
 
 			{/* File List */}
@@ -559,6 +604,25 @@ const EnhancedFileUpload: React.FC = () => {
 														<Chip size="sm" color={typeInfo.color as any} variant="flat">
 															{typeInfo.name}
 														</Chip>
+													)}
+													{!file.type && file.status === 'pending' && (
+														<select
+															className="text-xs border rounded px-2 py-1"
+															onChange={(e) => {
+																const newType = e.target.value as any
+																if (newType) {
+																	setFiles(prev => prev.map(f => 
+																		f.id === file.id ? { ...f, type: newType } : f
+																	))
+																}
+															}}
+														>
+															<option value="">Select type...</option>
+															<option value="voyage_events">Voyage Events</option>
+															<option value="cost_allocation">Cost Allocation</option>
+															<option value="voyage_list">Voyage List</option>
+															<option value="vessel_manifests">Vessel Manifests</option>
+														</select>
 													)}
 												</div>
 												<p className="text-sm text-gray-500">
