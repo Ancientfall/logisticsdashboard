@@ -57,6 +57,25 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
       const mainDestination = locations.length > 1 ? locations[1] : undefined;
       const stopCount = locations.length;
       
+      // Normalize mission type
+      const normalizeMissionType = (mission: string): 'Supply' | 'Project' | 'Offhire' | undefined => {
+        if (!mission) return undefined;
+        const missionLower = mission.toLowerCase().trim();
+        
+        if (missionLower === 'supply' || missionLower.includes('supply')) {
+          return 'Supply';
+        } else if (missionLower === 'project' || missionLower.includes('project')) {
+          return 'Project';
+        } else if (missionLower === 'offhire' || missionLower.includes('off-hire') || missionLower.includes('off hire')) {
+          return 'Offhire';
+        }
+        
+        console.warn(`Unknown mission type: "${mission}" for voyage ${voyage.Vessel} - ${voyage["Voyage Number"]}`);
+        return undefined;
+      };
+      
+      const missionType = normalizeMissionType(voyage.Mission);
+      
       return {
         id: `voyage-${index}`,
         uniqueVoyageId,
@@ -73,6 +92,7 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
         durationHours,
         type: voyage.Type,
         mission: voyage.Mission,
+        missionType,
         routeType: voyage["Route Type"],
         locations: voyage.Locations,
         locationList: locations,
@@ -105,6 +125,7 @@ export const processVoyageList = (rawVoyages: RawVoyageList[]): VoyageList[] => 
         durationHours: undefined,
         type: voyage.Type,
         mission: voyage.Mission || 'Unknown',
+        missionType: undefined,
         routeType: voyage["Route Type"],
         locations: voyage.Locations || '',
         locationList: [],

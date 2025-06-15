@@ -213,7 +213,8 @@ export interface VoyageList {
   // Voyage Details
   edit?: string;                       // Edit column from Excel
   type?: string;                       // Type column from Excel
-  mission: string;
+  mission: string;                     // Mission type: 'Supply', 'Project', 'Offhire'
+  missionType?: 'Supply' | 'Project' | 'Offhire'; // Normalized mission type
   routeType?: string;                  // Route Type column from Excel
   locations: string;                   // Original locations string like "Fourchon -> Na Kika -> Thunder Horse PDQ"
   locationList: string[];              // Parsed array of locations split by "->"

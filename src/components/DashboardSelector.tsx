@@ -10,9 +10,12 @@ import {
 	Zap,
 	Target,
 	TrendingUp,
-	CheckCircle
+	CheckCircle,
+	AlertCircle
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useData } from '../context/DataContext'
+import { useAuth } from '../context/AuthContext'
 
 interface DashboardSelectorProps {
 	onNavigateToDrilling: () => void
@@ -45,127 +48,145 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 	onNavigateToOverview,
 	onNavigateToLanding
 }) => {
-	const [hoveredCard, setHoveredCard] = useState<string | null>(null)
+	// const [hoveredCard, setHoveredCard] = useState<string | null>(null)
 	const [selectedCategory, setSelectedCategory] = useState<'all' | 'operations' | 'analytics' | 'financial'>('all')
+	const { isDataReady } = useData()
+	const { isAdmin } = useAuth()
 
 	const dashboardOptions: DashboardOption[] = [
 		{
 			id: 'drilling',
 			title: 'Drilling Operations',
-			subtitle: 'Thunder Horse & Mad Dog',
-			description: 'Real-time drilling analytics with intelligent LC-based cost allocation and performance tracking',
+			subtitle: 'Rig & Vessel Analytics',
+			description: 'Monitor drilling operations with vessel utilization, cargo movements, and cost tracking by location',
 			icon: Anchor,
 			gradient: 'from-blue-500 to-cyan-600',
 			features: [
-				'Well-specific cost tracking',
-				'LC allocation analysis',
-				'Real-time monitoring',
-				'Efficiency metrics'
+				'Vessel utilization rates',
+				'Cargo operations tracking',
+				'Location-based filtering',
+				'Fleet performance metrics'
 			],
 			metrics: [
-				{ label: 'Active Wells', value: '12' },
-				{ label: 'Efficiency', value: '94%' },
-				{ label: 'Cost Savings', value: '$1.2M' }
+				{ label: 'Locations', value: '6+' },
+				{ label: 'Fleet Size', value: '24' },
+				{ label: 'Avg Utilization', value: '78%' }
 			],
 			action: onNavigateToDrilling
 		},
 		{
 			id: 'production',
 			title: 'Production Analytics',
-			subtitle: 'Facility Performance',
-			description: 'Monitor production facilities with vessel operation tracking and performance KPIs',
+			subtitle: 'Platform Operations',
+			description: 'Track production platform visits, cargo deliveries, chemical movements, and facility performance',
 			icon: Activity,
 			gradient: 'from-purple-500 to-pink-600',
 			features: [
-				'Facility monitoring',
-				'Vessel visit tracking',
-				'Production efficiency',
-				'Performance trending'
+				'Platform visit frequency',
+				'Cargo & lift analysis',
+				'Chemical tracking',
+				'Vessel company breakdown'
 			],
 			metrics: [
-				{ label: 'Facilities', value: '8' },
-				{ label: 'Uptime', value: '98.5%' },
-				{ label: 'Vessels', value: '24' }
+				{ label: 'Platforms', value: '8' },
+				{ label: 'Monthly Visits', value: '142' },
+				{ label: 'Cargo Tons', value: '15.2K' }
 			],
 			action: onNavigateToProduction
 		},
 		{
 			id: 'voyage',
 			title: 'Voyage Intelligence',
-			subtitle: 'Fleet Operations',
-			description: 'Comprehensive voyage analytics with route optimization and operational insights',
+			subtitle: 'Route & Mission Analysis',
+			description: 'Analyze voyage patterns, mission types, route complexity, and destination frequency',
 			icon: Ship,
 			gradient: 'from-green-500 to-emerald-600',
 			features: [
-				'Route analysis',
-				'Port operations',
-				'Mission tracking',
-				'Timeline analytics'
+				'Mission type breakdown',
+				'Route complexity analysis',
+				'Popular destinations',
+				'Duration distribution',
+				'Vessel utilization patterns',
+				'Stop frequency metrics',
+				'Fourchon route concentration',
+				'Mixed voyage efficiency'
 			],
 			metrics: [
-				{ label: 'Voyages', value: '157' },
-				{ label: 'Routes', value: '32' },
-				{ label: 'On-Time', value: '87%' }
+				{ label: 'Total Voyages', value: '1.9K' },
+				{ label: 'Avg Duration', value: '28hrs' },
+				{ label: 'Supply Missions', value: '85%' }
 			],
 			action: onNavigateToVoyage
 		},
 		{
 			id: 'cost',
 			title: 'Cost Allocation',
-			subtitle: 'Financial Intelligence',
-			description: 'Smart cost distribution across drilling and production with department-level insights',
+			subtitle: 'LC-Based Distribution',
+			description: 'Intelligent cost allocation using LC numbers, vessel rates, and department assignments',
 			icon: DollarSign,
 			gradient: 'from-orange-500 to-red-600',
 			features: [
-				'Smart allocation',
-				'Budget tracking',
-				'Department analysis',
-				'Trend visualization'
+				'LC-based allocation',
+				'Vessel rate management',
+				'Department breakdown',
+				'Monthly trending',
+				'Drilling vs Production split',
+				'Rate period tracking',
+				'Unallocated cost alerts',
+				'Export to Excel'
 			],
 			metrics: [
-				{ label: 'Tracked', value: '$42M' },
-				{ label: 'Savings', value: '15%' },
-				{ label: 'Accuracy', value: '99.2%' }
+				{ label: 'LC Codes', value: '48' },
+				{ label: 'Daily Rate', value: '$33K' },
+				{ label: 'Allocated', value: '98.7%' }
 			],
 			action: onNavigateToCost
 		},
 		{
 			id: 'comparison',
 			title: 'Comparison Analytics',
-			subtitle: 'Cross-Platform Analysis',
-			description: 'Compare performance across vessels, facilities, and time periods for insights',
+			subtitle: 'Performance Benchmarking',
+			description: 'Compare vessels, locations, and time periods with side-by-side performance metrics',
 			icon: Layers,
 			gradient: 'from-indigo-500 to-purple-600',
 			features: [
-				'Multi-vessel analysis',
-				'Trend comparison',
-				'Performance gaps',
-				'Benchmarking'
+				'Vessel comparisons',
+				'Location benchmarking',
+				'Trend analysis',
+				'KPI rankings',
+				'Period-over-period changes',
+				'Performance scorecards',
+				'Export comparison data',
+				'Custom metric selection'
 			],
 			metrics: [
-				{ label: 'Comparisons', value: '450' },
-				{ label: 'Insights', value: '89' },
-				{ label: 'Improved', value: '23%' }
+				{ label: 'Metrics', value: '12' },
+				{ label: 'Time Range', value: '24mo' },
+				{ label: 'Vessels', value: '42' }
 			],
 			action: onNavigateToComparison
 		},
 		{
 			id: 'overview',
-			title: 'Executive Overview',
-			subtitle: 'Unified Dashboard',
-			description: 'High-level view of all operations with key metrics and performance indicators',
+			title: 'Data Settings',
+			subtitle: 'File Management',
+			description: 'Upload new data files, view current data status, and manage system settings',
 			icon: BarChart3,
 			gradient: 'from-gray-600 to-gray-800',
 			features: [
-				'KPI dashboard',
-				'Executive summary',
-				'Alert monitoring',
-				'Quick insights'
+				'File upload status',
+				'Data validation',
+				'System settings',
+				'Export options',
+				'Processing history',
+				'Error diagnostics',
+				'Reset data option',
+				'Template downloads'
 			],
 			metrics: [
-				{ label: 'KPIs', value: '24' },
-				{ label: 'Alerts', value: '3' },
-				{ label: 'Updated', value: 'Live' }
+				{ label: 'Files', value: '5' },
+				{ label: 'Records', value: '12.4K' },
+				{ label: 'Status', value: 'Active' }
 			],
 			action: onNavigateToOverview
 		}
@@ -198,11 +219,8 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 				<div className="max-w-7xl mx-auto px-6 py-6">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-8">
-							{/* Logo - clickable to go back to landing */}
-							<div 
-								onClick={onNavigateToLanding}
-								className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-							>
+							{/* Logo - not clickable since we're already on the selector */}
+							<div className="flex items-center gap-3">
 								<div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
 									<span className="text-white font-bold text-xl">bp</span>
 								</div>
@@ -217,10 +235,17 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 							</div>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg">
-								<CheckCircle size={16} />
-								<span className="text-sm font-medium">Data Loaded Successfully</span>
-							</div>
+							{isDataReady ? (
+								<div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg">
+									<CheckCircle size={16} />
+									<span className="text-sm font-medium">Data Loaded Successfully</span>
+								</div>
+							) : (
+								<div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg">
+									<AlertCircle size={16} />
+									<span className="text-sm font-medium">No Data Uploaded</span>
+								</div>
+							)}
 						</div>
 					</div>
 				</div>
@@ -253,6 +278,32 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 
 			{/* Main Content */}
 			<div className="max-w-7xl mx-auto px-6 pb-16">
+				{/* Show message when no data is available */}
+				{!isDataReady && (
+					<motion.div
+						initial={{ opacity: 0, y: 20 }}
+						animate={{ opacity: 1, y: 0 }}
+						className="mb-8"
+					>
+						<div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
+							<AlertCircle className="mx-auto text-amber-600 mb-4" size={48} />
+							<h3 className="text-2xl font-bold text-gray-900 mb-2">No Data Available</h3>
+							<p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+								The dashboards below require data to be uploaded first. 
+								{isAdmin ? (
+									<span> Click the "Upload Data" button to add your Excel files.</span>
+								) : (
+									<span> Please wait for an administrator to upload the necessary data files.</span>
+								)}
+							</p>
+							{!isAdmin && (
+								<p className="text-sm text-gray-500">
+									If you're an administrator, click the "Admin" button in the bottom right corner to login and upload data.
+								</p>
+							)}
+						</div>
+					</motion.div>
+				)}
 				{/* Primary Options - Drilling & Production */}
 				{selectedCategory === 'all' && (
 					<div className="mb-12">
@@ -269,8 +320,8 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 										initial={{ opacity: 0, y: 20 }}
 										animate={{ opacity: 1, y: 0 }}
 										transition={{ delay: index * 0.1 }}
-										onMouseEnter={() => setHoveredCard(dashboard.id)}
-										onMouseLeave={() => setHoveredCard(null)}
+										// onMouseEnter={() => setHoveredCard(dashboard.id)}
+										// onMouseLeave={() => setHoveredCard(null)}
 										className="relative group"
 									>
 										<div 
@@ -337,8 +388,8 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 										initial={{ opacity: 0, y: 20 }}
 										animate={{ opacity: 1, y: 0 }}
 										transition={{ delay: index * 0.1 }}
-										onMouseEnter={() => setHoveredCard(dashboard.id)}
-										onMouseLeave={() => setHoveredCard(null)}
+										// onMouseEnter={() => setHoveredCard(dashboard.id)}
+										// onMouseLeave={() => setHoveredCard(null)}
 										className="relative group"
 									>
 										<div 

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import KPICard from './KPICard';
 import SmartFilterBar from './SmartFilterBar';
-import { Target, Route, Clock, MapPin, ArrowLeft, BarChart3 } from 'lucide-react';
+import { Target, Route, Clock, MapPin, ArrowLeft, BarChart3, Activity } from 'lucide-react';
 
 interface VoyageAnalyticsDashboardProps {
   onNavigateToUpload?: () => void;
@@ -53,6 +53,17 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       dist[purpose] = (dist[purpose] || 0) + 1;
       return dist;
     }, {} as Record<string, number>);
+
+    // Mission type distribution
+    const missionTypeDistribution = filteredVoyages.reduce((dist, voyage) => {
+      const missionType = voyage.missionType || voyage.mission || 'Unknown';
+      dist[missionType] = (dist[missionType] || 0) + 1;
+      return dist;
+    }, {} as Record<string, number>);
+
+    const supplyMissions = missionTypeDistribution['Supply'] || 0;
+    const projectMissions = missionTypeDistribution['Project'] || 0;
+    const offhireMissions = missionTypeDistribution['Offhire'] || 0;
 
     const drillingVoyages = voyagePurposeDistribution['Drilling'] || 0;
     const drillingVoyagePercentage = totalVoyages > 0 ? (drillingVoyages / totalVoyages) * 100 : 0;
@@ -110,6 +121,12 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       { name: '> 72 hours', value: filteredVoyages.filter(v => (v.durationHours || 0) >= 72).length, color: 'bg-red-500' }
     ];
 
+    const missionTypeData = [
+      { name: 'Supply', value: supplyMissions, percentage: totalVoyages > 0 ? (supplyMissions / totalVoyages) * 100 : 0, color: 'bg-blue-500', description: 'Normal supply runs' },
+      { name: 'Project', value: projectMissions, percentage: totalVoyages > 0 ? (projectMissions / totalVoyages) * 100 : 0, color: 'bg-purple-500', description: 'Special project work' },
+      { name: 'Offhire', value: offhireMissions, percentage: totalVoyages > 0 ? (offhireMissions / totalVoyages) * 100 : 0, color: 'bg-gray-500', description: 'Off-hire/maintenance' }
+    ].filter(m => m.value > 0);
+
     return {
       totalVoyages,
       averageVoyageDuration,
@@ -131,7 +148,9 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       filteredVoyages,
       routeComplexityData,
       purposeDistributionData,
-      durationDistributionData
+      durationDistributionData,
+      missionTypeData,
+      missionTypeDistribution
     };
   }, [voyageList, filters]);
 
@@ -439,6 +458,137 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mission Type Row - New Section */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Mission Type Distribution */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Mission Type Breakdown
+                  </h2>
+                  <p className="text-sm text-gray-600">Voyage operational categories</p>
+                </div>
+              </div>
+              
+              {voyageAnalytics.missionTypeData && voyageAnalytics.missionTypeData.length > 0 ? (
+                <div className="space-y-4">
+                  {voyageAnalytics.missionTypeData.map((mission: any) => (
+                    <div key={mission.name} className={`p-4 rounded-lg border ${mission.color === 'bg-blue-500' ? 'bg-blue-50 border-blue-200' : mission.color === 'bg-purple-500' ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'} transition-all duration-200 hover:shadow-md`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 ${mission.color} rounded-lg flex items-center justify-center`}>
+                            <span className="text-white font-bold text-sm">{mission.value}</span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-800">{mission.name}</div>
+                            <div className="text-xs text-gray-600">{mission.description}</div>
+                          </div>
+                        </div>
+                        <span className={`text-lg font-bold ${mission.color === 'bg-blue-500' ? 'text-blue-700' : mission.color === 'bg-purple-500' ? 'text-purple-700' : 'text-gray-700'}`}>
+                          {mission.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      
+                      {/* Progress bar */}
+                      <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${mission.color} transition-all duration-1000 ease-out`}
+                          style={{ width: `${Math.max(2, mission.percentage)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <BarChart3 className="w-8 h-8 text-indigo-400" />
+                    </div>
+                    <p className="text-gray-600 font-medium">No Mission Data</p>
+                    <p className="text-sm text-gray-500 mt-1">Mission type information will appear here</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mission Type Insights */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
+                  <Activity className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Mission Insights
+                  </h2>
+                  <p className="text-sm text-gray-600">Key operational metrics by mission type</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Supply Operations</div>
+                      <div className="text-xs text-gray-600 mt-1">Regular supply runs to facilities</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-700">{voyageAnalytics.missionTypeDistribution['Supply'] || 0}</div>
+                      <div className="text-xs text-gray-500">voyages</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Project Work</div>
+                      <div className="text-xs text-gray-600 mt-1">Special projects & storage vessels</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-purple-700">{voyageAnalytics.missionTypeDistribution['Project'] || 0}</div>
+                      <div className="text-xs text-gray-500">voyages</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Off-hire Periods</div>
+                      <div className="text-xs text-gray-600 mt-1">Maintenance & non-BP operations</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-700">{voyageAnalytics.missionTypeDistribution['Offhire'] || 0}</div>
+                      <div className="text-xs text-gray-500">periods</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Cost Impact Note */}
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">!</span>
+                    </div>
+                    <div className="text-xs text-amber-800">
+                      <span className="font-semibold">Cost Note:</span> Off-hire voyages are excluded from BP cost allocation calculations
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

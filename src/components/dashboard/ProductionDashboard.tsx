@@ -1110,11 +1110,11 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           value={productionMetrics.fluidMovement?.value === 'N/A' ? 'N/A' : Math.round(Number(productionMetrics.fluidMovement?.value || 0) / 1000)}
           trend={productionMetrics.fluidMovement?.trend}
           isPositive={productionMetrics.fluidMovement?.isPositive}
-          unit={productionMetrics.fluidMovement?.value !== 'N/A' ? "k gal" : undefined}
+          unit={productionMetrics.fluidMovement?.value !== 'N/A' ? "k bbls" : undefined}
           color="indigo"
           variant="secondary"
           target={dynamicTargets.fluidMovement}
-          contextualHelp={`Production chemicals and fluids (methanol, xylene, inhibitors) for ${getFilterContext()}. Target: ${dynamicTargets.fluidMovement}k+ gallons critical for ongoing operations.`}
+          contextualHelp={`Production chemicals and fluids (methanol, xylene, inhibitors) for ${getFilterContext()}. Target: ${dynamicTargets.fluidMovement}k+ barrels critical for ongoing operations.`}
         />
       </div>
 
@@ -1231,26 +1231,90 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                   </div>
 
                   {/* Simple Vessel Types */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {productionMetrics.vesselTypeData.slice(0, 3).map((item, index) => {
-                      const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500'];
-                      const colorClasses = ['bg-blue-50 border-blue-200 text-blue-600', 'bg-green-50 border-green-200 text-green-600', 'bg-purple-50 border-purple-200 text-purple-600'];
-                      
-                      return (
-                        <div key={item.type} className={`p-4 rounded-lg border ${colorClasses[index] || colorClasses[0]}`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className={`w-3 h-3 ${colors[index] || colors[0]} rounded-full`}></div>
-                            <span className="text-sm font-semibold text-gray-800">{item.type}</span>
+                  {/* Dynamic Vessel Type/Company Cards */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      {(filters.selectedLocation !== 'All Locations' || filters.selectedMonth !== 'All Months') 
+                        ? 'Vessels by Company' 
+                        : 'Vessels by Type'}
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {productionMetrics.vesselTypeData.slice(0, 4).map((item, index) => {
+                        const colorClasses = [
+                          { bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-600', text: 'text-blue-700' },
+                          { bg: 'bg-green-50', border: 'border-green-200', dot: 'bg-green-600', text: 'text-green-700' },
+                          { bg: 'bg-purple-50', border: 'border-purple-200', dot: 'bg-purple-600', text: 'text-purple-700' },
+                          { bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-600', text: 'text-orange-700' }
+                        ];
+                        const colorClass = colorClasses[index % colorClasses.length];
+                        
+                        // Get a short display name
+                        const displayName = item.type === 'Unknown' ? 'Other' : item.type;
+                        
+                        return (
+                          <div key={item.type} className={`p-3 rounded-lg border ${colorClass.bg} ${colorClass.border}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className={`w-3 h-3 ${colorClass.dot} rounded-full`}></div>
+                              <span className="text-xs font-semibold text-gray-800 truncate" title={displayName}>
+                                {displayName}
+                              </span>
+                            </div>
+                            <div className={`text-xl font-bold ${colorClass.text}`}>
+                              {item.count}
+                            </div>
+                            <div className="text-xs mt-1 text-gray-600">
+                              {item.percentage.toFixed(1)}% of fleet
+                            </div>
                           </div>
-                          <div className="text-xl font-bold">
-                            {item.count}
-                          </div>
-                          <div className="text-xs mt-1">
-                            {item.percentage.toFixed(1)}% of fleet
-                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Production Support Metrics */}
+                  <div className="mt-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Production Support Metrics</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Activity className="w-4 h-4 text-indigo-600" />
+                          <span className="text-xs font-medium text-gray-700">Cargo Ops</span>
                         </div>
-                      );
-                    })}
+                        <div className="text-lg font-bold text-gray-900">
+                          {Math.round(productionMetrics.cargoOpsHours || 0).toLocaleString()}h
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Anchor className="w-4 h-4 text-amber-600" />
+                          <span className="text-xs font-medium text-gray-700">Visits</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {productionMetrics.vesselVisits?.value || 0}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+                          <span className="text-xs font-medium text-gray-700">Efficiency</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {productionMetrics.liftsPerHour?.value.toFixed(1)} /hr
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-cyan-50 border border-cyan-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Droplet className="w-4 h-4 text-cyan-600" />
+                          <span className="text-xs font-medium text-gray-700">Chemicals</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {productionMetrics.fluidMovement?.totalTransfers || 0} ops
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (

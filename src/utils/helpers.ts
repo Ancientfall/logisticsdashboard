@@ -160,4 +160,43 @@ export const safeNumeric = (value: any, defaultValue: number = 0): number => {
   if (value === null || value === undefined) return defaultValue;
   const num = Number(value);
   return isNaN(num) ? defaultValue : num;
+};
+
+/**
+ * Mission type utilities
+ */
+export const isMissionTypeSupply = (missionType?: string): boolean => {
+  return missionType === 'Supply';
+};
+
+export const isMissionTypeProject = (missionType?: string): boolean => {
+  return missionType === 'Project';
+};
+
+export const isMissionTypeOffhire = (missionType?: string): boolean => {
+  return missionType === 'Offhire';
+};
+
+/**
+ * Get mission type description
+ */
+export const getMissionTypeDescription = (missionType?: string): string => {
+  switch (missionType) {
+    case 'Supply':
+      return 'Normal everyday supply runs to offshore facilities';
+    case 'Project':
+      return 'Special project work (e.g., Mad Dog storage vessel operations)';
+    case 'Offhire':
+      return 'Vessel off-hire for maintenance or not under BP contract';
+    default:
+      return 'Unknown mission type';
+  }
+};
+
+/**
+ * Check if voyage should be included in cost calculations
+ * Offhire voyages are typically excluded from BP cost allocation
+ */
+export const shouldIncludeInCostCalculations = (missionType?: string): boolean => {
+  return missionType !== 'Offhire';
 }; 

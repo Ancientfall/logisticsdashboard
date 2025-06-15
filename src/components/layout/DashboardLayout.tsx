@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Home, Package, Grid3X3 } from 'lucide-react';
+import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Grid3X3 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
 import NotificationPanel from '../notifications/NotificationPanel';
@@ -57,7 +57,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <div className="flex items-center justify-between">
               {/* Left Section - Logo & Title */}
               <div className="flex items-center gap-6">
-                <div className="flex items-center gap-3">
+                <div 
+                  onClick={onNavigateHome}
+                  className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                >
                   <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center shadow-lg">
                     <span className="text-white font-bold text-lg">bp</span>
                   </div>

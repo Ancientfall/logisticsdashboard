@@ -1,10 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState } from 'react'
 import {
 	Upload,
 	X,
 	AlertCircle,
-	CheckCircle,
-	Loader2,
 	Eye,
 	RefreshCw,
 	TrendingUp,
@@ -16,7 +14,7 @@ import {
 	ClipboardList,
 	Package
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+// import { motion } from 'framer-motion'
 import { Button, Progress, Card, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@nextui-org/react'
 import { ExcelValidator } from '../../utils/excel/excelValidator'
 import { useNotifications } from '../../context/NotificationContext'

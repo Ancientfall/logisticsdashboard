@@ -6,6 +6,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import { processExcelFiles } from '../../utils/dataProcessing';
 import { VoyageEvent, VesselManifest, MasterFacility, CostAllocation, VoyageList, VesselClassification, BulkAction } from '../../types';
 import EnhancedFileUploadFixed from './EnhancedFileUploadFixed';
+import { validateFileUpload } from '../../utils/security';
 
 interface ProcessingLogEntry {
   id: number;
@@ -560,14 +561,17 @@ const DataManagementSystem: React.FC<DataManagementSystemProps> = ({
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFile = e.target.files?.[0];
       if (selectedFile) {
-        // Validate file before adding
-        if (selectedFile.size > 50 * 1024 * 1024) {
-          addLog(`File ${selectedFile.name} is too large (${Math.round(selectedFile.size / 1024 / 1024)}MB). Maximum size is 50MB.`, 'error');
-          return;
-        }
-        
-        if (!selectedFile.name.toLowerCase().endsWith('.xlsx') && !selectedFile.name.toLowerCase().endsWith('.xls')) {
-          addLog(`File ${selectedFile.name} must be an Excel file (.xlsx or .xls)`, 'error');
+        // Use security validation
+        const validation = validateFileUpload(selectedFile);
+        if (!validation.valid) {
+          addLog(`File validation failed: ${validation.error}`, 'error');
+          addNotification('system-update', { 
+            message: validation.error || 'Invalid file',
+            fileName: selectedFile.name
+          }, {
+            title: 'File Validation Failed',
+            priority: 'error'
+          });
           return;
         }
 

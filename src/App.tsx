@@ -7,6 +7,8 @@ import LandingPage from './components/LandingPage';
 import DashboardSelector from './components/DashboardSelector';
 import { DataProvider, useData } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AdminButton } from './components/AdminButton';
 import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
@@ -15,13 +17,15 @@ import ProductionDashboard from './components/dashboard/ProductionDashboard';
 import ComparisonDashboard from './components/dashboard/ComparisonDashboard';
 import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard';
 import { useNotificationIntegration } from './hooks/useNotificationIntegration';
+import { HttpsEnforcer } from './components/security/HttpsEnforcer';
 
 // Main application content component
 const AppContent: React.FC = () => {
   // Initialize notification integration
   useNotificationIntegration();
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'selector' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('landing');
+  const { isAdmin } = useAuth();
+  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'selector' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('selector');
   
   // Handle navigation based on data ready state
   useEffect(() => {
@@ -33,16 +37,15 @@ const AppContent: React.FC = () => {
     });
     console.log('🎯 App: Current view:', currentView);
     
-    // Only auto-redirect to selector if data becomes ready and we're on upload page
-    if (isDataReady && currentView === 'upload') {
+    // For public users, always show the dashboard selector (or a specific dashboard)
+    // Only redirect to upload if admin is uploading new data
+    if (isDataReady && currentView === 'upload' && !isAdmin) {
       console.log('🎯 App: Data is ready, navigating to dashboard selector...');
       setCurrentView('selector');
-    } else if (!isDataReady && (currentView === 'selector' || currentView === 'dashboard' || currentView === 'drilling' || currentView === 'production' || currentView === 'comparison' || currentView === 'voyage' || currentView === 'cost' || currentView === 'bulk')) {
-      console.log('❌ App: Data not ready, redirecting to upload...');
-      setCurrentView('upload');
     }
-    // Note: We don't automatically redirect from other views anymore
-  }, [isDataReady, currentView, voyageEvents.length, vesselManifests.length, costAllocation.length]);
+    // Don't force redirect to upload for public users anymore
+    // They can view empty dashboards with a message
+  }, [isDataReady, currentView, isAdmin, voyageEvents.length, vesselManifests.length, costAllocation.length]);
 
   // Show loading state during processing
   if (isLoading) {
@@ -139,13 +142,13 @@ const AppContent: React.FC = () => {
 
   return (
     <>
-      {currentView === 'landing' && (
-        <LandingPage 
-          onGetStarted={handleGetStarted}
-          onViewDashboard={handleViewDashboard}
-          hasData={isDataReady}
-        />
+      <HttpsEnforcer />
+      
+      {/* Admin button appears on all views except upload */}
+      {currentView !== 'upload' && (
+        <AdminButton onNavigateToUpload={() => setCurrentView('upload')} />
       )}
+      
       {currentView === 'selector' && (
         <DashboardSelector
           onNavigateToDrilling={handleNavigateToDrilling}
@@ -154,7 +157,7 @@ const AppContent: React.FC = () => {
           onNavigateToVoyage={handleNavigateToVoyage}
           onNavigateToCost={handleNavigateToCost}
           onNavigateToOverview={handleNavigateToDashboard}
-          onNavigateToLanding={() => setCurrentView('landing')}
+          onNavigateToLanding={() => setCurrentView('selector')}
         />
       )}
       {currentView === 'dashboard' && (
@@ -169,10 +172,10 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
           onNavigateToBulk={handleNavigateToBulk}
         >
-          <MainDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+          <MainDashboard onNavigateToUpload={() => isAdmin && setCurrentView('upload')} />
         </DashboardLayout>
       )}
-      {currentView === 'upload' && (
+      {currentView === 'upload' && isAdmin && (
         <FileUploadPage 
           onNavigateHome={handleNavigateHome}
           onNavigateToDrilling={handleNavigateToDrilling}
@@ -195,7 +198,7 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
           onNavigateToBulk={handleNavigateToBulk}
         >
-          <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+          <DrillingDashboard onNavigateToUpload={() => isAdmin && setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'production' && (
@@ -210,7 +213,7 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
           onNavigateToBulk={handleNavigateToBulk}
         >
-          <ProductionDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+          <ProductionDashboard onNavigateToUpload={() => isAdmin && setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'voyage' && (
@@ -225,7 +228,7 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
           onNavigateToBulk={handleNavigateToBulk}
         >
-          <VoyageAnalyticsDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+          <VoyageAnalyticsDashboard onNavigateToUpload={() => isAdmin && setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'comparison' && (
@@ -240,7 +243,7 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
           onNavigateToBulk={handleNavigateToBulk}
         >
-          <ComparisonDashboard onNavigateToUpload={() => setCurrentView('upload')} />
+          <ComparisonDashboard onNavigateToUpload={() => isAdmin && setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'cost' && (
@@ -255,7 +258,7 @@ const AppContent: React.FC = () => {
           onNavigateToCost={handleNavigateToCost}
           onNavigateToBulk={handleNavigateToBulk}
         >
-          <CostAllocationManagerRedesigned onNavigateToUpload={() => setCurrentView('upload')} />
+          <CostAllocationManagerRedesigned onNavigateToUpload={() => isAdmin && setCurrentView('upload')} />
         </DashboardLayout>
       )}
       {currentView === 'bulk' && (
@@ -280,11 +283,13 @@ const AppContent: React.FC = () => {
 // Main App component with data provider
 const App: React.FC = () => {
   return (
-    <DataProvider>
-      <NotificationProvider>
-        <AppContent />
-      </NotificationProvider>
-    </DataProvider>
+    <AuthProvider>
+      <DataProvider>
+        <NotificationProvider>
+          <AppContent />
+        </NotificationProvider>
+      </DataProvider>
+    </AuthProvider>
   );
 };
 
