@@ -5,19 +5,40 @@ import { Upload, FileCheck, AlertCircle, Database, ChevronRight, Folder, File } 
 import { useDropzone } from 'react-dropzone'
 import { useData } from '../../context/DataContext'
 import { useNotifications } from '../../context/NotificationContext'
-import { processExcelFiles } from '../../utils/dataProcessing'
+import { processExcelFiles } from '../../utils/fileProcessingWrapper'
 import { uploadAPI } from '../../services/api'
 import { motion } from 'framer-motion'
 
 export default function FileUploadPageWithDB() {
 	const navigate = useNavigate()
-	const { saveProcessedData } = useData()
+	const { 
+		setVoyageEvents,
+		setVesselManifests,
+		setMasterFacilities,
+		setCostAllocation,
+		setVesselClassifications,
+		setVoyageList,
+		setBulkActions,
+		setIsDataReady
+	} = useData()
 	const { addNotification } = useNotifications()
 	const [uploadProgress, setUploadProgress] = useState(0)
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'uploading' | 'success' | 'error'>('idle')
 	const [statusMessage, setStatusMessage] = useState('')
 	const [processedFiles, setProcessedFiles] = useState<string[]>([])
+
+	// Helper function to save processed data to context
+	const saveProcessedDataToContext = (data: any, setters: any) => {
+		if (data.voyageEvents) setters.setVoyageEvents(data.voyageEvents)
+		if (data.vesselManifests) setters.setVesselManifests(data.vesselManifests)
+		if (data.masterFacilities) setters.setMasterFacilities(data.masterFacilities)
+		if (data.costAllocation) setters.setCostAllocation(data.costAllocation)
+		if (data.vesselClassifications) setters.setVesselClassifications(data.vesselClassifications)
+		if (data.voyageList) setters.setVoyageList(data.voyageList)
+		if (data.bulkActions) setters.setBulkActions(data.bulkActions)
+		setters.setIsDataReady(true)
+	}
 
 	const uploadToDatabase = async (files: File[], processedData: any) => {
 		try {
@@ -79,8 +100,17 @@ export default function FileUploadPageWithDB() {
 			})
 
 			if (result.success && result.data) {
-				// Save to local storage
-				saveProcessedData(result.data)
+				// Save to local storage using the DataContext setters
+				saveProcessedDataToContext(result.data, {
+					setVoyageEvents,
+					setVesselManifests,
+					setMasterFacilities,
+					setCostAllocation,
+					setVesselClassifications,
+					setVoyageList,
+					setBulkActions,
+					setIsDataReady
+				})
 				setProcessedFiles(acceptedFiles.map(f => f.name))
 				
 				// Upload to PostgreSQL database
@@ -89,16 +119,16 @@ export default function FileUploadPageWithDB() {
 				if (dbSuccess) {
 					setUploadStatus('success')
 					setStatusMessage('Files uploaded successfully to database!')
-					addNotification('data-upload', {
-						title: 'Data Upload Complete',
-						message: `Successfully processed and uploaded ${acceptedFiles.length} file(s) to database.`
+					addNotification('upload-success', {
+						fileName: 'Multiple files',
+						recordCount: acceptedFiles.length
 					})
 				} else {
 					setUploadStatus('success')
 					setStatusMessage('Files processed and saved locally. Database upload failed.')
-					addNotification('data-upload', {
-						title: 'Partial Success',
-						message: 'Files saved locally but database upload failed. You can still use the dashboards.'
+					addNotification('processing-complete', {
+						fileName: 'Multiple files',
+						recordCount: acceptedFiles.length
 					})
 				}
 				
