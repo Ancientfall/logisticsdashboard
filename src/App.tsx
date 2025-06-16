@@ -16,7 +16,7 @@ import PrivateRoute from './components/auth/PrivateRoute'
 
 // Dashboard components
 import DashboardLayout from './components/layout/DashboardLayout'
-import FileUploadPage from './components/dashboard/FileUploadPage'
+import FileUploadPageWithDB from './components/dashboard/FileUploadPageWithDB'
 import MainDashboard from './components/dashboard/MainDashboard'
 import DrillingDashboard from './components/dashboard/DrillingDashboard'
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard'
@@ -50,7 +50,7 @@ function App() {
 								<Route path="/upload" element={
 									<PrivateRoute requiredRole="manager">
 										<DashboardLayout>
-											<FileUploadPage />
+											<FileUploadPageWithDB />
 										</DashboardLayout>
 									</PrivateRoute>
 								} />
