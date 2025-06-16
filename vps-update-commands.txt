@@ -1,0 +1,63 @@
+# BP Logistics Dashboard - VPS Update Commands
+# Run these commands on your VPS at 178.16.140.185
+
+# 1. SSH into your VPS
+ssh root@178.16.140.185
+
+# 2. Navigate to your application directory
+cd /var/www/bp-logistics
+
+# 3. Create a backup before updating
+tar -czf "/var/backups/bp-logistics-backup-$(date +%Y%m%d_%H%M%S).tar.gz" \
+    --exclude=node_modules \
+    --exclude=build \
+    --exclude=.env \
+    --exclude=uploads \
+    --exclude=logs \
+    .
+
+# 4. Pull the latest changes
+git pull origin main
+
+# 5. Install/update backend dependencies
+cd backend
+npm install --production
+
+# 6. Go back to main directory and install/update frontend dependencies
+cd ..
+npm install
+
+# 7. Build the frontend with production settings
+npm run build
+
+# 8. Run database migrations to update schema
+cd backend
+node -e "
+const { sequelize } = require('./src/models');
+sequelize.sync({ alter: true }).then(() => {
+  console.log('Database schema updated successfully');
+  process.exit(0);
+}).catch(err => {
+  console.error('Error updating database:', err);
+  process.exit(1);
+});
+"
+
+# 9. Set correct permissions
+cd /var/www/bp-logistics
+chown -R www-data:www-data .
+chmod -R 755 .
+chmod -R 775 backend/uploads backend/logs
+
+# 10. Restart the application
+pm2 restart bp-logistics-backend
+pm2 save
+
+# 11. Check status
+pm2 status
+
+# 12. View logs to ensure everything is running
+pm2 logs bp-logistics-backend --lines 50
+
+# Optional: Create your first admin user if needed
+# node create-admin.js admin@bp.com YourPassword Admin User
