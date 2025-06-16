@@ -20,7 +20,16 @@ const Upload = sequelize.define('Upload', {
 		allowNull: false
 	},
 	dataType: {
-		type: DataTypes.ENUM('wells', 'vessels', 'fluid-analyses'),
+		type: DataTypes.ENUM(
+			'wells', 
+			'vessels', 
+			'fluid-analyses',
+			'voyage-events',
+			'vessel-manifests',
+			'cost-allocations',
+			'bulk-actions',
+			'voyage-lists'
+		),
 		allowNull: false
 	},
 	status: {

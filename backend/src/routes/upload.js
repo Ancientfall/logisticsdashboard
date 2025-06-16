@@ -64,4 +64,44 @@ router.get('/history', auth, uploadController.getUploadHistory)
 // Get upload details
 router.get('/history/:uploadId', auth, uploadController.getUploadDetails)
 
+// Upload voyage events
+router.post('/voyage-events',
+	auth,
+	authorize('admin', 'manager'),
+	upload.single('file'),
+	uploadController.uploadVoyageEvents
+)
+
+// Upload vessel manifests
+router.post('/vessel-manifests',
+	auth,
+	authorize('admin', 'manager'),
+	upload.single('file'),
+	uploadController.uploadVesselManifests
+)
+
+// Upload cost allocations
+router.post('/cost-allocations',
+	auth,
+	authorize('admin', 'manager'),
+	upload.single('file'),
+	uploadController.uploadCostAllocations
+)
+
+// Upload bulk actions
+router.post('/bulk-actions',
+	auth,
+	authorize('admin', 'manager'),
+	upload.single('file'),
+	uploadController.uploadBulkActions
+)
+
+// Upload voyage lists
+router.post('/voyage-lists',
+	auth,
+	authorize('admin', 'manager'),
+	upload.single('file'),
+	uploadController.uploadVoyageLists
+)
+
 module.exports = router
