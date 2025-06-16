@@ -665,3 +665,118 @@ export interface FacilityClassificationRule {
   isProduction: boolean;
   specialHandling?: string;
 }
+
+// ==================== AUTHENTICATION AND API TYPES ====================
+
+export interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'admin' | 'manager' | 'viewer';
+  isActive: boolean;
+  lastLogin?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: 'admin' | 'manager' | 'viewer';
+}
+
+// API Response types
+export interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+export interface UploadResponse {
+  success: boolean;
+  message: string;
+  upload: {
+    id: string;
+    fileName: string;
+    recordsProcessed: number;
+    processingTime: number;
+  };
+}
+
+export interface DashboardData {
+  summary: {
+    wells: {
+      totalRecords: number;
+      totalProduction: number;
+      totalConsumption: number;
+      avgEfficiency: number;
+    };
+    vessels: {
+      totalVessels: number;
+      uniqueVessels: number;
+      avgUtilization: number;
+    };
+    fluidAnalyses: {
+      totalAnalyses: number;
+      avgOilContent: number;
+      avgWaterContent: number;
+      avgGasContent: number;
+    };
+  };
+  recentActivity: {
+    wells: WellOperation[];
+    vessels: Vessel[];
+  };
+}
+
+// Legacy types for backward compatibility
+export interface WellOperation {
+  id: string;
+  date: string;
+  well: string;
+  production: number;
+  consumption: number;
+  location?: string;
+  status?: string;
+  efficiency?: number;
+  uploadId?: string;
+}
+
+export interface Vessel {
+  id: string;
+  date: string;
+  vessel: string;
+  location?: string;
+  cargo?: string;
+  status?: string;
+  eta?: string;
+  capacity?: number;
+  utilization?: number;
+  uploadId?: string;
+}
+
+export interface FluidAnalysis {
+  id: string;
+  date: string;
+  well: string;
+  sample: string;
+  oilContent?: number;
+  waterContent?: number;
+  gasContent?: number;
+  pressure?: number;
+  temperature?: number;
+  uploadId?: string;
+}

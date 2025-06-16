@@ -1,291 +1,126 @@
 // src/App.tsx
-import React, { useState, useEffect } from 'react';
-import DashboardLayout from './components/layout/DashboardLayout';
-import FileUploadPage from './components/dashboard/FileUploadPage';
-import MainDashboard from './components/dashboard/MainDashboard';
-import LandingPage from './components/LandingPage';
-import DashboardSelector from './components/DashboardSelector';
-import { DataProvider, useData } from './context/DataContext';
-import { NotificationProvider } from './context/NotificationContext';
-// import { AuthProvider, useAuth } from './context/AuthContext'; // Removed authentication
-// import { AdminButton } from './components/AdminButton'; // Removed authentication
-import './index.css';
-import DrillingDashboard from './components/dashboard/DrillingDashboard';
-import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
-import CostAllocationManagerRedesigned from './components/dashboard/CostAllocationManagerRedesigned';
-import ProductionDashboard from './components/dashboard/ProductionDashboard';
-import ComparisonDashboard from './components/dashboard/ComparisonDashboard';
-import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard';
-import { useNotificationIntegration } from './hooks/useNotificationIntegration';
-import { HttpsEnforcer } from './components/security/HttpsEnforcer';
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { NextUIProvider } from '@nextui-org/react'
+import { DataProvider } from './context/DataContext'
+import { NotificationProvider } from './context/NotificationContext'
+import { AuthProvider } from './contexts/AuthContext'
+import { HttpsEnforcer } from './components/security/HttpsEnforcer'
 
-// Main application content component
-const AppContent: React.FC = () => {
-  // Initialize notification integration
-  useNotificationIntegration();
-  const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  // const { isAdmin } = useAuth(); // Removed authentication
-  const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'selector' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('selector');
-  
-  // Handle navigation based on data ready state
-  useEffect(() => {
-    console.log('🔄 App: isDataReady changed to:', isDataReady);
-    console.log('📊 App: Data counts:', {
-      voyageEvents: voyageEvents.length,
-      vesselManifests: vesselManifests.length,
-      costAllocation: costAllocation.length
-    });
-    console.log('🎯 App: Current view:', currentView);
-    
-    // For public users, always show the dashboard selector (or a specific dashboard)
-    // Only redirect to upload if admin is uploading new data
-    if (isDataReady && currentView === 'upload') {
-      console.log('🎯 App: Data is ready, navigating to dashboard selector...');
-      setCurrentView('selector');
-    }
-    // Don't force redirect to upload for public users anymore
-    // They can view empty dashboards with a message
-  }, [isDataReady, currentView, voyageEvents.length, vesselManifests.length, costAllocation.length]);
+// Auth components
+import Login from './components/auth/Login'
+import Register from './components/auth/Register'
+import PrivateRoute from './components/auth/PrivateRoute'
 
-  // Show loading state during processing
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-yellow-500 rounded-xl mb-6">
-            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Your Data</h2>
-          <p className="text-gray-600">
-            Please wait while we process your Excel files and prepare the dashboard...
-          </p>
-        </div>
-      </div>
-    );
-  }
+// Dashboard components
+import DashboardLayout from './components/layout/DashboardLayout'
+import FileUploadPage from './components/dashboard/FileUploadPage'
+import MainDashboard from './components/dashboard/MainDashboard'
+import DashboardSelector from './components/DashboardSelector'
+import DrillingDashboard from './components/dashboard/DrillingDashboard'
+import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard'
+import CostAllocationManagerRedesigned from './components/dashboard/CostAllocationManagerRedesigned'
+import ProductionDashboard from './components/dashboard/ProductionDashboard'
+import ComparisonDashboard from './components/dashboard/ComparisonDashboard'
+import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard'
 
-  // Function to handle navigation from landing page
-  const handleGetStarted = () => {
-    setCurrentView('upload');
-  };
+import './index.css'
 
-  const handleViewDashboard = () => {
-    if (isDataReady) {
-      setCurrentView('selector');
-    } else {
-      setCurrentView('upload');
-    }
-  };
+function App() {
+	return (
+		<NextUIProvider>
+			<Router>
+				<NotificationProvider>
+					<AuthProvider>
+						<DataProvider>
+							<HttpsEnforcer />
+							<Routes>
+								{/* Public routes */}
+								<Route path="/login" element={<Login />} />
+								<Route path="/register" element={<Register />} />
+								
+								{/* Protected routes */}
+								<Route path="/" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<DashboardSelector />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/upload" element={
+									<PrivateRoute requiredRole="manager">
+										<DashboardLayout>
+											<FileUploadPage />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/dashboard" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<MainDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/drilling" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<DrillingDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/production" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<ProductionDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/voyage" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<VoyageAnalyticsDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/cost" element={
+									<PrivateRoute requiredRole="manager">
+										<DashboardLayout>
+											<CostAllocationManagerRedesigned />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/comparison" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<ComparisonDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/bulk" element={
+									<PrivateRoute>
+										<DashboardLayout>
+											<BulkActionsDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								{/* Catch all - redirect to home */}
+								<Route path="*" element={<Navigate to="/" replace />} />
+							</Routes>
+						</DataProvider>
+					</AuthProvider>
+				</NotificationProvider>
+			</Router>
+		</NextUIProvider>
+	)
+}
 
-  const handleNavigateHome = () => {
-    // If data is loaded, go to dashboard selector instead of landing page
-    if (isDataReady) {
-      setCurrentView('selector');
-    } else {
-      setCurrentView('landing');
-    }
-  };
-
-  const handleNavigateToDashboard = () => {
-    if (isDataReady) {
-      setCurrentView('dashboard');
-    } else {
-      setCurrentView('upload');
-    }
-  };
-
-  // Navigation functions for different dashboard views
-  const handleNavigateToDrilling = () => {
-    if (isDataReady) {
-      setCurrentView('drilling');
-    } else {
-      setCurrentView('upload');
-    }
-  };
-
-  const handleNavigateToProduction = () => {
-    if (isDataReady) {
-      setCurrentView('production');
-    } else {
-      setCurrentView('upload');
-    }
-  };
-
-  const handleNavigateToComparison = () => {
-    if (isDataReady) {
-      setCurrentView('comparison');
-    } else {
-      setCurrentView('upload');
-    }
-  };
-
-  const handleNavigateToVoyage = () => {
-    if (isDataReady) {
-      setCurrentView('voyage');
-    } else {
-      setCurrentView('upload');
-    }
-  };
-
-  const handleNavigateToCost = () => {
-    // Cost allocation manager can work with or without data
-    setCurrentView('cost');
-  };
-
-  const handleNavigateToBulk = () => {
-    if (isDataReady) {
-      setCurrentView('bulk');
-    } else {
-      setCurrentView('upload');
-    }
-  };
-
-  return (
-    <>
-      <HttpsEnforcer />
-      
-      {/* Admin button removed - authentication disabled */}
-      
-      {currentView === 'selector' && (
-        <DashboardSelector
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToOverview={handleNavigateToDashboard}
-          onNavigateToLanding={() => setCurrentView('selector')}
-        />
-      )}
-      {currentView === 'dashboard' && (
-        <DashboardLayout 
-          currentView="dashboard"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <MainDashboard onNavigateToUpload={() => setCurrentView('upload')} />
-        </DashboardLayout>
-      )}
-      {currentView === 'upload' && (
-        <FileUploadPage 
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        />
-      )}
-      {currentView === 'drilling' && (
-        <DashboardLayout 
-          currentView="drilling"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <DrillingDashboard onNavigateToUpload={() => setCurrentView('upload')} />
-        </DashboardLayout>
-      )}
-      {currentView === 'production' && (
-        <DashboardLayout 
-          currentView="production"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <ProductionDashboard onNavigateToUpload={() => setCurrentView('upload')} />
-        </DashboardLayout>
-      )}
-      {currentView === 'voyage' && (
-        <DashboardLayout 
-          currentView="voyage"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <VoyageAnalyticsDashboard onNavigateToUpload={() => setCurrentView('upload')} />
-        </DashboardLayout>
-      )}
-      {currentView === 'comparison' && (
-        <DashboardLayout 
-          currentView="comparison"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <ComparisonDashboard onNavigateToUpload={() => setCurrentView('upload')} />
-        </DashboardLayout>
-      )}
-      {currentView === 'cost' && (
-        <DashboardLayout 
-          currentView="cost"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <CostAllocationManagerRedesigned onNavigateToUpload={() => setCurrentView('upload')} />
-        </DashboardLayout>
-      )}
-      {currentView === 'bulk' && (
-        <DashboardLayout 
-          currentView="bulk"
-          onNavigateHome={handleNavigateHome}
-          onNavigateToDashboard={handleNavigateToDashboard}
-          onNavigateToDrilling={handleNavigateToDrilling}
-          onNavigateToProduction={handleNavigateToProduction}
-          onNavigateToComparison={handleNavigateToComparison}
-          onNavigateToVoyage={handleNavigateToVoyage}
-          onNavigateToCost={handleNavigateToCost}
-          onNavigateToBulk={handleNavigateToBulk}
-        >
-          <BulkActionsDashboard />
-        </DashboardLayout>
-      )}
-    </>
-  );
-};
-
-// Main App component with data provider
-const App: React.FC = () => {
-  return (
-    <DataProvider>
-      <NotificationProvider>
-        <AppContent />
-      </NotificationProvider>
-    </DataProvider>
-  );
-};
-
-export default App;
+export default App
