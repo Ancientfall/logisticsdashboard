@@ -106,7 +106,7 @@ const SmartFilterBar: React.FC<SmartFilterBarProps> = ({
               Time Period
             </label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-300 transition-all duration-200"
               value={timeFilter}
               onChange={(e) => onTimeChange(e.target.value)}
             >
@@ -130,7 +130,7 @@ const SmartFilterBar: React.FC<SmartFilterBarProps> = ({
               Location
             </label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-300 transition-all duration-200"
               value={locationFilter}
               onChange={(e) => onLocationChange(e.target.value)}
             >

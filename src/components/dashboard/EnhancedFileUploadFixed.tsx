@@ -128,16 +128,22 @@ const EnhancedFileUploadFixed: React.FC = () => {
 			
 			// Validate file type
 			if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
-				addNotification('system-update', { 
-					message: `${fileTypeInfo[fileType].label} must be an Excel or CSV file` 
+				addNotification('system-update', {
+					version: 'File Validation'
+				}, {
+					title: 'Invalid File Type',
+					message: `${fileTypeInfo[fileType].label} must be an Excel or CSV file`,
+					priority: 'error'
 				})
 				return
 			}
 			
 			// Check file size
 			if (file.size > 50 * 1024 * 1024) {
-				addNotification('storage-warning', { 
-					message: `${file.name} exceeds 50MB limit` 
+				addNotification('storage-warning', {
+					percentage: '100'
+				}, {
+					message: `${file.name} exceeds 50MB limit`
 				})
 				return
 			}
@@ -200,8 +206,12 @@ const EnhancedFileUploadFixed: React.FC = () => {
 			})
 			setShowPreview(true)
 		} catch (error) {
-			addNotification('system-update', { 
-				message: `Error previewing file: ${error instanceof Error ? error.message : 'Unknown error'}` 
+			addNotification('system-update', {
+				version: 'File Preview'
+			}, {
+				title: 'Preview Error',
+				message: `Error previewing file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				priority: 'error'
 			})
 		}
 	}
@@ -209,8 +219,12 @@ const EnhancedFileUploadFixed: React.FC = () => {
 	const processFiles = async () => {
 		// Check required files
 		if (!files.voyageEvents || !files.costAllocation) {
-			addNotification('processing-complete', { 
-				message: 'Voyage Events and Cost Allocation files are required' 
+			addNotification('processing-complete', {
+				totalRecords: 0,
+				duration: '0s'
+			}, {
+				message: 'Voyage Events and Cost Allocation files are required',
+				priority: 'error'
 			})
 			return
 		}
@@ -218,6 +232,7 @@ const EnhancedFileUploadFixed: React.FC = () => {
 		setProcessingStatus('processing')
 		setIsLoading(true)
 		setErrorMessage('')
+		const processingStartTime = Date.now()
 		
 		// Reset all progress
 		setUploadProgress({
@@ -279,8 +294,11 @@ const EnhancedFileUploadFixed: React.FC = () => {
 			setIsDataReady(true)
 			setProcessingStatus('success')
 			
-			addNotification('processing-complete', { 
-				message: `Successfully processed ${dataStore.voyageEvents.length} voyage events and ${dataStore.costAllocation.length} cost allocations` 
+			addNotification('processing-complete', {
+				totalRecords: dataStore.voyageEvents.length + dataStore.costAllocation.length,
+				duration: `${Math.round((Date.now() - processingStartTime) / 1000)}s`
+			}, {
+				message: `Successfully processed ${dataStore.voyageEvents.length} voyage events and ${dataStore.costAllocation.length} cost allocations`
 			})
 			
 		} catch (error) {
@@ -289,8 +307,12 @@ const EnhancedFileUploadFixed: React.FC = () => {
 			setProcessingStatus('error')
 			setError(error instanceof Error ? error.message : String(error))
 			
-			addNotification('processing-complete', { 
-				message: `Error: ${error instanceof Error ? error.message : 'Processing failed'}` 
+			addNotification('processing-complete', {
+				totalRecords: 0,
+				duration: '0s'
+			}, {
+				message: `Error: ${error instanceof Error ? error.message : 'Processing failed'}`,
+				priority: 'error'
 			})
 		} finally {
 			setIsLoading(false)

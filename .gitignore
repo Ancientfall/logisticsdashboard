@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/backend/node_modules
 /.pnp
 .pnp.js
 
@@ -25,7 +26,6 @@ yarn-error.log*
 # Claude AI
 .claude/
 claude.json
-CLAUDE.md
 
 # IDE specific files
 .vscode/
@@ -83,12 +83,25 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env*.local
+backend/.env
+backend/.env.local
+backend/.env.production
 
 # Package files
 *.tgz
 *.zip
 *.tar.gz
 *.rar
+
+# Deployment files
+bp-logistics-deploy/
+bp-logistics-deploy.tar.gz
+vps-update.tar.gz
+update-package/
+
+# Backend specific
+backend/uploads/
+backend/logs/
 
 # Build outputs
 dist/

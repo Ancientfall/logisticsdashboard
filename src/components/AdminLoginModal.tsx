@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input } from '@nextui-org/react'
+import { Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationContext'
 
@@ -93,7 +94,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
 					)}
 					<Input
 						type="password"
-						placeholder="Enter admin password"
+						label="Admin Password"
 						value={password}
 						onChange={(e) => {
 							setPassword(e.target.value)
@@ -103,9 +104,15 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
 						isInvalid={!!error}
 						errorMessage={error}
 						isDisabled={isLocked}
+						startContent={
+							<div className="pr-1">
+								<Lock className="w-4 h-4 text-gray-400" />
+							</div>
+						}
 						classNames={{
 							input: "text-gray-900",
-							inputWrapper: "border-gray-300 hover:border-gray-400"
+							inputWrapper: "bg-gray-50 border-gray-300 hover:border-gray-400",
+							label: "text-gray-700"
 						}}
 					/>
 					{!isLocked && loginAttempts > 0 && loginAttempts < maxAttempts && (

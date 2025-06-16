@@ -12,7 +12,7 @@ import {
 } from '../types'
 
 // API configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api'
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
@@ -115,6 +115,24 @@ export const authAPI = {
 		const { token: newToken, user } = response.data
 		tokenManager.setToken(newToken)
 		tokenManager.setUser(user)
+		return response.data
+	},
+
+	requestPasswordReset: async (email: string) => {
+		const response = await api.post('/auth/password-reset', { email })
+		return response.data
+	},
+
+	resetPassword: async (token: string, newPassword: string) => {
+		const response = await api.post('/auth/password-reset/confirm', {
+			token,
+			newPassword
+		})
+		return response.data
+	},
+
+	validateResetToken: async (token: string) => {
+		const response = await api.get(`/auth/password-reset/${token}`)
 		return response.data
 	}
 }
@@ -279,6 +297,45 @@ export const uploadAPI = {
 	getUploadDetails: async (uploadId: string) => {
 		const response = await api.get(`/upload/history/${uploadId}`)
 		return response.data.data
+	}
+}
+
+// Admin API
+export const adminAPI = {
+	getUsers: async (params?: {
+		page?: number
+		limit?: number
+		search?: string
+		role?: string
+		isActive?: string
+	}) => {
+		const response = await api.get('/admin/users', { params })
+		return response.data
+	},
+
+	getUser: async (id: string) => {
+		const response = await api.get(`/admin/users/${id}`)
+		return response.data.data
+	},
+
+	updateUser: async (id: string, data: { role?: string, isActive?: boolean }) => {
+		const response = await api.put(`/admin/users/${id}`, data)
+		return response.data
+	},
+
+	deleteUser: async (id: string) => {
+		const response = await api.delete(`/admin/users/${id}`)
+		return response.data
+	},
+
+	getSystemStats: async () => {
+		const response = await api.get('/admin/stats')
+		return response.data.data
+	},
+
+	getActivityLogs: async (params?: { page?: number, limit?: number }) => {
+		const response = await api.get('/admin/activity', { params })
+		return response.data
 	}
 }
 

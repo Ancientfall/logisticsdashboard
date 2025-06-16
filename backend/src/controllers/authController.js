@@ -1,6 +1,9 @@
 const { validationResult } = require('express-validator')
 const jwt = require('jsonwebtoken')
+const crypto = require('crypto')
 const User = require('../models/User')
+const PasswordReset = require('../models/PasswordReset')
+const emailService = require('../services/emailService')
 const logger = require('../utils/logger')
 
 const generateToken = (userId) => {
@@ -179,5 +182,120 @@ exports.updatePassword = async (req, res) => {
 	} catch (error) {
 		logger.error('Password update error:', error)
 		res.status(500).json({ error: 'Failed to update password' })
+	}
+}
+
+exports.requestPasswordReset = async (req, res) => {
+	try {
+		const errors = validationResult(req)
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ errors: errors.array() })
+		}
+
+		const { email } = req.body
+		const user = await User.findOne({ where: { email } })
+
+		// Always return success to prevent email enumeration
+		if (!user) {
+			logger.warn(`Password reset requested for non-existent email: ${email}`)
+			return res.json({ 
+				success: true, 
+				message: 'If an account exists with this email, a password reset link has been sent.' 
+			})
+		}
+
+		// Generate reset token
+		const token = PasswordReset.generateToken()
+		const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+
+		// Delete any existing tokens for this user
+		await PasswordReset.destroy({ where: { userId: user.id, used: false } })
+
+		// Create new reset token
+		await PasswordReset.create({
+			userId: user.id,
+			token,
+			expiresAt
+		})
+
+		// Send reset email
+		const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`
+		await emailService.sendPasswordResetEmail(user.email, resetUrl)
+
+		logger.info(`Password reset requested for: ${email}`)
+
+		res.json({ 
+			success: true, 
+			message: 'If an account exists with this email, a password reset link has been sent.' 
+		})
+	} catch (error) {
+		logger.error('Password reset request error:', error)
+		res.status(500).json({ error: 'Failed to process password reset request' })
+	}
+}
+
+exports.resetPassword = async (req, res) => {
+	try {
+		const errors = validationResult(req)
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ errors: errors.array() })
+		}
+
+		const { token, newPassword } = req.body
+
+		// Find valid reset token
+		const resetToken = await PasswordReset.findOne({
+			where: { token },
+			include: [{ model: User, as: 'user' }]
+		})
+
+		if (!resetToken || !resetToken.isValid()) {
+			return res.status(400).json({ error: 'Invalid or expired reset token' })
+		}
+
+		// Update user password
+		const user = resetToken.user
+		user.password = newPassword
+		await user.save()
+
+		// Mark token as used
+		resetToken.used = true
+		await resetToken.save()
+
+		logger.info(`Password reset completed for: ${user.email}`)
+
+		res.json({ 
+			success: true, 
+			message: 'Password has been reset successfully' 
+		})
+	} catch (error) {
+		logger.error('Password reset error:', error)
+		res.status(500).json({ error: 'Failed to reset password' })
+	}
+}
+
+exports.validateResetToken = async (req, res) => {
+	try {
+		const { token } = req.params
+
+		const resetToken = await PasswordReset.findOne({
+			where: { token },
+			include: [{ model: User, as: 'user' }]
+		})
+
+		if (!resetToken || !resetToken.isValid()) {
+			return res.status(400).json({ 
+				valid: false, 
+				error: 'Invalid or expired reset token' 
+			})
+		}
+
+		res.json({ 
+			valid: true, 
+			email: resetToken.user.email 
+		})
+	} catch (error) {
+		logger.error('Token validation error:', error)
+		res.status(500).json({ error: 'Failed to validate token' })
 	}
 }

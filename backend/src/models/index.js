@@ -3,10 +3,15 @@ const Upload = require('./Upload')
 const WellOperation = require('./WellOperation')
 const Vessel = require('./Vessel')
 const FluidAnalysis = require('./FluidAnalysis')
+const PasswordReset = require('./PasswordReset')
 
 // User -> Upload (One to Many)
 User.hasMany(Upload, { foreignKey: 'userId', as: 'uploads' })
 Upload.belongsTo(User, { foreignKey: 'userId', as: 'user' })
+
+// User -> PasswordReset (One to Many)
+User.hasMany(PasswordReset, { foreignKey: 'userId', as: 'passwordResets' })
+PasswordReset.belongsTo(User, { foreignKey: 'userId', as: 'user' })
 
 // Upload -> WellOperation (One to Many)
 Upload.hasMany(WellOperation, { foreignKey: 'uploadId', as: 'wellOperations' })
@@ -25,5 +30,6 @@ module.exports = {
 	Upload,
 	WellOperation,
 	Vessel,
-	FluidAnalysis
+	FluidAnalysis,
+	PasswordReset
 }

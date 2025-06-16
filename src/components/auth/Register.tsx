@@ -1,15 +1,16 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem } from '@nextui-org/react'
+import { Card, CardBody, CardHeader, Button } from '@nextui-org/react'
 import { motion } from 'framer-motion'
 import { Mail, Lock, User, UserPlus, AlertCircle, Shield } from 'lucide-react'
 import { authAPI, handleAPIError } from '../../services/api'
 import { RegisterData } from '../../types'
-import { useNotification } from '../../contexts/NotificationContext'
+import { useNotifications } from '../../context/NotificationContext'
+import PasswordStrengthIndicator from './PasswordStrengthIndicator'
 
 export default function Register() {
 	const navigate = useNavigate()
-	const { showNotification } = useNotification()
+	const { addNotification } = useNotifications()
 	const [isLoading, setIsLoading] = useState(false)
 	const [errors, setErrors] = useState<Record<string, string>>({})
 	
@@ -48,8 +49,16 @@ export default function Register() {
 		
 		if (!formData.password) {
 			newErrors.password = 'Password is required'
-		} else if (formData.password.length < 6) {
-			newErrors.password = 'Password must be at least 6 characters'
+		} else if (formData.password.length < 8) {
+			newErrors.password = 'Password must be at least 8 characters'
+		} else if (!/[A-Z]/.test(formData.password)) {
+			newErrors.password = 'Password must contain at least one uppercase letter'
+		} else if (!/[a-z]/.test(formData.password)) {
+			newErrors.password = 'Password must contain at least one lowercase letter'
+		} else if (!/[0-9]/.test(formData.password)) {
+			newErrors.password = 'Password must contain at least one number'
+		} else if (!/[!@#$%^&*]/.test(formData.password)) {
+			newErrors.password = 'Password must contain at least one special character (!@#$%^&*)'
 		}
 		
 		if (formData.password !== confirmPassword) {
@@ -71,10 +80,9 @@ export default function Register() {
 		try {
 			await authAPI.register(formData)
 			
-			showNotification({
+			addNotification('system-update', {
 				title: 'Account Created!',
-				message: 'Your account has been successfully created.',
-				type: 'success'
+				message: 'Your account has been successfully created.'
 			})
 			
 			// Redirect to dashboard
@@ -83,10 +91,9 @@ export default function Register() {
 			const errorMessage = handleAPIError(error)
 			setErrors({ general: errorMessage })
 			
-			showNotification({
+			addNotification('system-update', {
 				title: 'Registration Failed',
-				message: errorMessage,
-				type: 'error'
+				message: errorMessage
 			})
 		} finally {
 			setIsLoading(false)
@@ -115,7 +122,7 @@ export default function Register() {
 					</CardHeader>
 					
 					<CardBody className="px-6 py-6">
-						<form onSubmit={handleSubmit} className="space-y-4">
+						<form onSubmit={handleSubmit} className="space-y-5">
 							{errors.general && (
 								<div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
 									<AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -124,84 +131,142 @@ export default function Register() {
 							)}
 							
 							<div className="grid grid-cols-2 gap-4">
-								<Input
-									label="First Name"
-									placeholder="John"
-									value={formData.firstName}
-									onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-									startContent={<User className="w-4 h-4 text-gray-400" />}
-									isInvalid={!!errors.firstName}
-									errorMessage={errors.firstName}
-									isRequired
-								/>
+								<div className="space-y-2">
+									<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+										First Name <span className="text-red-500">*</span>
+									</label>
+									<div className="relative">
+										<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+											<User className="w-4 h-4 text-gray-400" />
+										</div>
+										<input
+											type="text"
+											value={formData.firstName}
+											onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+											className={`w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+												errors.firstName ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+											}`}
+											placeholder="John"
+										/>
+									</div>
+									{errors.firstName && (
+										<p className="text-xs text-red-500 mt-1">{errors.firstName}</p>
+									)}
+								</div>
 								
-								<Input
-									label="Last Name"
-									placeholder="Doe"
-									value={formData.lastName}
-									onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-									isInvalid={!!errors.lastName}
-									errorMessage={errors.lastName}
-									isRequired
-								/>
+								<div className="space-y-2">
+									<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+										Last Name <span className="text-red-500">*</span>
+									</label>
+									<input
+										type="text"
+										value={formData.lastName}
+										onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+										className={`w-full px-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+											errors.lastName ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+										}`}
+										placeholder="Doe"
+									/>
+									{errors.lastName && (
+										<p className="text-xs text-red-500 mt-1">{errors.lastName}</p>
+									)}
+								</div>
 							</div>
 							
-							<Input
-								label="Email"
-								placeholder="john.doe@bp.com"
-								type="email"
-								value={formData.email}
-								onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-								startContent={<Mail className="w-4 h-4 text-gray-400" />}
-								isInvalid={!!errors.email}
-								errorMessage={errors.email}
-								isRequired
-								autoComplete="email"
-							/>
+							<div className="space-y-2">
+								<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+									Email <span className="text-red-500">*</span>
+								</label>
+								<div className="relative">
+									<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+										<Mail className="w-4 h-4 text-gray-400" />
+									</div>
+									<input
+										type="email"
+										value={formData.email}
+										onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+										className={`w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+											errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+										}`}
+										placeholder="john.doe@example.com"
+										autoComplete="email"
+									/>
+								</div>
+								{errors.email && (
+									<p className="text-xs text-red-500 mt-1">{errors.email}</p>
+								)}
+							</div>
 							
-							<Select
-								label="Role"
-								placeholder="Select your role"
-								value={formData.role}
-								onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-								startContent={<Shield className="w-4 h-4 text-gray-400" />}
-								isRequired
-							>
-								{roles.map((role) => (
-									<SelectItem key={role.value} value={role.value}>
-										<div>
-											<p className="font-medium">{role.label}</p>
-											<p className="text-xs text-gray-500">{role.description}</p>
-										</div>
-									</SelectItem>
-								))}
-							</Select>
+							<div className="space-y-2">
+								<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+									Role <span className="text-red-500">*</span>
+								</label>
+								<div className="relative">
+									<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+										<Shield className="w-4 h-4 text-gray-400" />
+									</div>
+									<select
+										value={formData.role}
+										onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+										className="w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-400 dark:hover:border-gray-600 appearance-none cursor-pointer"
+									>
+										{roles.map((role) => (
+											<option key={role.value} value={role.value}>
+												{role.label} - {role.description}
+											</option>
+										))}
+									</select>
+								</div>
+							</div>
 							
-							<Input
-								label="Password"
-								placeholder="Create a password"
-								type="password"
-								value={formData.password}
-								onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-								startContent={<Lock className="w-4 h-4 text-gray-400" />}
-								isInvalid={!!errors.password}
-								errorMessage={errors.password}
-								isRequired
-								autoComplete="new-password"
-							/>
+							<div className="space-y-2">
+								<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+									Password <span className="text-red-500">*</span>
+								</label>
+								<div className="relative">
+									<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+										<Lock className="w-4 h-4 text-gray-400" />
+									</div>
+									<input
+										type="password"
+										value={formData.password}
+										onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+										className={`w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+											errors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+										}`}
+										placeholder="••••••••"
+										autoComplete="new-password"
+									/>
+								</div>
+								{errors.password && (
+									<p className="text-xs text-red-500 mt-1">{errors.password}</p>
+								)}
+								<PasswordStrengthIndicator password={formData.password} />
+							</div>
 							
-							<Input
-								label="Confirm Password"
-								placeholder="Confirm your password"
-								type="password"
-								value={confirmPassword}
-								onChange={(e) => setConfirmPassword(e.target.value)}
-								startContent={<Lock className="w-4 h-4 text-gray-400" />}
-								isInvalid={!!errors.confirmPassword}
-								errorMessage={errors.confirmPassword}
-								isRequired
-								autoComplete="new-password"
-							/>
+							<div className="space-y-2">
+								<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+									Confirm Password <span className="text-red-500">*</span>
+								</label>
+								<div className="relative">
+									<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+										<Lock className="w-4 h-4 text-gray-400" />
+									</div>
+									<input
+										type="password"
+										value={confirmPassword}
+										onChange={(e) => setConfirmPassword(e.target.value)}
+										className={`w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+											errors.confirmPassword ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+										}`}
+										placeholder="••••••••"
+										autoComplete="new-password"
+									/>
+								</div>
+								{errors.confirmPassword && (
+									<p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>
+								)}
+							</div>
 							
 							<Button
 								type="submit"

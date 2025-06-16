@@ -11,6 +11,7 @@ const errorHandler = require('./middleware/errorHandler')
 const authRoutes = require('./routes/auth')
 const dataRoutes = require('./routes/data')
 const uploadRoutes = require('./routes/upload')
+const adminRoutes = require('./routes/admin')
 
 // Import models to ensure associations are loaded
 require('./models')
@@ -45,6 +46,7 @@ app.use(compression())
 app.use('/api/auth', authRoutes)
 app.use('/api/data', dataRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/admin', adminRoutes)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

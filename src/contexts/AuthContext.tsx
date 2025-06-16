@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useNavigate } from 'react-router-dom'
 import { User } from '../types'
 import { authAPI, tokenManager } from '../services/api'
-import { useNotification } from './NotificationContext'
+import { useNotifications } from '../context/NotificationContext'
 
 interface AuthContextValue {
 	user: User | null
@@ -30,7 +30,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
 	const navigate = useNavigate()
-	const { showNotification } = useNotification()
+	const { addNotification } = useNotifications()
 	const [user, setUser] = useState<User | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
 
@@ -78,10 +78,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 			setUser(null)
 			tokenManager.clear()
 			navigate('/login')
-			showNotification({
+			addNotification('system-update', {
 				title: 'Logged Out',
-				message: 'You have been successfully logged out.',
-				type: 'info'
+				message: 'You have been successfully logged out.'
 			})
 		}
 	}

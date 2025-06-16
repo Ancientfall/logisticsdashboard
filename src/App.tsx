@@ -10,19 +10,22 @@ import { HttpsEnforcer } from './components/security/HttpsEnforcer'
 // Auth components
 import Login from './components/auth/Login'
 import Register from './components/auth/Register'
+import ForgotPassword from './components/auth/ForgotPassword'
+import ResetPassword from './components/auth/ResetPassword'
 import PrivateRoute from './components/auth/PrivateRoute'
 
 // Dashboard components
 import DashboardLayout from './components/layout/DashboardLayout'
 import FileUploadPage from './components/dashboard/FileUploadPage'
 import MainDashboard from './components/dashboard/MainDashboard'
-import DashboardSelector from './components/DashboardSelector'
 import DrillingDashboard from './components/dashboard/DrillingDashboard'
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard'
 import CostAllocationManagerRedesigned from './components/dashboard/CostAllocationManagerRedesigned'
 import ProductionDashboard from './components/dashboard/ProductionDashboard'
 import ComparisonDashboard from './components/dashboard/ComparisonDashboard'
 import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard'
+import PublicLandingPage from './components/PublicLandingPage'
+import AdminDashboard from './components/admin/AdminDashboard'
 
 import './index.css'
 
@@ -36,17 +39,13 @@ function App() {
 							<HttpsEnforcer />
 							<Routes>
 								{/* Public routes */}
+								<Route path="/" element={<PublicLandingPage />} />
 								<Route path="/login" element={<Login />} />
 								<Route path="/register" element={<Register />} />
+								<Route path="/forgot-password" element={<ForgotPassword />} />
+								<Route path="/reset-password" element={<ResetPassword />} />
 								
 								{/* Protected routes */}
-								<Route path="/" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<DashboardSelector />
-										</DashboardLayout>
-									</PrivateRoute>
-								} />
 								
 								<Route path="/upload" element={
 									<PrivateRoute requiredRole="manager">
@@ -108,6 +107,14 @@ function App() {
 									<PrivateRoute>
 										<DashboardLayout>
 											<BulkActionsDashboard />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
+								
+								<Route path="/admin" element={
+									<PrivateRoute requiredRole="admin">
+										<DashboardLayout>
+											<AdminDashboard />
 										</DashboardLayout>
 									</PrivateRoute>
 								} />

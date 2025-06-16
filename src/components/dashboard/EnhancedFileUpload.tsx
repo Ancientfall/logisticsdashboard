@@ -173,13 +173,23 @@ const EnhancedFileUpload: React.FC = () => {
 			
 			// Validate file type
 			if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
-				addNotification('system-update', { message: `${file.name} is not a valid Excel file` })
+				addNotification('system-update', {
+					version: 'File Validation',
+				}, {
+					title: 'Invalid File Type',
+					message: `${file.name} is not a valid Excel file`,
+					priority: 'error'
+				})
 				continue
 			}
 			
 			// Check file size
 			if (file.size > 50 * 1024 * 1024) {
-				addNotification('storage-warning', { message: `${file.name} exceeds 50MB limit` })
+				addNotification('storage-warning', {
+					percentage: '100',
+				}, {
+					message: `${file.name} exceeds 50MB limit`
+				})
 				continue
 			}
 			
@@ -250,7 +260,13 @@ const EnhancedFileUpload: React.FC = () => {
 		const validFiles = files.filter(f => f.status === 'pending' && f.type)
 		
 		if (validFiles.length === 0) {
-			addNotification('processing-complete', { message: 'No valid files to process. Please select file types for undetected files.' })
+			addNotification('processing-complete', {
+				totalRecords: 0,
+				duration: '0s'
+			}, {
+				message: 'No valid files to process. Please select file types for undetected files.',
+				priority: 'warning'
+			})
 			return
 		}
 		
@@ -259,8 +275,12 @@ const EnhancedFileUpload: React.FC = () => {
 		const hasCostAllocation = validFiles.some(f => f.type === 'cost_allocation')
 		
 		if (!hasVoyageEvents || !hasCostAllocation) {
-			addNotification('processing-complete', { 
-				message: 'Missing required files. You must upload both Voyage Events and Cost Allocation files.' 
+			addNotification('processing-complete', {
+				totalRecords: 0,
+				duration: '0s'
+			}, {
+				message: 'Missing required files. You must upload both Voyage Events and Cost Allocation files.',
+				priority: 'error'
 			})
 			return
 		}
@@ -271,7 +291,11 @@ const EnhancedFileUpload: React.FC = () => {
 				const estimate = await navigator.storage.estimate()
 				const usage = (estimate.usage || 0) / (estimate.quota || 1)
 				if (usage > 0.9) {
-					addNotification('storage-warning', { message: 'Storage is nearly full. Consider clearing old data first.' })
+					addNotification('storage-warning', {
+						percentage: Math.round(usage * 100)
+					}, {
+						message: 'Storage is nearly full. Consider clearing old data first.'
+					})
 				}
 			}
 		} catch (error) {
@@ -422,11 +446,20 @@ const EnhancedFileUpload: React.FC = () => {
 				throw error // Re-throw to be caught by outer try-catch
 			}
 			
-			addNotification('processing-complete', { message: 'All files processed successfully!' })
+			addNotification('processing-complete', {
+				totalRecords: processingStats?.totalRecords || 0,
+				duration: `${Math.round((Date.now() - processingStartTime.current) / 1000)}s`
+			})
 			setIsDataReady(true)
 			
 		} catch (error) {
-			addNotification('processing-complete', { message: 'Error processing files' })
+			addNotification('processing-complete', {
+				totalRecords: 0,
+				duration: '0s'
+			}, {
+				message: 'Error processing files',
+				priority: 'error'
+			})
 		} finally {
 			setIsProcessing(false)
 			setProcessingStats(null)
@@ -624,7 +657,7 @@ const EnhancedFileUpload: React.FC = () => {
 													)}
 													{!file.type && file.status === 'pending' && (
 														<select
-															className="text-xs border rounded px-2 py-1"
+															className="text-xs text-gray-900 border border-gray-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 															onChange={(e) => {
 																const newType = e.target.value as any
 																if (newType) {

@@ -1,18 +1,22 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Card, CardBody, CardHeader, Button, Input, Checkbox } from '@nextui-org/react'
+import { Card, CardBody, CardHeader, Button, Checkbox } from '@nextui-org/react'
 import { motion } from 'framer-motion'
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react'
 import { authAPI, handleAPIError } from '../../services/api'
-import { LoginCredentials } from '../../types'
-import { useNotification } from '../../contexts/NotificationContext'
+import { useNotifications } from '../../context/NotificationContext'
+
+interface LoginCredentials {
+	email: string
+	password: string
+}
 
 export default function Login() {
 	const navigate = useNavigate()
-	const { showNotification } = useNotification()
+	const { addNotification } = useNotifications()
 	const [isLoading, setIsLoading] = useState(false)
+	const [errors, setErrors] = useState<Record<string, string>>({})
 	const [rememberMe, setRememberMe] = useState(false)
-	const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({})
 	
 	const [credentials, setCredentials] = useState<LoginCredentials>({
 		email: '',
@@ -20,7 +24,7 @@ export default function Login() {
 	})
 
 	const validateForm = (): boolean => {
-		const newErrors: typeof errors = {}
+		const newErrors: Record<string, string> = {}
 		
 		if (!credentials.email) {
 			newErrors.email = 'Email is required'
@@ -30,8 +34,6 @@ export default function Login() {
 		
 		if (!credentials.password) {
 			newErrors.password = 'Password is required'
-		} else if (credentials.password.length < 6) {
-			newErrors.password = 'Password must be at least 6 characters'
 		}
 		
 		setErrors(newErrors)
@@ -49,10 +51,9 @@ export default function Login() {
 		try {
 			await authAPI.login(credentials)
 			
-			showNotification({
-				title: 'Welcome back!',
-				message: 'You have successfully logged in.',
-				type: 'success'
+			addNotification('system-update', {
+				title: 'Welcome Back!',
+				message: 'You have successfully logged in.'
 			})
 			
 			// Redirect to dashboard
@@ -61,10 +62,9 @@ export default function Login() {
 			const errorMessage = handleAPIError(error)
 			setErrors({ general: errorMessage })
 			
-			showNotification({
+			addNotification('system-update', {
 				title: 'Login Failed',
-				message: errorMessage,
-				type: 'error'
+				message: errorMessage
 			})
 		} finally {
 			setIsLoading(false)
@@ -85,15 +85,15 @@ export default function Login() {
 							<div className="w-10 h-10 bg-bp-green rounded-lg flex items-center justify-center">
 								<LogIn className="w-6 h-6 text-white" />
 							</div>
-							<h1 className="text-2xl font-bold">BP Logistics Dashboard</h1>
+							<h1 className="text-2xl font-bold">Welcome Back</h1>
 						</div>
 						<p className="text-gray-600 dark:text-gray-400">
-							Sign in to access your dashboard
+							Sign in to your BP Logistics account
 						</p>
 					</CardHeader>
 					
 					<CardBody className="px-6 py-6">
-						<form onSubmit={handleSubmit} className="space-y-4">
+						<form onSubmit={handleSubmit} className="space-y-5">
 							{errors.general && (
 								<div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
 									<AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -101,44 +101,67 @@ export default function Login() {
 								</div>
 							)}
 							
-							<Input
-								label="Email"
-								placeholder="Enter your email"
-								type="email"
-								value={credentials.email}
-								onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
-								startContent={<Mail className="w-4 h-4 text-gray-400" />}
-								isInvalid={!!errors.email}
-								errorMessage={errors.email}
-								isRequired
-								autoComplete="email"
-							/>
+							<div className="space-y-2">
+								<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+									Email <span className="text-red-500">*</span>
+								</label>
+								<div className="relative">
+									<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+										<Mail className="w-4 h-4 text-gray-400" />
+									</div>
+									<input
+										type="email"
+										value={credentials.email}
+										onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+										className={`w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+											errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+										}`}
+										placeholder="john.doe@example.com"
+										autoComplete="email"
+									/>
+								</div>
+								{errors.email && (
+									<p className="text-xs text-red-500 mt-1">{errors.email}</p>
+								)}
+							</div>
 							
-							<Input
-								label="Password"
-								placeholder="Enter your password"
-								type="password"
-								value={credentials.password}
-								onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-								startContent={<Lock className="w-4 h-4 text-gray-400" />}
-								isInvalid={!!errors.password}
-								errorMessage={errors.password}
-								isRequired
-								autoComplete="current-password"
-							/>
+							<div className="space-y-2">
+								<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+									Password <span className="text-red-500">*</span>
+								</label>
+								<div className="relative">
+									<div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+										<Lock className="w-4 h-4 text-gray-400" />
+									</div>
+									<input
+										type="password"
+										value={credentials.password}
+										onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+										className={`w-full pl-10 pr-3 py-3 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/50 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] ${
+											errors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+										}`}
+										placeholder="••••••••"
+										autoComplete="current-password"
+									/>
+								</div>
+								{errors.password && (
+									<p className="text-xs text-red-500 mt-1">{errors.password}</p>
+								)}
+							</div>
 							
 							<div className="flex items-center justify-between">
 								<Checkbox
 									isSelected={rememberMe}
 									onValueChange={setRememberMe}
-									size="sm"
+									classNames={{
+										label: "text-sm text-gray-600 dark:text-gray-400"
+									}}
 								>
 									Remember me
 								</Checkbox>
-								
 								<Link 
 									to="/forgot-password" 
-									className="text-sm text-bp-green hover:text-bp-green/80 transition-colors"
+									className="text-sm text-bp-green hover:text-bp-green/80 font-medium transition-colors"
 								>
 									Forgot password?
 								</Link>
@@ -168,10 +191,6 @@ export default function Login() {
 						</div>
 					</CardBody>
 				</Card>
-				
-				<p className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400">
-					© 2024 BP p.l.c. All rights reserved.
-				</p>
 			</motion.div>
 		</div>
 	)

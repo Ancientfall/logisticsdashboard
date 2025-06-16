@@ -237,13 +237,13 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
 
             {/* Search */}
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search notifications..."
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-400 bg-white transition-colors"
               />
             </div>
 
@@ -252,7 +252,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value as NotificationType | 'all')}
-                className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 text-sm text-gray-900 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-400 transition-colors"
               >
                 <option value="all">All Types</option>
                 <option value="data-quality">Data Quality</option>
@@ -265,7 +265,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
               <select
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value as NotificationPriority | 'all')}
-                className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 text-sm text-gray-900 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-400 transition-colors"
               >
                 <option value="all">All Priorities</option>
                 <option value="error">Error</option>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Grid3X3, User, LogOut, Upload } from 'lucide-react';
+import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Grid3X3, User, LogOut, Upload, Shield } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -94,7 +94,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const visibleNavItems = navItems.filter(item => {
     if (!item.requiredRole) return true;
     
-    const roleHierarchy = {
+    const roleHierarchy: Record<string, number> = {
       viewer: 1,
       manager: 2,
       admin: 3
@@ -171,15 +171,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                       <DropdownItem key="profile" startContent={<User size={16} />}>
                         Profile Settings
                       </DropdownItem>
-                      {user.role !== 'viewer' && (
-                        <DropdownItem 
-                          key="upload" 
-                          startContent={<Upload size={16} />}
-                          onClick={() => navigate('/upload')}
-                        >
-                          Upload Data
-                        </DropdownItem>
-                      )}
+                      <DropdownItem 
+                        key="upload" 
+                        startContent={<Upload size={16} />}
+                        onClick={() => navigate('/upload')}
+                        className={user.role === 'viewer' ? 'hidden' : ''}
+                      >
+                        Upload Data
+                      </DropdownItem>
+                      <DropdownItem 
+                        key="admin" 
+                        startContent={<Shield size={16} />}
+                        onClick={() => navigate('/admin')}
+                        className={user.role !== 'admin' ? 'hidden' : ''}
+                      >
+                        Admin Dashboard
+                      </DropdownItem>
                       <DropdownItem 
                         key="logout" 
                         startContent={<LogOut size={16} />}
