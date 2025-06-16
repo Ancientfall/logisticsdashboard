@@ -7,8 +7,8 @@ import LandingPage from './components/LandingPage';
 import DashboardSelector from './components/DashboardSelector';
 import { DataProvider, useData } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { AdminButton } from './components/AdminButton';
+// import { AuthProvider, useAuth } from './context/AuthContext'; // Removed authentication
+// import { AdminButton } from './components/AdminButton'; // Removed authentication
 import './index.css';
 import DrillingDashboard from './components/dashboard/DrillingDashboard';
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard';
@@ -24,7 +24,7 @@ const AppContent: React.FC = () => {
   // Initialize notification integration
   useNotificationIntegration();
   const { isDataReady, isLoading, voyageEvents, vesselManifests, costAllocation } = useData();
-  const { isAdmin } = useAuth();
+  // const { isAdmin } = useAuth(); // Removed authentication
   const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'selector' | 'dashboard' | 'drilling' | 'production' | 'comparison' | 'voyage' | 'cost' | 'bulk'>('selector');
   
   // Handle navigation based on data ready state
@@ -144,10 +144,7 @@ const AppContent: React.FC = () => {
     <>
       <HttpsEnforcer />
       
-      {/* Admin button appears on all views except upload */}
-      {currentView !== 'upload' && (
-        <AdminButton onNavigateToUpload={() => setCurrentView('upload')} />
-      )}
+      {/* Admin button removed - authentication disabled */}
       
       {currentView === 'selector' && (
         <DashboardSelector
@@ -283,13 +280,11 @@ const AppContent: React.FC = () => {
 // Main App component with data provider
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <DataProvider>
-        <NotificationProvider>
-          <AppContent />
-        </NotificationProvider>
-      </DataProvider>
-    </AuthProvider>
+    <DataProvider>
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
+    </DataProvider>
   );
 };
 

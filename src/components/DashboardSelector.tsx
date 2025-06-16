@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useData } from '../context/DataContext'
-import { useAuth } from '../context/AuthContext'
+// import { useAuth } from '../context/AuthContext' // Removed authentication
 
 interface DashboardSelectorProps {
 	onNavigateToDrilling: () => void
@@ -51,7 +51,7 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 	// const [hoveredCard, setHoveredCard] = useState<string | null>(null)
 	const [selectedCategory, setSelectedCategory] = useState<'all' | 'operations' | 'analytics' | 'financial'>('all')
 	const { isDataReady } = useData()
-	const { isAdmin } = useAuth()
+	// const { isAdmin } = useAuth() // Removed authentication
 
 	const dashboardOptions: DashboardOption[] = [
 		{
@@ -246,6 +246,12 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 									<span className="text-sm font-medium">No Data Uploaded</span>
 								</div>
 							)}
+							<button
+								onClick={onNavigateToOverview}
+								className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+							>
+								Upload Data
+							</button>
 						</div>
 					</div>
 				</div>
@@ -290,17 +296,8 @@ const DashboardSelector: React.FC<DashboardSelectorProps> = ({
 							<h3 className="text-2xl font-bold text-gray-900 mb-2">No Data Available</h3>
 							<p className="text-gray-600 mb-6 max-w-2xl mx-auto">
 								The dashboards below require data to be uploaded first. 
-								{isAdmin ? (
-									<span> Click the "Upload Data" button to add your Excel files.</span>
-								) : (
-									<span> Please wait for an administrator to upload the necessary data files.</span>
-								)}
+								<span> Click the "Upload Data" button to add your Excel files.</span>
 							</p>
-							{!isAdmin && (
-								<p className="text-sm text-gray-500">
-									If you're an administrator, click the "Admin" button in the bottom right corner to login and upload data.
-								</p>
-							)}
 						</div>
 					</motion.div>
 				)}
