@@ -86,7 +86,7 @@ export default function Register() {
 			})
 			
 			// Redirect to dashboard
-			navigate('/')
+			navigate('/dashboard')
 		} catch (error) {
 			const errorMessage = handleAPIError(error)
 			setErrors({ general: errorMessage })
