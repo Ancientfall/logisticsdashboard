@@ -159,6 +159,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         <Avatar
                           size="sm"
                           name={`${user.firstName} ${user.lastName}`}
+                          showFallback
+                          fallback={
+                            <span className="text-white font-semibold text-sm">
+                              {user.firstName.charAt(0).toUpperCase()}{user.lastName.charAt(0).toUpperCase()}
+                            </span>
+                          }
                           className="bg-bp-green text-white"
                         />
                         <div className="text-left">
