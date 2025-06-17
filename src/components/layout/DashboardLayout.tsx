@@ -167,8 +167,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         </div>
                       </button>
                     </DropdownTrigger>
-                    <DropdownMenu aria-label="User menu">
-                      <DropdownItem key="profile" startContent={<User size={16} />}>
+                    <DropdownMenu 
+                      aria-label="User menu"
+                      classNames={{
+                        base: "bg-white/95 backdrop-blur-md border border-gray-200 shadow-xl rounded-xl p-2",
+                        list: "gap-1"
+                      }}
+                    >
+                      <DropdownItem 
+                        key="profile" 
+                        startContent={<User size={16} />}
+                        classNames={{
+                          base: "rounded-lg text-gray-700 hover:bg-gray-100 data-[hover=true]:bg-gray-100"
+                        }}
+                      >
                         Profile Settings
                       </DropdownItem>
                       <DropdownItem 
@@ -176,6 +188,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         startContent={<Upload size={16} />}
                         onClick={() => navigate('/upload')}
                         className={user.role === 'viewer' ? 'hidden' : ''}
+                        classNames={{
+                          base: "rounded-lg text-gray-700 hover:bg-gray-100 data-[hover=true]:bg-gray-100"
+                        }}
                       >
                         Upload Data
                       </DropdownItem>
@@ -184,6 +199,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         startContent={<Shield size={16} />}
                         onClick={() => navigate('/admin')}
                         className={user.role !== 'admin' ? 'hidden' : ''}
+                        classNames={{
+                          base: "rounded-lg text-gray-700 hover:bg-gray-100 data-[hover=true]:bg-gray-100"
+                        }}
                       >
                         Admin Dashboard
                       </DropdownItem>
@@ -192,6 +210,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         startContent={<LogOut size={16} />}
                         color="danger"
                         onClick={logout}
+                        classNames={{
+                          base: "rounded-lg text-red-600 hover:bg-red-50 data-[hover=true]:bg-red-50"
+                        }}
                       >
                         Log Out
                       </DropdownItem>
