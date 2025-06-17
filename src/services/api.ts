@@ -238,6 +238,7 @@ export const dataAPI = {
 
 // Upload API
 export const uploadAPI = {
+	// Legacy endpoints (keep for backward compatibility)
 	uploadWellOperations: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
 		const formData = new FormData()
 		formData.append('file', file)
@@ -275,6 +276,103 @@ export const uploadAPI = {
 		formData.append('file', file)
 
 		const response = await api.post('/upload/fluid-analyses', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (progressEvent) => {
+				if (onProgress && progressEvent.total) {
+					const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+					onProgress(progress)
+				}
+			}
+		})
+		return response.data
+	},
+
+	// New Excel file type endpoints for BP Logistics Dashboard
+	uploadVoyageEvents: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
+		const formData = new FormData()
+		formData.append('file', file)
+
+		const response = await api.post('/upload/voyage-events', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (progressEvent) => {
+				if (onProgress && progressEvent.total) {
+					const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+					onProgress(progress)
+				}
+			}
+		})
+		return response.data
+	},
+
+	uploadVoyageList: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
+		const formData = new FormData()
+		formData.append('file', file)
+
+		const response = await api.post('/upload/voyage-list', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (progressEvent) => {
+				if (onProgress && progressEvent.total) {
+					const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+					onProgress(progress)
+				}
+			}
+		})
+		return response.data
+	},
+
+	uploadVesselManifests: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
+		const formData = new FormData()
+		formData.append('file', file)
+
+		const response = await api.post('/upload/vessel-manifests', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (progressEvent) => {
+				if (onProgress && progressEvent.total) {
+					const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+					onProgress(progress)
+				}
+			}
+		})
+		return response.data
+	},
+
+	uploadCostAllocation: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
+		const formData = new FormData()
+		formData.append('file', file)
+
+		const response = await api.post('/upload/cost-allocation', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (progressEvent) => {
+				if (onProgress && progressEvent.total) {
+					const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+					onProgress(progress)
+				}
+			}
+		})
+		return response.data
+	},
+
+	uploadVesselClassifications: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
+		const formData = new FormData()
+		formData.append('file', file)
+
+		const response = await api.post('/upload/vessel-classifications', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (progressEvent) => {
+				if (onProgress && progressEvent.total) {
+					const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+					onProgress(progress)
+				}
+			}
+		})
+		return response.data
+	},
+
+	uploadBulkActions: async (file: File, onProgress?: (progress: number) => void): Promise<UploadResponse> => {
+		const formData = new FormData()
+		formData.append('file', file)
+
+		const response = await api.post('/upload/bulk-actions', formData, {
 			headers: { 'Content-Type': 'multipart/form-data' },
 			onUploadProgress: (progressEvent) => {
 				if (onProgress && progressEvent.total) {
