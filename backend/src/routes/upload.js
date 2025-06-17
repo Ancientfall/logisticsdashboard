@@ -81,7 +81,7 @@ router.post('/vessel-manifests',
 )
 
 // Upload cost allocations
-router.post('/cost-allocations',
+router.post('/cost-allocation',
 	auth,
 	authorize('admin', 'manager'),
 	upload.single('file'),
@@ -97,7 +97,7 @@ router.post('/bulk-actions',
 )
 
 // Upload voyage lists
-router.post('/voyage-lists',
+router.post('/voyage-list',
 	auth,
 	authorize('admin', 'manager'),
 	upload.single('file'),
