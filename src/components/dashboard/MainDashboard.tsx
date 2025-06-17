@@ -1,5 +1,6 @@
 // src/components/dashboard/MainDashboard.tsx
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings, Package, Bell } from 'lucide-react';
@@ -10,6 +11,7 @@ interface MainDashboardProps {
 }
 
 const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => {
+  const navigate = useNavigate();
   const { 
     voyageEvents, 
     vesselManifests, 
@@ -22,6 +24,14 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
   } = useData();
   
   const { addNotification } = useNotifications();
+  
+  const handleNavigateToUpload = () => {
+    if (onNavigateToUpload) {
+      onNavigateToUpload();
+    } else {
+      navigate('/upload');
+    }
+  };
   
   const [activeTab, setActiveTab] = useState<'overview' | 'quality' | 'vessels' | 'timeline'>('overview');
 
@@ -146,55 +156,37 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     };
   }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions]);
 
-  if (!isDataReady || voyageEvents.length === 0) {
-    const readyButNoVoyageEvents = isDataReady && voyageEvents.length === 0;
-    
+  if (!isDataReady) {
+    // Still loading initial data check
     return (
       <div className="min-h-[400px] flex items-center justify-center">
         <div className="text-center max-w-md bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-8">
           <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 mb-4">
-            {readyButNoVoyageEvents ? 
-              'Data detected but voyage events not loaded...' : 
-              'Loading data processing summary...'}
+          <p className="text-gray-600 mb-4">Loading data processing summary...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (voyageEvents.length === 0) {
+    // Data is ready but no data exists - show upload prompt
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="text-center max-w-lg bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 p-8">
+          <Database size={64} className="text-gray-400 mx-auto mb-6" />
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">Welcome to BP Logistics Dashboard</h3>
+          <p className="text-gray-600 mb-6">
+            Get started by uploading your first dataset. You can upload Excel files containing voyage events, vessel manifests, cost allocations, and more.
           </p>
-          
-          {/* Debug Information */}
-          <div className="text-xs text-gray-500 bg-gray-50/50 p-3 rounded-lg border border-gray-100/50 mb-4">
-            <div>isDataReady: {isDataReady ? '✅' : '❌'}</div>
-            <div>Voyage Events: {voyageEvents.length}</div>
-            <div>Vessel Manifests: {vesselManifests.length}</div>
-            <div>Cost Allocation: {costAllocation.length}</div>
-            <div>Bulk Actions: {bulkActions.length}</div>
-          </div>
-          
-          {/* Manual Actions */}
-          <div className="space-y-2">
-            <button
-              onClick={() => {
-                console.log('🔄 Manual refresh triggered from MainDashboard');
-                forceRefreshFromStorage();
-              }}
-              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md text-sm"
-            >
-              🔄 Force Refresh Data
-            </button>
-            
-            {readyButNoVoyageEvents && (
-              <div className="mt-2">
-                <button
-                  onClick={() => {
-                    console.log('🚨 Emergency: Manually calling window.debugDataContext()');
-                    if (typeof window !== 'undefined' && (window as any).debugDataContext) {
-                      (window as any).debugDataContext();
-                    }
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md text-sm"
-                >
-                  🚨 Debug Data Context
-                </button>
-              </div>
-            )}
+          <button
+            onClick={handleNavigateToUpload}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md text-lg font-medium"
+          >
+            <FileText size={20} />
+            Upload Your First Dataset
+          </button>
+          <div className="mt-6 text-sm text-gray-500">
+            <p>Supported formats: Excel (.xlsx), CSV files</p>
           </div>
         </div>
       </div>
@@ -248,7 +240,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
               Refresh Data
             </button>
             <button
-              onClick={onNavigateToUpload}
+              onClick={handleNavigateToUpload}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-lg text-gray-700 hover:bg-gray-50/80 transition-all duration-200"
             >
               <Settings size={16} />
