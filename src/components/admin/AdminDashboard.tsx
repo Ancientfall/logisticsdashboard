@@ -156,13 +156,13 @@ export default function AdminDashboard() {
 	}
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-6 min-h-screen bg-gray-50/50">
 			{/* Header */}
-			<div>
-				<h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+			<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+				<h1 className="text-3xl font-bold text-gray-900 mb-2">
 					Admin Dashboard
 				</h1>
-				<p className="text-gray-600 dark:text-gray-400">
+				<p className="text-gray-600">
 					Manage users and monitor system activity
 				</p>
 			</div>
@@ -170,64 +170,64 @@ export default function AdminDashboard() {
 			{/* Stats Cards */}
 			{stats && (
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-					<Card>
-						<CardBody className="flex flex-row items-center gap-4">
-							<div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-								<Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+					<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+						<div className="flex items-center gap-4">
+							<div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md">
+								<Users className="w-6 h-6 text-white" />
 							</div>
 							<div>
-								<p className="text-sm text-gray-500 dark:text-gray-400">Total Users</p>
-								<p className="text-2xl font-bold">{stats.users.total}</p>
+								<p className="text-sm font-medium text-gray-600">Total Users</p>
+								<p className="text-2xl font-bold text-gray-900">{stats.users.total}</p>
 							</div>
-						</CardBody>
-					</Card>
+						</div>
+					</div>
 
-					<Card>
-						<CardBody className="flex flex-row items-center gap-4">
-							<div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-								<UserCheck className="w-6 h-6 text-green-600 dark:text-green-400" />
+					<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+						<div className="flex items-center gap-4">
+							<div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md">
+								<UserCheck className="w-6 h-6 text-white" />
 							</div>
 							<div>
-								<p className="text-sm text-gray-500 dark:text-gray-400">Active Users</p>
-								<p className="text-2xl font-bold">{stats.users.active}</p>
+								<p className="text-sm font-medium text-gray-600">Active Users</p>
+								<p className="text-2xl font-bold text-gray-900">{stats.users.active}</p>
 							</div>
-						</CardBody>
-					</Card>
+						</div>
+					</div>
 
-					<Card>
-						<CardBody className="flex flex-row items-center gap-4">
-							<div className="p-3 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
-								<Shield className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+					<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+						<div className="flex items-center gap-4">
+							<div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-md">
+								<Shield className="w-6 h-6 text-white" />
 							</div>
 							<div>
-								<p className="text-sm text-gray-500 dark:text-gray-400">Admins</p>
-								<p className="text-2xl font-bold">{stats.users.byRole.admin || 0}</p>
+								<p className="text-sm font-medium text-gray-600">Admins</p>
+								<p className="text-2xl font-bold text-gray-900">{stats.users.byRole.admin || 0}</p>
 							</div>
-						</CardBody>
-					</Card>
+						</div>
+					</div>
 
-					<Card>
-						<CardBody className="flex flex-row items-center gap-4">
-							<div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-								<Activity className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+					<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
+						<div className="flex items-center gap-4">
+							<div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md">
+								<Activity className="w-6 h-6 text-white" />
 							</div>
 							<div>
-								<p className="text-sm text-gray-500 dark:text-gray-400">Recent Uploads</p>
-								<p className="text-2xl font-bold">{stats.uploads.recent}</p>
+								<p className="text-sm font-medium text-gray-600">Recent Uploads</p>
+								<p className="text-2xl font-bold text-gray-900">{stats.uploads.recent}</p>
 							</div>
-						</CardBody>
-					</Card>
+						</div>
+					</div>
 				</div>
 			)}
 
 			{/* User Management */}
-			<Card>
-				<CardHeader>
+			<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50">
+				<div className="p-6 border-b border-gray-200/50">
 					<div className="flex justify-between items-center w-full">
-						<h2 className="text-xl font-semibold">User Management</h2>
+						<h2 className="text-xl font-semibold text-gray-900">User Management</h2>
 						<Button
 							size="sm"
-							variant="flat"
+							className="bg-gray-100 hover:bg-gray-200 text-gray-700"
 							startContent={<RefreshCw size={16} />}
 							onClick={() => {
 								fetchUsers()
@@ -237,22 +237,30 @@ export default function AdminDashboard() {
 							Refresh
 						</Button>
 					</div>
-				</CardHeader>
-				<CardBody>
+				</div>
+				<div className="p-6">
 					{/* Filters */}
-					<div className="flex gap-4 mb-6">
+					<div className="flex gap-4 mb-6 flex-wrap">
 						<Input
 							placeholder="Search users..."
 							value={searchTerm}
 							onChange={(e) => setSearchTerm(e.target.value)}
 							startContent={<Search size={16} />}
 							className="max-w-xs"
+							classNames={{
+								input: "bg-gray-50 text-gray-900",
+								inputWrapper: "bg-gray-50 border-gray-200 hover:border-gray-300 focus-within:border-bp-green"
+							}}
 						/>
 						<Select
 							placeholder="Filter by role"
 							value={roleFilter}
 							onChange={(e) => setRoleFilter(e.target.value)}
 							className="max-w-xs"
+							classNames={{
+								trigger: "bg-gray-50 border-gray-200 hover:border-gray-300 data-[focus=true]:border-bp-green",
+								value: "text-gray-900"
+							}}
 						>
 							<SelectItem key="" value="">All Roles</SelectItem>
 							<SelectItem key="admin" value="admin">Admin</SelectItem>
@@ -264,6 +272,10 @@ export default function AdminDashboard() {
 							value={statusFilter}
 							onChange={(e) => setStatusFilter(e.target.value)}
 							className="max-w-xs"
+							classNames={{
+								trigger: "bg-gray-50 border-gray-200 hover:border-gray-300 data-[focus=true]:border-bp-green",
+								value: "text-gray-900"
+							}}
 						>
 							<SelectItem key="" value="">All Status</SelectItem>
 							<SelectItem key="true" value="true">Active</SelectItem>
@@ -278,7 +290,14 @@ export default function AdminDashboard() {
 						</div>
 					) : (
 						<>
-							<Table aria-label="Users table">
+							<Table 
+								aria-label="Users table"
+								classNames={{
+									wrapper: "bg-white/50 border border-gray-200 rounded-xl shadow-sm",
+									th: "bg-gray-100/50 text-gray-700 font-semibold",
+									td: "text-gray-900"
+								}}
+							>
 								<TableHeader>
 									<TableColumn>NAME</TableColumn>
 									<TableColumn>EMAIL</TableColumn>
@@ -347,13 +366,20 @@ export default function AdminDashboard() {
 							)}
 						</>
 					)}
-				</CardBody>
-			</Card>
+				</div>
+			</div>
 
 			{/* Edit User Modal */}
-			<Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)}>
+			<Modal 
+				isOpen={isEditModalOpen} 
+				onClose={() => setIsEditModalOpen(false)}
+				classNames={{
+					base: "bg-white",
+					backdrop: "bg-black/50"
+				}}
+			>
 				<ModalContent>
-					<ModalHeader>
+					<ModalHeader className="text-gray-900 border-b border-gray-200">
 						Edit User: {selectedUser?.firstName} {selectedUser?.lastName}
 					</ModalHeader>
 					<ModalBody>
