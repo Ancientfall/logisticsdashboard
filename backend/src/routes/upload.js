@@ -80,12 +80,12 @@ router.post('/vessel-manifests',
 	uploadController.uploadVesselManifests
 )
 
-// Upload cost allocations
+// Upload cost allocation
 router.post('/cost-allocation',
 	auth,
 	authorize('admin', 'manager'),
 	upload.single('file'),
-	uploadController.uploadCostAllocations
+	uploadController.uploadCostAllocation
 )
 
 // Upload bulk actions
@@ -96,12 +96,12 @@ router.post('/bulk-actions',
 	uploadController.uploadBulkActions
 )
 
-// Upload voyage lists
+// Upload voyage list
 router.post('/voyage-list',
 	auth,
 	authorize('admin', 'manager'),
 	upload.single('file'),
-	uploadController.uploadVoyageLists
+	uploadController.uploadVoyageList
 )
 
 module.exports = router

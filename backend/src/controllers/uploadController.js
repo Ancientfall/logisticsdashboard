@@ -117,22 +117,34 @@ const transformFluidData = (rawData) => {
 // Helper function to validate and transform voyage event data
 const transformVoyageEventData = (rawData) => {
 	return rawData.map((row, index) => {
-		const date = row.Date || row.date || row.DATE
-		const vessel = row.Vessel || row.vessel || row.VESSEL
 		const mission = row.Mission || row.mission || row.MISSION
+		const vessel = row.Vessel || row.vessel || row.VESSEL
+		const event = row.Event || row.event || row.EVENT
 		
-		if (!date || !vessel || !mission) {
-			throw new Error(`Row ${index + 2}: Missing required fields (date, vessel, mission)`)
+		if (!mission || !vessel || !event) {
+			throw new Error(`Row ${index + 2}: Missing required fields (mission, vessel, event)`)
 		}
 
 		return {
-			date: new Date(date),
-			vessel,
 			mission,
-			event: row.Event || row.event || row.EVENT || null,
+			event,
+			parentEvent: row['Parent Event'] || row.parentEvent || row.parent_event || null,
 			location: row.Location || row.location || row.LOCATION || null,
+			quay: row.Quay || row.quay || row.QUAY || null,
+			remarks: row.Remarks || row.remarks || row.REMARKS || null,
+			isActive: row['Is active?'] || row.isActive || row.is_active ? 
+				String(row['Is active?'] || row.isActive || row.is_active).toLowerCase() === 'true' : true,
+			from: row.From || row.from || row.FROM || null,
+			to: row.To || row.to || row.TO || null,
 			hours: parseFloat(row.Hours || row.hours || row.HOURS || 0),
-			status: row.Status || row.status || row.STATUS || 'Completed',
+			portType: row['Port Type'] || row.portType || row.port_type || null,
+			eventCategory: row['Event Category'] || row.eventCategory || row.event_category || null,
+			year: parseInt(row.Year || row.year || row.YEAR || new Date().getFullYear()),
+			ins500m: row['Ins. 500m'] || row.ins500m ? 
+				String(row['Ins. 500m'] || row.ins500m).toLowerCase() === 'true' : false,
+			costDedicatedTo: row['Cost Dedicated to'] || row.costDedicatedTo || row.cost_dedicated_to || null,
+			vessel,
+			voyageNumber: String(row['Voyage #'] || row.voyageNumber || row.voyage_number || ''),
 			metadata: {
 				originalRow: index + 2,
 				rawData: row
@@ -144,24 +156,32 @@ const transformVoyageEventData = (rawData) => {
 // Helper function to validate and transform vessel manifest data
 const transformVesselManifestData = (rawData) => {
 	return rawData.map((row, index) => {
-		const date = row.Date || row.date || row.DATE
-		const vessel = row.Vessel || row.vessel || row.VESSEL
-		const manifestNo = row['Manifest No'] || row.manifest_no || row.ManifestNo || row.Manifest
+		const voyageId = row['Voyage Id'] || row.voyageId || row.voyage_id
+		const manifestNumber = row['Manifest Number'] || row.manifestNumber || row.manifest_number
 		
-		if (!date || !vessel || !manifestNo) {
-			throw new Error(`Row ${index + 2}: Missing required fields (date, vessel, manifestNo)`)
+		if (!voyageId) {
+			throw new Error(`Row ${index + 2}: Missing required field (voyageId)`)
 		}
 
 		return {
-			date: new Date(date),
-			vessel,
-			manifestNo,
-			cargo: row.Cargo || row.cargo || row.CARGO || null,
-			weight: parseFloat(row.Weight || row.weight || row.WEIGHT || 0),
-			volume: parseFloat(row.Volume || row.volume || row.VOLUME || 0),
-			origin: row.Origin || row.origin || row.ORIGIN || null,
-			destination: row.Destination || row.destination || row.DESTINATION || null,
-			status: row.Status || row.status || row.STATUS || 'In Transit',
+			voyageId: String(voyageId),
+			manifestNumber: manifestNumber || null,
+			transporter: row.Transporter || row.transporter || row.TRANSPORTER || null,
+			type: row.Type || row.type || row.TYPE || null,
+			manifestDate: row['Manifest Date'] || row.manifestDate || row.manifest_date ? 
+				new Date(row['Manifest Date'] || row.manifestDate || row.manifest_date) : null,
+			costCode: row['Cost Code'] || row.costCode || row.cost_code || null,
+			from: row.From || row.from || row.FROM || null,
+			offshoreLocation: row['Offshore Location'] || row.offshoreLocation || row.offshore_location || null,
+			deckLbs: parseFloat(row['Deck Lbs'] || row.deckLbs || row.deck_lbs || 0),
+			deckTons: parseFloat(row['Deck Tons'] || row.deckTons || row.deck_tons || 0),
+			rtTons: parseFloat(row['RT Tons'] || row.rtTons || row.rt_tons || 0),
+			lifts: parseInt(row.Lifts || row.lifts || row.LIFTS || 0),
+			wetBulkBbls: parseFloat(row['Wet Bulk (bbls)'] || row.wetBulkBbls || row.wet_bulk_bbls || 0),
+			wetBulkGals: parseFloat(row['Wet Bulk (gals)'] || row.wetBulkGals || row.wet_bulk_gals || 0),
+			deckSqft: parseFloat(row['Deck Sqft'] || row.deckSqft || row.deck_sqft || 0),
+			remarks: row.Remarks || row.remarks || row.REMARKS || null,
+			year: parseInt(row.Year || row.year || row.YEAR || new Date().getFullYear()),
 			metadata: {
 				originalRow: index + 2,
 				rawData: row
@@ -173,12 +193,10 @@ const transformVesselManifestData = (rawData) => {
 // Helper function to validate and transform cost allocation data
 const transformCostAllocationData = (rawData) => {
 	return rawData.map((row, index) => {
-		const date = row.Date || row.date || row.DATE
-		const lcNumber = row['LC Number'] || row.lc_number || row.LCNumber || row.LC
-		const amount = parseFloat(row.Amount || row.amount || row.AMOUNT || row.Cost || row.cost || 0)
+		const lcNumber = row['LC Number'] || row.lcNumber || row.lc_number
 		
-		if (!date || !lcNumber) {
-			throw new Error(`Row ${index + 2}: Missing required fields (date, lcNumber)`)
+		if (!lcNumber) {
+			throw new Error(`Row ${index + 2}: Missing required field (lcNumber)`)
 		}
 
 		// Auto-detect department based on LC number patterns
@@ -198,13 +216,20 @@ const transformCostAllocationData = (rawData) => {
 		}
 
 		return {
-			date: new Date(date),
 			lcNumber,
-			amount: isNaN(amount) ? 0 : amount,
-			department,
+			rigReference: row['Rig Reference'] || row.rigReference || row.rig_reference || null,
 			description: row.Description || row.description || row.DESCRIPTION || null,
-			category: row.Category || row.category || row.CATEGORY || null,
-			vendor: row.Vendor || row.vendor || row.VENDOR || null,
+			costElement: row['Cost Element'] || row.costElement || row.cost_element || null,
+			monthYear: row['Month-Year'] || row.monthYear || row.month_year || null,
+			mission: row.Mission || row.mission || row.MISSION || null,
+			projectType: row['Project Type'] || row.projectType || row.project_type || null,
+			allocatedDays: parseFloat(row['Alloc (days)'] || row['Total Allocated Days'] || row.allocatedDays || row.allocated_days || 0),
+			avgVesselCostPerDay: parseFloat(row['Average Vessel Cost Per Day'] || row.avgVesselCostPerDay || row.avg_vessel_cost_per_day || 0),
+			totalCost: parseFloat(row['Total Cost'] || row.totalCost || row.total_cost || row.Amount || row.amount || 0),
+			rigLocation: row['Rig Location'] || row.rigLocation || row.rig_location || null,
+			rigType: row['Rig Type'] || row.rigType || row.rig_type || null,
+			waterDepth: row['Water Depth'] || row.waterDepth || row.water_depth || null,
+			department,
 			metadata: {
 				originalRow: index + 2,
 				rawData: row
@@ -216,23 +241,30 @@ const transformCostAllocationData = (rawData) => {
 // Helper function to validate and transform bulk action data
 const transformBulkActionData = (rawData) => {
 	return rawData.map((row, index) => {
-		const date = row.Date || row.date || row.DATE
-		const vessel = row.Vessel || row.vessel || row.VESSEL
-		const action = row.Action || row.action || row.ACTION
+		const vesselName = row['Vessel Name'] || row.vesselName || row.vessel_name || row.Vessel || row.vessel
 		
-		if (!date || !vessel || !action) {
-			throw new Error(`Row ${index + 2}: Missing required fields (date, vessel, action)`)
-		}
-
 		return {
-			date: new Date(date),
-			vessel,
-			action,
-			cargo: row.Cargo || row.cargo || row.CARGO || null,
-			quantity: parseFloat(row.Quantity || row.quantity || row.QUANTITY || 0),
+			vesselName: vesselName || null,
+			voyageNumber: String(row['Voyage Number'] || row.voyageNumber || row.voyage_number || ''),
+			manifestNumber: row['Manifest Number'] || row.manifestNumber || row.manifest_number || null,
+			manifestDate: row['Manifest Date'] || row.manifestDate || row.manifest_date ? 
+				new Date(row['Manifest Date'] || row.manifestDate || row.manifest_date) : null,
+			from: row.From || row.from || row.FROM || null,
+			to: row.To || row.to || row.TO || null,
+			cargoType: row['Cargo Type'] || row.cargoType || row.cargo_type || row.Type || row.type || null,
+			cargoDescription: row['Cargo Description'] || row.cargoDescription || row.cargo_description || row.Description || row.description || null,
+			quantity: parseFloat(row.Quantity || row.quantity || row.QUANTITY || row.Qty || row.qty || 0),
 			unit: row.Unit || row.unit || row.UNIT || 'MT',
-			location: row.Location || row.location || row.LOCATION || null,
-			status: row.Status || row.status || row.STATUS || 'Completed',
+			weight: parseFloat(row.Weight || row.weight || row.WEIGHT || 0),
+			volume: parseFloat(row.Volume || row.volume || row.VOLUME || 0),
+			costCode: row['Cost Code'] || row.costCode || row.cost_code || null,
+			projectCode: row['Project Code'] || row.projectCode || row.project_code || null,
+			department: row.Department || row.department || row.DEPARTMENT || null,
+			status: row.Status || row.status || row.STATUS || 'pending',
+			actionType: row['Action Type'] || row.actionType || row.action_type || row.Action || row.action || null,
+			completedDate: row['Completed Date'] || row.completedDate || row.completed_date ? 
+				new Date(row['Completed Date'] || row.completedDate || row.completed_date) : null,
+			remarks: row.Remarks || row.remarks || row.REMARKS || null,
 			metadata: {
 				originalRow: index + 2,
 				rawData: row
@@ -244,23 +276,38 @@ const transformBulkActionData = (rawData) => {
 // Helper function to validate and transform voyage list data
 const transformVoyageListData = (rawData) => {
 	return rawData.map((row, index) => {
-		const voyageNo = row['Voyage No'] || row.voyage_no || row.VoyageNo || row.Voyage
-		const vessel = row.Vessel || row.vessel || row.VESSEL
-		const startDate = row['Start Date'] || row.start_date || row.StartDate || row.Start
+		const vesselName = row.Vessel || row.vessel || row.VESSEL || row['Vessel Name'] || row.vesselName
+		const voyageNumber = row['Voyage Number'] || row.voyageNumber || row.voyage_number || row['Voyage No'] || row.voyageNo
 		
-		if (!voyageNo || !vessel || !startDate) {
-			throw new Error(`Row ${index + 2}: Missing required fields (voyageNo, vessel, startDate)`)
+		if (!vesselName || !voyageNumber) {
+			throw new Error(`Row ${index + 2}: Missing required fields (vesselName, voyageNumber)`)
 		}
 
 		return {
-			voyageNo,
-			vessel,
-			startDate: new Date(startDate),
-			endDate: row['End Date'] || row.end_date || row.EndDate ? new Date(row['End Date'] || row.end_date || row.EndDate) : null,
-			origin: row.Origin || row.origin || row.ORIGIN || null,
-			destination: row.Destination || row.destination || row.DESTINATION || null,
-			distance: parseFloat(row.Distance || row.distance || row.DISTANCE || 0),
-			status: row.Status || row.status || row.STATUS || 'In Progress',
+			vesselName,
+			voyageNumber: String(voyageNumber),
+			voyageType: row.Type || row.type || row.TYPE || row['Voyage Type'] || row.voyageType || null,
+			departurePort: row['Departure Port'] || row.departurePort || row.departure_port || row.From || row.from || null,
+			departureDate: row['Start Date'] || row.startDate || row.start_date || row['Departure Date'] || row.departureDate ? 
+				new Date(row['Start Date'] || row.startDate || row.start_date || row['Departure Date'] || row.departureDate) : null,
+			arrivalPort: row['Arrival Port'] || row.arrivalPort || row.arrival_port || row.To || row.to || null,
+			arrivalDate: row['End Date'] || row.endDate || row.end_date || row['Arrival Date'] || row.arrivalDate ? 
+				new Date(row['End Date'] || row.endDate || row.end_date || row['Arrival Date'] || row.arrivalDate) : null,
+			voyageDuration: parseFloat(row['Voyage Duration'] || row.voyageDuration || row.voyage_duration || 0),
+			totalDistance: parseFloat(row['Total Distance'] || row.totalDistance || row.total_distance || row.Distance || row.distance || 0),
+			fuelConsumption: parseFloat(row['Fuel Consumption'] || row.fuelConsumption || row.fuel_consumption || 0),
+			cargoCapacity: parseFloat(row['Cargo Capacity'] || row.cargoCapacity || row.cargo_capacity || 0),
+			cargoUtilization: parseFloat(row['Cargo Utilization'] || row.cargoUtilization || row.cargo_utilization || 0),
+			voyageStatus: row.Status || row.status || row.STATUS || row['Voyage Status'] || row.voyageStatus || 'planned',
+			charterer: row.Charterer || row.charterer || row.CHARTERER || null,
+			operator: row.Operator || row.operator || row.OPERATOR || null,
+			masterName: row['Master Name'] || row.masterName || row.master_name || row.Master || row.master || null,
+			totalCrew: parseInt(row['Total Crew'] || row.totalCrew || row.total_crew || row.Crew || row.crew || 0),
+			voyagePurpose: row['Voyage Purpose'] || row.voyagePurpose || row.voyage_purpose || row.Purpose || row.purpose || null,
+			totalRevenue: parseFloat(row['Total Revenue'] || row.totalRevenue || row.total_revenue || row.Revenue || row.revenue || 0),
+			totalCost: parseFloat(row['Total Cost'] || row.totalCost || row.total_cost || row.Cost || row.cost || 0),
+			profit: parseFloat(row.Profit || row.profit || row.PROFIT || 0),
+			remarks: row.Remarks || row.remarks || row.REMARKS || null,
 			metadata: {
 				originalRow: index + 2,
 				rawData: row
@@ -721,8 +768,8 @@ exports.uploadVesselManifests = async (req, res) => {
 	}
 }
 
-// Upload cost allocations
-exports.uploadCostAllocations = async (req, res) => {
+// Upload cost allocation
+exports.uploadCostAllocation = async (req, res) => {
 	const transaction = await sequelize.transaction()
 	const startTime = Date.now()
 
@@ -855,8 +902,8 @@ exports.uploadBulkActions = async (req, res) => {
 	}
 }
 
-// Upload voyage lists
-exports.uploadVoyageLists = async (req, res) => {
+// Upload voyage list
+exports.uploadVoyageList = async (req, res) => {
 	const transaction = await sequelize.transaction()
 	const startTime = Date.now()
 
