@@ -20,7 +20,7 @@ export interface VesselClassification {
   status: 'Active' | 'Standby' | 'Maintenance' | 'Retired';
 }
 
-// Generated from Excel file on 2025-06-18T18:35:09.989Z
+// Generated from Excel file on 2025-06-18T18:32:27.705Z
 export const vesselClassificationData: VesselClassification[] = [
   {
     "vesselName": "Amber",
