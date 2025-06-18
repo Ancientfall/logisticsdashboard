@@ -4,16 +4,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { NextUIProvider } from '@nextui-org/react'
 import { DataProvider } from './context/DataContext'
 import { NotificationProvider } from './context/NotificationContext'
-import { AuthProvider } from './context/AuthContext'
 import { HttpsEnforcer } from './components/security/HttpsEnforcer'
 import LoadingBoundary from './components/layout/LoadingBoundary'
-
-// Auth components
-import Login from './components/auth/Login'
-import Register from './components/auth/Register'
-import ForgotPassword from './components/auth/ForgotPassword'
-import ResetPassword from './components/auth/ResetPassword'
-import PrivateRoute from './components/auth/PrivateRoute'
 
 // Dashboard components
 import DashboardLayout from './components/layout/DashboardLayout'
@@ -50,103 +42,77 @@ function App() {
 			<Router>
 				<LoadingBoundary>
 					<NotificationProvider>
-						<AuthProvider>
-							<DataProvider>
-								<HttpsEnforcer />
-								<Routes>
+						<DataProvider>
+							<HttpsEnforcer />
+							<Routes>
 								{/* Public routes */}
 								<Route path="/" element={<LandingPageWrapper />} />
-								<Route path="/login" element={<Login />} />
-								<Route path="/register" element={<Register />} />
-								<Route path="/forgot-password" element={<ForgotPassword />} />
-								<Route path="/reset-password" element={<ResetPassword />} />
 								
-								{/* Protected routes */}
-								
+								{/* Dashboard routes - no authentication required */}
 								<Route path="/upload" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<FileUploadPageWithDB />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<FileUploadPageWithDB />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/dashboard" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<MainDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<MainDashboard />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/drilling" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<DrillingDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<DrillingDashboard />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/production" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<ProductionDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<ProductionDashboard />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/voyage" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<VoyageAnalyticsDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<VoyageAnalyticsDashboard />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/cost" element={
-									<PrivateRoute requiredRole="manager">
-										<DashboardLayout>
-											<CostAllocationManagerRedesigned />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<CostAllocationManagerRedesigned />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/comparison" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<ComparisonDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<ComparisonDashboard />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/bulk" element={
-									<PrivateRoute>
-										<DashboardLayout>
-											<BulkActionsDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<BulkActionsDashboard />
+									</DashboardLayout>
 								} />
 								
 								<Route path="/admin" element={
-									<PrivateRoute requiredRole="admin">
-										<DashboardLayout>
-											<AdminDashboard />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<AdminDashboard />
+									</DashboardLayout>
 								} />
+								
 								<Route path="/admin/reference" element={
-									<PrivateRoute requiredRole="admin">
-										<DashboardLayout>
-											<ReferenceDataManager />
-										</DashboardLayout>
-									</PrivateRoute>
+									<DashboardLayout>
+										<ReferenceDataManager />
+									</DashboardLayout>
 								} />
 								
 								{/* Catch all - redirect to home */}
 								<Route path="*" element={<Navigate to="/" replace />} />
-								</Routes>
-							</DataProvider>
-						</AuthProvider>
+							</Routes>
+						</DataProvider>
 					</NotificationProvider>
 				</LoadingBoundary>
 			</Router>

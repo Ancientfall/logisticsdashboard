@@ -191,16 +191,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             <div className={`flex items-center gap-4 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
               <button 
                 onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
-                className="px-6 py-2.5 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50"
                 disabled={isLoadingFromServer}
               >
-                {isLoadingFromServer ? 'Loading...' : (hasData ? 'View Analytics' : (serverFilesAvailable ? 'View Analytics' : 'Demo'))}
-              </button>
-              <button 
-                onClick={onGetStarted}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg"
-              >
-                Get Started
+                {isLoadingFromServer ? 'Loading...' : (hasData ? 'View Analytics' : (serverFilesAvailable ? 'View Analytics' : 'Upload Data'))}
               </button>
             </div>
           </nav>
@@ -210,7 +204,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             <div className={`transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
               <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-8">
                 <Sparkles size={16} />
-                AI-Powered Analytics for Offshore Operations
+                Internal Analytics Platform for BP Operations
                 <ChevronRight size={16} />
               </div>
               
@@ -222,8 +216,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               </h1>
               
               <p className="text-xl md:text-2xl text-gray-600 mb-10 leading-relaxed max-w-3xl mx-auto">
-                Unlock powerful insights from your vessel operations, drilling activities, and production data 
-                with our comprehensive analytics platform.
+                Access comprehensive analytics for vessel operations, drilling activities, and production data 
+                from your internal BP Logistics platform.
               </p>
 
               {/* CTA Buttons */}
@@ -234,16 +228,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   disabled={isLoadingFromServer}
                 >
                   <BarChart3 size={20} />
-                  {isLoadingFromServer ? 'Loading Data...' : (serverFilesAvailable ? 'View Analytics' : 'Upload Data')}
+                  {isLoadingFromServer ? 'Loading Data...' : (serverFilesAvailable ? 'Access Analytics Dashboard' : 'Upload Your Data')}
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
-                </button>
-                <button 
-                  onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
-                  className="group bg-white text-gray-900 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-50 transition-all duration-300 shadow-lg border border-gray-200 flex items-center gap-3 justify-center disabled:opacity-50"
-                  disabled={isLoadingFromServer}
-                >
-                  <Activity size={20} />
-                  {isLoadingFromServer ? 'Loading...' : 'Explore Dashboards'}
                 </button>
               </div>
             </div>
@@ -388,27 +374,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       <div className="py-24 bg-gradient-to-r from-green-600 to-blue-600">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Start Optimizing Today
+            Access Your Analytics Dashboard
           </h2>
           <p className="text-xl text-green-100 mb-10">
-            Join leading offshore operators who've transformed their operations with data-driven insights
+            Comprehensive offshore operations analytics for BP internal teams
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex justify-center">
             <button 
               onClick={serverFilesAvailable ? handleViewAnalytics : onGetStarted}
               className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center disabled:opacity-50"
               disabled={isLoadingFromServer}
             >
               <BarChart3 size={20} />
-              {isLoadingFromServer ? 'Loading...' : 'Access Analytics'}
+              {isLoadingFromServer ? 'Loading Dashboard...' : 'Access Analytics Dashboard'}
               <ArrowRight size={20} />
-            </button>
-            <button 
-              onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
-              className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border-2 border-white/30 disabled:opacity-50"
-              disabled={isLoadingFromServer}
-            >
-              {isLoadingFromServer ? 'Loading Data...' : (hasData ? 'Go to Dashboard' : (serverFilesAvailable ? 'View Analytics' : 'Request Access'))}
             </button>
           </div>
         </div>

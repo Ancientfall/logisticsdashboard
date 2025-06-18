@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Grid3X3, User, LogOut, Upload, Shield } from 'lucide-react';
+import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Grid3X3, Upload, Shield, Home } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { useAuth } from '../../context/AuthContext';
 import NotificationPanel from '../notifications/NotificationPanel';
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar } from '@nextui-org/react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -18,7 +16,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const { lastUpdated } = useData();
   const { state: notificationState } = useNotifications();
-  const { user, logout } = useAuth();
 
   // Determine current view based on route
   const getCurrentView = () => {
@@ -43,7 +40,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     return () => clearInterval(timer);
   }, []);
 
-
   const navItems = [
     { 
       path: '/drilling', 
@@ -53,9 +49,27 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     },
     { 
       path: '/production', 
-      icon: BarChart2, 
+      icon: Settings2, 
       label: 'Production',
       view: 'production'
+    },
+    { 
+      path: '/voyage', 
+      icon: Ship, 
+      label: 'Voyage',
+      view: 'voyage'
+    },
+    { 
+      path: '/bulk', 
+      icon: Package, 
+      label: 'Bulk Actions',
+      view: 'bulk'
+    },
+    { 
+      path: '/cost', 
+      icon: DollarSign, 
+      label: 'Cost Allocation',
+      view: 'cost'
     },
     { 
       path: '/comparison', 
@@ -64,161 +78,97 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       view: 'comparison'
     },
     { 
-      path: '/voyage', 
-      icon: Ship, 
-      label: 'Voyage Analytics',
-      view: 'voyage'
-    },
-    { 
-      path: '/cost', 
-      icon: DollarSign, 
-      label: 'Cost Allocation',
-      view: 'cost',
-      requiredRole: 'manager'
-    },
-    { 
-      path: '/bulk', 
-      icon: Package, 
-      label: 'Bulk Actions',
-      view: 'bulk'
+      path: '/dashboard', 
+      icon: BarChart2, 
+      label: 'Summary',
+      view: 'dashboard'
     }
   ];
 
-  // Filter nav items based on user role
-  const visibleNavItems = navItems.filter(item => {
-    if (!item.requiredRole) return true;
-    
-    const roleHierarchy: Record<string, number> = {
-      viewer: 1,
-      manager: 2,
-      admin: 3
-    };
-    
-    const userRoleLevel = roleHierarchy[user?.role || 'viewer'];
-    const requiredRoleLevel = roleHierarchy[item.requiredRole];
-    
-    return userRoleLevel >= requiredRoleLevel;
-  });
+  // Show all navigation items for internal tool
+  const visibleNavItems = navItems;
+
+  const hasUnreadNotifications = notificationState.notifications.some(n => !n.isRead);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-gray-900 relative z-20">
-        {/* Top Bar */}
-        <div className="border-b border-gray-800">
-          <div className="max-w-screen-2xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              {/* Left Section - Logo & Title */}
-              <div className="flex items-center gap-6">
-                <div 
-                  onClick={() => navigate('/')}
-                  className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                >
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center shadow-lg">
-                    <span className="text-white font-bold text-lg">bp</span>
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-semibold text-white">Logistics Analytics</h1>
-                    <p className="text-xs text-gray-400">Offshore Vessel Operations</p>
-                  </div>
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 shadow-xl">
+        <div className="max-w-screen-2xl mx-auto px-6">
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-8">
+              {/* Logo/Brand */}
+              <button 
+                onClick={() => navigate('/')}
+                className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-xl">bp</span>
                 </div>
-              </div>
+                <div>
+                  <h1 className="text-xl font-bold text-white">BP Logistics Analytics</h1>
+                  <p className="text-sm text-gray-300">Internal Operations Dashboard</p>
+                </div>
+              </button>
 
-              {/* Right Section - Date/Time, Notifications & User */}
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2 text-gray-300">
-                  <Clock size={16} />
-                  <span className="text-sm">
-                    {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} • 
-                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              {/* Data Status */}
+              <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-gray-300">
+                    {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'No data loaded'}
                   </span>
                 </div>
-                <button 
-                  onClick={() => setIsNotificationPanelOpen(true)}
-                  className="relative p-2 hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <Bell size={18} className="text-gray-300" />
-                  {notificationState.unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
-                      {notificationState.unreadCount > 99 ? '99+' : notificationState.unreadCount}
-                    </span>
-                  )}
-                </button>
-                
-                {/* User Dropdown */}
-                {user && (
-                  <Dropdown placement="bottom-end">
-                    <DropdownTrigger>
-                      <button className="flex items-center gap-3 px-3 py-1.5 hover:bg-gray-800 rounded-lg transition-colors">
-                        <Avatar
-                          size="sm"
-                          name={`${user.firstName} ${user.lastName}`}
-                          showFallback
-                          fallback={
-                            <span className="text-white font-semibold text-sm">
-                              {user.firstName.charAt(0).toUpperCase()}{user.lastName.charAt(0).toUpperCase()}
-                            </span>
-                          }
-                          className="bg-bp-green text-white"
-                        />
-                        <div className="text-left">
-                          <p className="text-sm font-medium text-white">{user.firstName} {user.lastName}</p>
-                          <p className="text-xs text-gray-400 capitalize">{user.role}</p>
-                        </div>
-                      </button>
-                    </DropdownTrigger>
-                    <DropdownMenu 
-                      aria-label="User menu"
-                      classNames={{
-                        base: "bg-white/95 backdrop-blur-md border border-gray-200 shadow-xl rounded-xl p-2",
-                        list: "gap-1"
-                      }}
-                    >
-                      <DropdownItem 
-                        key="profile" 
-                        startContent={<User size={16} />}
-                        classNames={{
-                          base: "rounded-lg text-gray-700 hover:bg-gray-100 data-[hover=true]:bg-gray-100"
-                        }}
-                      >
-                        Profile Settings
-                      </DropdownItem>
-                      <DropdownItem 
-                        key="upload" 
-                        startContent={<Upload size={16} />}
-                        onClick={() => navigate('/upload')}
-                        className={user.role === 'viewer' ? 'hidden' : ''}
-                        classNames={{
-                          base: "rounded-lg text-gray-700 hover:bg-gray-100 data-[hover=true]:bg-gray-100"
-                        }}
-                      >
-                        Upload Data
-                      </DropdownItem>
-                      <DropdownItem 
-                        key="admin" 
-                        startContent={<Shield size={16} />}
-                        onClick={() => navigate('/admin')}
-                        className={user.role !== 'admin' ? 'hidden' : ''}
-                        classNames={{
-                          base: "rounded-lg text-gray-700 hover:bg-gray-100 data-[hover=true]:bg-gray-100"
-                        }}
-                      >
-                        Admin Dashboard
-                      </DropdownItem>
-                      <DropdownItem 
-                        key="logout" 
-                        startContent={<LogOut size={16} />}
-                        color="danger"
-                        onClick={logout}
-                        classNames={{
-                          base: "rounded-lg text-red-600 hover:bg-red-50 data-[hover=true]:bg-red-50"
-                        }}
-                      >
-                        Log Out
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Current Time */}
+              <div className="flex items-center gap-2 text-gray-300">
+                <Clock size={16} />
+                <span className="text-sm font-mono">
+                  {currentTime.toLocaleTimeString()}
+                </span>
+              </div>
+
+              {/* Notifications */}
+              <button
+                onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
+                className={`relative p-2 rounded-lg transition-colors ${
+                  hasUnreadNotifications 
+                    ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' 
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                <Bell size={20} />
+                {hasUnreadNotifications && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></div>
                 )}
+              </button>
+
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => navigate('/')}
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 rounded-lg transition-colors text-gray-300 hover:text-white"
+                >
+                  <Home size={16} />
+                  <span className="text-sm">Home</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/upload')}
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 rounded-lg transition-colors text-gray-300 hover:text-white"
+                >
+                  <Upload size={16} />
+                  <span className="text-sm">Upload</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/admin')}
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 rounded-lg transition-colors text-gray-300 hover:text-white"
+                >
+                  <Shield size={16} />
+                  <span className="text-sm">Admin</span>
+                </button>
               </div>
             </div>
           </div>
@@ -249,69 +199,35 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 })}
               </div>
 
-              {/* Settings Button - Separated */}
-              <button
-                onClick={() => navigate('/dashboard')}
-                className={`flex items-center gap-3 px-6 py-4 ml-6 border-b-2 transition-all duration-200 ${
-                  currentView === 'dashboard'
-                    ? 'border-green-500 text-white bg-gray-800/50'
-                    : 'border-transparent text-gray-400 hover:text-white hover:bg-gray-800/30'
-                }`}
-              >
-                <Settings2 size={20} />
-                <span className="font-medium">Data Settings</span>
-              </button>
+              {/* Right Side Actions */}
+              <div className="flex items-center gap-4">
+                <div className="text-xs text-gray-400">
+                  {currentView && (
+                    <>
+                      <span className="capitalize">{currentView}</span>
+                      <ChevronRight size={12} className="inline mx-1" />
+                      Dashboard
+                    </>
+                  )}
+                </div>
+              </div>
             </nav>
           </div>
         </div>
-
-        {/* Breadcrumb Bar */}
-        <div className="bg-gray-50 border-b border-gray-200">
-          <div className="max-w-screen-2xl mx-auto px-6 py-3">
-            <div className="flex items-center justify-between">
-              {/* Breadcrumb */}
-              <div className="flex items-center gap-2 text-sm">
-                <button 
-                  onClick={() => navigate('/')}
-                  className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors px-2 py-1 rounded hover:bg-gray-100"
-                >
-                  <Grid3X3 size={16} />
-                  <span>Dashboard Selector</span>
-                </button>
-                
-                {currentView !== 'selector' && (
-                  <>
-                    <ChevronRight size={16} className="text-gray-400" />
-                    <span className="text-gray-700 font-medium">
-                      {navItems.find(item => item.view === currentView)?.label || 
-                       (currentView === 'dashboard' ? 'Data Settings' : 
-                        currentView === 'upload' ? 'Upload Data' : 'Dashboard')}
-                    </span>
-                  </>
-                )}
-              </div>
-
-              {/* Last Updated */}
-              {lastUpdated && (
-                <div className="text-xs text-gray-500">
-                  Last data update: {new Date(lastUpdated).toLocaleString()}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1">
-        {children}
-      </main>
+      </div>
 
       {/* Notification Panel */}
-      <NotificationPanel 
-        isOpen={isNotificationPanelOpen}
-        onClose={() => setIsNotificationPanelOpen(false)}
-      />
+      {isNotificationPanelOpen && (
+        <NotificationPanel 
+          isOpen={isNotificationPanelOpen}
+          onClose={() => setIsNotificationPanelOpen(false)}
+        />
+      )}
+
+      {/* Main Content */}
+      <main className="max-w-screen-2xl mx-auto px-6 py-8">
+        {children}
+      </main>
     </div>
   );
 };
