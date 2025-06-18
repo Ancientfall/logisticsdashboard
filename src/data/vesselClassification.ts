@@ -20,325 +20,469 @@ export interface VesselClassification {
   status: 'Active' | 'Standby' | 'Maintenance' | 'Retired';
 }
 
+// Generated from Excel file on 2025-06-18T18:26:50.116Z
 export const vesselClassificationData: VesselClassification[] = [
-  // Edison Chouest Offshore Vessels
   {
-    vesselName: 'Amber',
-    company: 'Edison Chouest Offshore',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico', 'West Africa'],
-    status: 'Active'
+    "vesselName": "Amber",
+    "company": "Edison Chouest Offshore",
+    "size": 280,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 280
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Robin',
-    company: 'Edison Chouest Offshore',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Cajun IV",
+    "company": "Jackson Offshore",
+    "size": 210,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 210
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Claire Comeaux',
-    company: 'Edison Chouest Offshore',
-    size: 299,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Charlie Comeaux",
+    "company": "Edison Chouest Offshore",
+    "size": 299,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 299
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Dauphin Island',
-    company: 'Edison Chouest Offshore',
-    size: 312,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Claire Candies",
+    "company": "Otto Candies",
+    "size": 282,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 282
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fantasy Island',
-    company: 'Edison Chouest Offshore',
-    size: 312,
-    vesselType: 'Specialty',
-    category: 'Specialized',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Dauphin island",
+    "company": "Edison Chouest Offshore",
+    "size": 312,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 312
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fast Giant',
-    company: 'Edison Chouest Offshore',
-    size: 194,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fantasy island",
+    "company": "Edison Chouest Offshore",
+    "size": 312,
+    "vesselType": "Specialty",
+    "category": "Specialized",
+    "specifications": {
+      "length": 312
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fast Goliath',
-    company: 'Edison Chouest Offshore',
-    size: 194,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fast Giant",
+    "company": "Edison Chouest Offshore",
+    "size": 194,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 194
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fast Hauler',
-    company: 'Edison Chouest Offshore',
-    size: 194,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fast Goliath",
+    "company": "Edison Chouest Offshore",
+    "size": 194,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 194
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fast Leopard',
-    company: 'Edison Chouest Offshore',
-    size: 201,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fast Hauler",
+    "company": "Edison Chouest Offshore",
+    "size": 194,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 194
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fast Lion',
-    company: 'Edison Chouest Offshore',
-    size: 190,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fast Leopard",
+    "company": "Edison Chouest Offshore",
+    "size": 201,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 201
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Fast Tiger',
-    company: 'Edison Chouest Offshore',
-    size: 196,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fast Lion",
+    "company": "Edison Chouest Offshore",
+    "size": 190,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 190
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Lucy',
-    company: 'Edison Chouest Offshore',
-    size: 270,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Fast Tiger",
+    "company": "Edison Chouest Offshore",
+    "size": 196,
+    "vesselType": "FSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 196
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Pelican Island',
-    company: 'Edison Chouest Offshore',
-    size: 312,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Gibson Lab",
+    "company": "Laborde Marine",
+    "size": 240,
+    "vesselType": "Support",
+    "category": "Support",
+    "specifications": {
+      "length": 240
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Ship Island',
-    company: 'Edison Chouest Offshore',
-    size: 312,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
-  },
-
-  // Jackson Offshore Vessels
-  {
-    vesselName: 'Cajun IV',
-    company: 'Jackson Offshore',
-    size: 210,
-    vesselType: 'FSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Harvey Carrier",
+    "company": "Harvey Gulf",
+    "size": 280,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 280
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Lightning',
-    company: 'Jackson Offshore',
-    size: 252,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Harvey Champion",
+    "company": "Harvey Gulf",
+    "size": 310,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 310
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Squall',
-    company: 'Jackson Offshore',
-    size: 252,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
-  },
-
-  // Otto Candies Vessels
-  {
-    vesselName: 'Claire Candies',
-    company: 'Otto Candies',
-    size: 282,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Harvey Freedom",
+    "company": "Harvey Gulf",
+    "size": 310,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 310
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Tucker Candies',
-    company: 'Otto Candies',
-    size: 290,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
-  },
-
-  // Harvey Gulf Vessels
-  {
-    vesselName: 'Harvey Carrier',
-    company: 'Harvey Gulf',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Harvey Power",
+    "company": "Harvey Gulf",
+    "size": 310,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 310
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Harvey Champion',
-    company: 'Harvey Gulf',
-    size: 310,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Harvey Provider",
+    "company": "Harvey Gulf",
+    "size": 240,
+    "vesselType": "Support",
+    "category": "Support",
+    "specifications": {
+      "length": 240
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Harvey Freedom',
-    company: 'Harvey Gulf',
-    size: 310,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Harvey Supporter",
+    "company": "Harvey Gulf",
+    "size": 310,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 310
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Harvey Power',
-    company: 'Harvey Gulf',
-    size: 310,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "HOS Black Foot",
+    "company": "Hornbeck Offshore",
+    "size": 310,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 310
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Harvey Provider',
-    company: 'Harvey Gulf',
-    size: 240,
-    vesselType: 'Support',
-    category: 'Support',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "HOS Blackhawk",
+    "company": "Hornbeck Offshore",
+    "size": 280,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 280
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Harvey Supporter',
-    company: 'Harvey Gulf',
-    size: 310,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
-  },
-
-  // Hornbeck Offshore Vessels
-  {
-    vesselName: 'HOS Black Foot',
-    company: 'Hornbeck Offshore',
-    size: 310,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "HOS Commander",
+    "company": "Hornbeck Offshore",
+    "size": 320,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 320
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'HOS Blackhawk',
-    company: 'Hornbeck Offshore',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "HOS Mauser",
+    "company": "Hornbeck Offshore",
+    "size": 280,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 280
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'HOS Commander',
-    company: 'Hornbeck Offshore',
-    size: 320,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "HOS Panther",
+    "company": "Hornbeck Offshore",
+    "size": 280,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 280
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'HOS Mauser',
-    company: 'Hornbeck Offshore',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "HOS Ruger",
+    "company": "Hornbeck Offshore",
+    "size": 280,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 280
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'HOS Panther',
-    company: 'Hornbeck Offshore',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Lightning",
+    "company": "Jackson Offshore",
+    "size": 252,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 252
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'HOS Ruger',
-    company: 'Hornbeck Offshore',
-    size: 280,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
-  },
-
-  // Laborde Marine Vessels
-  {
-    vesselName: 'Gibson Lab',
-    company: 'Laborde Marine',
-    size: 240,
-    vesselType: 'Support',
-    category: 'Support',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Lucy",
+    "company": "Edison Chouest Offshore",
+    "size": 270,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 270
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
   {
-    vesselName: 'Persistence Lab',
-    company: 'Laborde Marine',
-    size: 150,
-    vesselType: 'Support',
-    category: 'Support',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Pelican Island",
+    "company": "Edison Chouest Offshore",
+    "size": 312,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 312
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   },
-
-  // Tidewater Marine Vessels
   {
-    vesselName: 'Regulus',
-    company: 'Tidewater Marine',
-    size: 272,
-    vesselType: 'OSV',
-    category: 'Supply',
-    operationalArea: ['Gulf of Mexico'],
-    status: 'Active'
+    "vesselName": "Persistence Lab",
+    "company": "Laborde Marine",
+    "size": 150,
+    "vesselType": "Support",
+    "category": "Support",
+    "specifications": {
+      "length": 150
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
+  },
+  {
+    "vesselName": "Regulus",
+    "company": "Tidewater Marine",
+    "size": 272,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 272
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
+  },
+  {
+    "vesselName": "Ship Island",
+    "company": "Edison Chouest Offshore",
+    "size": 312,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 312
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
+  },
+  {
+    "vesselName": "Squall",
+    "company": "Jackson Offshore",
+    "size": 252,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 252
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
+  },
+  {
+    "vesselName": "Tucker Candies",
+    "company": "Otto Candies",
+    "size": 290,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 290
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
   }
 ];
 
@@ -405,4 +549,4 @@ export const getVesselStatistics = () => {
   };
 };
 
-export default vesselClassificationData; 
+export default vesselClassificationData;
