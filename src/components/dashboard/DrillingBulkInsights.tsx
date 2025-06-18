@@ -111,9 +111,10 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
       if (selectedLocation && selectedLocation !== 'all' && selectedLocation !== 'All Locations') {
         const normalizedSelected = normalizeLocationForComparison(selectedLocation);
         const normalizedDestination = normalizeLocationForComparison(action.standardizedDestination || '');
-        const normalizedOrigin = normalizeLocationForComparison(action.standardizedOrigin || '');
         
-        if (normalizedDestination !== normalizedSelected && normalizedOrigin !== normalizedSelected) return false;
+        // FIXED: Only count deliveries TO the location (destination), not from the location (origin)
+        // This prevents double-counting the same fluid volume for both load and discharge operations
+        if (normalizedDestination !== normalizedSelected) return false;
       }
       
       // Safe date range check

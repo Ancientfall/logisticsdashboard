@@ -37,6 +37,7 @@ const KPICard: React.FC<KPICardProps> = ({
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +51,14 @@ const KPICard: React.FC<KPICardProps> = ({
     indigo: 'bg-indigo-500',
     pink: 'bg-pink-500',
     yellow: 'bg-yellow-500'
+  };
+
+  // Status-based colors that override explicit colors when target is present
+  const statusBarColors = {
+    good: 'bg-green-500',
+    warning: 'bg-yellow-500', 
+    critical: 'bg-red-500',
+    neutral: colorClasses[color] || 'bg-gray-400'
   };
 
   const statusClasses = {
@@ -72,28 +81,62 @@ const KPICard: React.FC<KPICardProps> = ({
     const numValue = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
     if (isNaN(numValue)) return 'neutral';
     
-    if (isPositive) {
+    // For metrics where higher is better (isPositive = true or null/undefined)
+    if (isPositive !== false) {
       return numValue >= target ? 'good' : numValue >= target * 0.8 ? 'warning' : 'critical';
     } else {
+      // For metrics where lower is better (isPositive = false)
       return numValue <= target ? 'good' : numValue <= target * 1.2 ? 'warning' : 'critical';
     }
   };
 
   const finalStatus = status === 'neutral' && target ? getAutoStatus() : status;
 
+  // DEBUG: Log status calculation for Operational Efficiency
+  if (title === "Operational Efficiency" || title === "Efficiency") {
+    const numValue = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
+    console.log(`🎯 KPI Status Debug for ${title}:`, {
+      value: numValue,
+      target,
+      isPositive,
+      calculatedStatus: target ? getAutoStatus() : 'no target',
+      finalStatus,
+      comparison: target ? `${numValue} ${isPositive !== false ? '>=' : '<='} ${target}` : 'no comparison'
+    });
+  }
+
   useEffect(() => {
-    if (showTooltip && tooltipRef.current && triggerRef.current) {
-      const tooltipRect = tooltipRef.current.getBoundingClientRect();
+    if (showTooltip && triggerRef.current) {
       const triggerRect = triggerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
       
-      // Check if tooltip would go above viewport
-      if (triggerRect.top - tooltipRect.height - 8 < 0) {
-        setTooltipPosition('bottom');
-      } else {
-        setTooltipPosition('top');
-      }
+      // More sophisticated positioning logic
+      const spaceAbove = triggerRect.top;
+      const spaceBelow = viewportHeight - triggerRect.bottom;
+      
+      // Determine tooltip position
+      const position = spaceAbove >= 120 && spaceAbove > spaceBelow ? 'top' : 'bottom';
+      setTooltipPosition(position);
+      
+      // Calculate tooltip style
+      const tooltipWidth = variant === 'hero' ? 350 : 300;
+      const style: React.CSSProperties = {
+        minWidth: variant === 'hero' ? '250px' : '200px',
+        maxWidth: `${tooltipWidth}px`,
+        top: position === 'top' 
+          ? `${triggerRect.top - 8}px`
+          : `${triggerRect.bottom + 8}px`,
+        left: `${Math.max(8, Math.min(
+          viewportWidth - tooltipWidth - 8,
+          triggerRect.left + triggerRect.width / 2 - tooltipWidth / 2
+        ))}px`,
+        transform: position === 'top' ? 'translateY(-100%)' : 'translateY(0)'
+      };
+      
+      setTooltipStyle(style);
     }
-  }, [showTooltip]);
+  }, [showTooltip, variant]);
 
   // Hero variant - large, prominent display
   if (variant === 'hero') {
@@ -105,7 +148,7 @@ const KPICard: React.FC<KPICardProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
               {statusIcons[finalStatus]}
               {(tooltip || contextualHelp) && (
-                <div className="relative" ref={triggerRef}>
+                <div className="relative z-auto" ref={triggerRef}>
                   <Info 
                     className="w-4 h-4 text-gray-400 cursor-help hover:text-gray-600 transition-colors" 
                     onMouseEnter={() => setShowTooltip(true)}
@@ -114,8 +157,8 @@ const KPICard: React.FC<KPICardProps> = ({
                   {showTooltip && (
                     <div 
                       ref={tooltipRef}
-                      className={`absolute z-50 ${tooltipPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-1/2 transform -translate-x-1/2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg transition-opacity duration-200 pointer-events-none shadow-xl`}
-                      style={{ minWidth: '250px', maxWidth: '350px' }}
+                      className="fixed z-[9999] px-4 py-3 bg-gray-900 text-white text-sm rounded-lg transition-opacity duration-200 pointer-events-none shadow-xl border border-gray-700"
+                      style={tooltipStyle}
                     >
                       <div className="whitespace-normal">
                         <div className="font-medium mb-1">{title}</div>
@@ -125,9 +168,6 @@ const KPICard: React.FC<KPICardProps> = ({
                             Target: {target}{unit}
                           </div>
                         )}
-                      </div>
-                      <div className={`absolute ${tooltipPosition === 'top' ? 'top-full -mt-1' : 'bottom-full -mb-1'} left-1/2 transform -translate-x-1/2`}>
-                        <div className={`border-4 border-transparent ${tooltipPosition === 'top' ? 'border-t-gray-900' : 'border-b-gray-900'}`}></div>
                       </div>
                     </div>
                   )}
@@ -167,7 +207,7 @@ const KPICard: React.FC<KPICardProps> = ({
             )}
           </div>
         </div>
-        <div className={`absolute bottom-0 left-0 right-0 h-1 ${colorClasses[color]}`} />
+        <div className={`absolute bottom-0 left-0 right-0 h-1 ${target ? statusBarColors[finalStatus] : colorClasses[color]}`} />
       </div>
     );
   }
@@ -206,7 +246,7 @@ const KPICard: React.FC<KPICardProps> = ({
               {statusIcons[finalStatus]}
               <p className="text-sm font-medium text-gray-700">{title}</p>
               {(tooltip || contextualHelp) && (
-                <div className="relative" ref={triggerRef}>
+                <div className="relative z-auto" ref={triggerRef}>
                   <Info 
                     className="w-3 h-3 text-gray-400 cursor-help hover:text-gray-600 transition-colors" 
                     onMouseEnter={() => setShowTooltip(true)}
@@ -215,8 +255,8 @@ const KPICard: React.FC<KPICardProps> = ({
                   {showTooltip && (
                     <div 
                       ref={tooltipRef}
-                      className={`absolute z-50 ${tooltipPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-1/2 transform -translate-x-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg transition-opacity duration-200 pointer-events-none`}
-                      style={{ minWidth: '200px', maxWidth: '300px' }}
+                      className="fixed z-[9999] px-3 py-2 bg-gray-900 text-white text-xs rounded-lg transition-opacity duration-200 pointer-events-none shadow-xl border border-gray-700"
+                      style={tooltipStyle}
                     >
                       <div className="whitespace-normal">
                         {contextualHelp || tooltip}
@@ -225,9 +265,6 @@ const KPICard: React.FC<KPICardProps> = ({
                             Target: {target}{unit}
                           </div>
                         )}
-                      </div>
-                      <div className={`absolute ${tooltipPosition === 'top' ? 'top-full -mt-1' : 'bottom-full -mb-1'} left-1/2 transform -translate-x-1/2`}>
-                        <div className={`border-4 border-transparent ${tooltipPosition === 'top' ? 'border-t-gray-900' : 'border-b-gray-900'}`}></div>
                       </div>
                     </div>
                   )}
@@ -264,7 +301,7 @@ const KPICard: React.FC<KPICardProps> = ({
           </div>
         </div>
       </div>
-      <div className={`absolute bottom-0 left-0 right-0 h-1 ${colorClasses[color]}`} />
+      <div className={`absolute bottom-0 left-0 right-0 h-1 ${target ? statusBarColors[finalStatus] : colorClasses[color]}`} />
     </div>
   );
 };
