@@ -1,18 +1,17 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Button } from '@nextui-org/react'
 import { Key, Upload, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { AdminLoginModal } from './AdminLoginModal'
 
 interface AdminButtonProps {
 	onNavigateToUpload?: () => void
+	onNavigateToLogin?: () => void
 }
 
-export const AdminButton: React.FC<AdminButtonProps> = ({ onNavigateToUpload }) => {
-	const { isAdmin, logout } = useAuth()
-	const [showLoginModal, setShowLoginModal] = useState(false)
+export const AdminButton: React.FC<AdminButtonProps> = ({ onNavigateToUpload, onNavigateToLogin }) => {
+	const { user, logout } = useAuth()
 
-	if (isAdmin) {
+	if (user && (user.role === 'admin' || user.role === 'manager')) {
 		return (
 			<div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
 				<Button
@@ -37,20 +36,14 @@ export const AdminButton: React.FC<AdminButtonProps> = ({ onNavigateToUpload }) 
 	}
 
 	return (
-		<>
-			<Button
-				size="sm"
-				variant="bordered"
-				startContent={<Key size={16} />}
-				className="fixed bottom-6 right-6 bg-white shadow-lg z-50"
-				onPress={() => setShowLoginModal(true)}
-			>
-				Admin
-			</Button>
-			<AdminLoginModal 
-				isOpen={showLoginModal} 
-				onClose={() => setShowLoginModal(false)} 
-			/>
-		</>
+		<Button
+			size="sm"
+			variant="bordered"
+			startContent={<Key size={16} />}
+			className="fixed bottom-6 right-6 bg-white shadow-lg z-50"
+			onPress={onNavigateToLogin}
+		>
+			Login
+		</Button>
 	)
 }

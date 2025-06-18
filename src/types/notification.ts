@@ -31,6 +31,8 @@ export type NotificationSubType =
   | 'storage-warning'
   | 'new-feature'
   | 'system-update'
+  | 'data-cleared'
+  | 'system-error'
   // Operational Insights
   | 'efficiency-improvement'
   | 'cost-optimization'

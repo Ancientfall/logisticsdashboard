@@ -4,18 +4,127 @@ import { Card, CardBody, CardHeader, Button, Progress, Chip } from '@nextui-org/
 import { Upload, FileCheck, AlertCircle, Database, ChevronRight, Folder, File } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { useNotifications } from '../../context/NotificationContext'
-import { uploadAPI } from '../../services/api'
+import { uploadAPI, dataAPI } from '../../services/api'
+import { useData } from '../../context/DataContext'
 import { motion } from 'framer-motion'
 
 export default function FileUploadPageWithDB() {
 	const navigate = useNavigate()
 	const { addNotification } = useNotifications()
+	const { setVoyageEvents, setVesselManifests, setCostAllocation, setVoyageList, setBulkActions, setIsDataReady, loadDataFromPostgreSQL } = useData()
 	const [uploadProgress, setUploadProgress] = useState(0)
 	const [isProcessing, setIsProcessing] = useState(false)
+	const [isLoadingPostgreSQL, setIsLoadingPostgreSQL] = useState(false)
 	const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'uploading' | 'success' | 'error'>('idle')
 	const [statusMessage, setStatusMessage] = useState('')
 	const [processedFiles, setProcessedFiles] = useState<string[]>([])
 
+	// Function to fetch ALL data from backend with pagination
+	const fetchAllData = async (fetchFunction: Function, dataType: string) => {
+		let allData: any[] = []
+		let page = 1
+		let hasMore = true
+		
+		while (hasMore) {
+			try {
+				const response = await fetchFunction({ page, limit: 1000 })
+				const pageData = response.data || []
+				allData = [...allData, ...pageData]
+				
+				console.log(`📄 ${dataType} - Page ${page}: ${pageData.length} records (Total: ${allData.length})`)
+				
+				// Check if there are more pages
+				const pagination = response.pagination
+				hasMore = pagination && page < pagination.pages
+				page++
+			} catch (error) {
+				console.error(`Error fetching ${dataType} page ${page}:`, error)
+				hasMore = false
+			}
+		}
+		
+		return allData
+	}
+
+	// Handler to load PostgreSQL data directly using the context's function
+	const handleLoadFromPostgreSQL = async () => {
+		setIsLoadingPostgreSQL(true)
+		try {
+			addNotification('system-update', {
+				title: 'Loading Data',
+				message: 'Loading data from PostgreSQL database (including reference data)...'
+			})
+			
+			console.log('🔄 Using context loadDataFromPostgreSQL function...')
+			const success = await loadDataFromPostgreSQL()
+			console.log('📊 PostgreSQL load result:', success)
+			
+			if (success) {
+				addNotification('system-update', {
+					title: 'Success',
+					message: 'Data successfully loaded from PostgreSQL database!'
+				})
+				// Navigate to dashboard after loading
+				setTimeout(() => {
+					navigate('/dashboard')
+				}, 1500)
+			} else {
+				addNotification('system-update', {
+					title: 'No Data',
+					message: 'No data found in PostgreSQL database. Upload some Excel files first.'
+				})
+			}
+		} catch (error) {
+			console.error('Failed to load PostgreSQL data:', error)
+			addNotification('system-update', {
+				title: 'Error',
+				message: 'Failed to load data from PostgreSQL database.'
+			})
+		} finally {
+			setIsLoadingPostgreSQL(false)
+		}
+	}
+
+	// Function to fetch uploaded data from backend and populate frontend storage
+	const loadDataFromBackend = async () => {
+		try {
+			setStatusMessage('Loading data from database...')
+			
+			// Fetch ALL data with pagination
+			console.log('🔄 Fetching all data with pagination...')
+			
+			const [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions] = await Promise.all([
+				fetchAllData(dataAPI.getVoyageEvents, 'Voyage Events'),
+				fetchAllData(dataAPI.getVesselManifests, 'Vessel Manifests'),
+				fetchAllData(dataAPI.getCostAllocation, 'Cost Allocation'),
+				fetchAllData(dataAPI.getVoyageList, 'Voyage List'),
+				fetchAllData(dataAPI.getBulkActions, 'Bulk Actions')
+			])
+			
+			console.log('✅ All data fetched from backend:', {
+				voyageEvents: voyageEvents.length,
+				vesselManifests: vesselManifests.length,
+				costAllocation: costAllocation.length,
+				voyageList: voyageList.length,
+				bulkActions: bulkActions.length
+			})
+			
+			// Populate frontend data context
+			setVoyageEvents(voyageEvents)
+			setVesselManifests(vesselManifests)
+			setCostAllocation(costAllocation)
+			setVoyageList(voyageList)
+			setBulkActions(bulkActions)
+			
+			// Mark data as ready so dashboards can load
+			setIsDataReady(true)
+			
+			return true
+		} catch (error) {
+			console.error('Error loading data from backend:', error)
+			return false
+		}
+	}
 
 	const uploadToDatabase = async (files: File[]) => {
 		try {
@@ -83,19 +192,31 @@ export default function FileUploadPageWithDB() {
 			const dbSuccess = await uploadToDatabase(acceptedFiles)
 			
 			if (dbSuccess) {
-				setUploadStatus('success')
-				setStatusMessage('Files uploaded successfully to database!')
-				addNotification('upload-success', {
-					title: 'Data Upload Complete',
-					message: `Successfully uploaded ${acceptedFiles.length} file(s) to database.`
-				})
+				// Load the uploaded data into frontend storage
+				const dataLoadSuccess = await loadDataFromBackend()
 				
-				setUploadProgress(100)
-				
-				// Navigate to dashboard after delay
-				setTimeout(() => {
-					navigate('/dashboard')
-				}, 2000)
+				if (dataLoadSuccess) {
+					setUploadStatus('success')
+					setStatusMessage('Files uploaded successfully and data loaded!')
+					addNotification('upload-success', {
+						title: 'Data Upload Complete',
+						message: `Successfully uploaded ${acceptedFiles.length} file(s) and loaded data for dashboards.`
+					})
+					
+					setUploadProgress(100)
+					
+					// Navigate to dashboard after delay
+					setTimeout(() => {
+						navigate('/dashboard')
+					}, 2000)
+				} else {
+					setUploadStatus('error')
+					setStatusMessage('Upload succeeded but failed to load data for dashboards')
+					addNotification('system-update', {
+						title: 'Data Load Error',
+						message: 'Upload succeeded but failed to load data. Try refreshing the page.'
+					})
+				}
 			} else {
 				setUploadStatus('error')
 				setStatusMessage('Database upload failed.')
@@ -169,7 +290,7 @@ export default function FileUploadPageWithDB() {
 							className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${
 								isDragActive 
 									? 'border-bp-green bg-bp-green/5' 
-									: isProcessing
+									: isProcessing || isLoadingPostgreSQL
 									? 'border-gray-300 bg-gray-50 cursor-not-allowed'
 									: 'border-gray-300 hover:border-bp-green hover:bg-gray-50'
 							}`}
@@ -185,10 +306,12 @@ export default function FileUploadPageWithDB() {
 											? 'Drop files here...'
 											: isProcessing
 											? statusMessage
+											: isLoadingPostgreSQL
+											? 'Loading from PostgreSQL database...'
 											: 'Drag & drop Excel files here'}
 									</p>
 									<p className="text-sm text-gray-500 mt-1">
-										{!isProcessing && 'or click to browse'}
+										{!isProcessing && !isLoadingPostgreSQL && 'or click to browse'}
 									</p>
 								</div>
 
@@ -211,18 +334,23 @@ export default function FileUploadPageWithDB() {
 							</div>
 						</div>
 
-						{isProcessing && (
+						{(isProcessing || isLoadingPostgreSQL) && (
 							<div className="mt-6">
 								<div className="flex justify-between text-sm mb-2">
 									<span className="text-gray-600">
-										{uploadStatus === 'processing' ? 'Processing files...' : 'Uploading to database...'}
+										{isLoadingPostgreSQL 
+											? 'Loading data from PostgreSQL database...'
+											: uploadStatus === 'processing' 
+											? 'Processing files...' 
+											: 'Uploading to database...'}
 									</span>
-									<span className="font-medium">{Math.round(uploadProgress)}%</span>
+									{isProcessing && <span className="font-medium">{Math.round(uploadProgress)}%</span>}
 								</div>
 								<Progress 
-									value={uploadProgress} 
+									value={isLoadingPostgreSQL ? undefined : uploadProgress}
+									isIndeterminate={isLoadingPostgreSQL}
 									className="h-2"
-									color="success"
+									color={isLoadingPostgreSQL ? "primary" : "success"}
 								/>
 							</div>
 						)}
@@ -282,16 +410,28 @@ export default function FileUploadPageWithDB() {
 								</ul>
 							</div>
 
-							{!isProcessing && acceptedFiles.length === 0 && (
-								<Button
-									color="primary"
-									variant="flat"
-									endContent={<ChevronRight className="w-4 h-4" />}
-									onClick={() => navigate('/dashboard')}
-									className="w-full"
-								>
-									Skip Upload & View Dashboard
-								</Button>
+							{!isProcessing && !isLoadingPostgreSQL && acceptedFiles.length === 0 && (
+								<div className="space-y-3">
+									<Button
+										color="primary"
+										variant="solid"
+										endContent={<Database className="w-4 h-4" />}
+										onClick={handleLoadFromPostgreSQL}
+										disabled={isLoadingPostgreSQL}
+										className="w-full"
+									>
+										{isLoadingPostgreSQL ? 'Loading...' : 'Load from PostgreSQL Database'}
+									</Button>
+									<Button
+										color="default"
+										variant="flat"
+										endContent={<ChevronRight className="w-4 h-4" />}
+										onClick={() => navigate('/dashboard')}
+										className="w-full"
+									>
+										Skip Upload & View Dashboard
+									</Button>
+								</div>
 							)}
 						</div>
 					</CardBody>

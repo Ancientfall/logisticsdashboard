@@ -36,7 +36,7 @@ const PublicLandingPage: React.FC = () => {
 
 	const stats = [
 		{ value: '5', label: 'Analytics Dashboards', icon: BarChart3, suffix: '' },
-		{ value: '50+', label: 'Facilities Tracked', icon: Anchor, suffix: '' },
+		{ value: '10+', label: 'Facilities Tracked', icon: Anchor, suffix: '' },
 		{ value: '24/7', label: 'Real-time Updates', icon: Activity, suffix: '' },
 		{ value: '99.8', label: 'Data Accuracy', icon: Target, suffix: '%' }
 	]
@@ -181,7 +181,7 @@ const PublicLandingPage: React.FC = () => {
 								onClick={() => navigate('/register')}
 								className="bg-[#00754F] text-white text-lg px-8 py-6"
 							>
-								Get Started Free
+								Get Started
 							</Button>
 							<Button
 								size="lg"
@@ -332,7 +332,7 @@ const PublicLandingPage: React.FC = () => {
 							onClick={() => navigate('/register')}
 							className="bg-[#00754F] text-white"
 						>
-							Start Free Trial
+							Get Started
 						</Button>
 						<Button
 							size="lg"

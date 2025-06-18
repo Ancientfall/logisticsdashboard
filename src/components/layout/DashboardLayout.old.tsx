@@ -3,7 +3,7 @@ import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import NotificationPanel from '../notifications/NotificationPanel';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar } from '@nextui-org/react';
 

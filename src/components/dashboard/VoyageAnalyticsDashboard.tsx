@@ -37,14 +37,20 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       return monthLabel === filters.selectedMonth;
     };
 
-    const filteredVoyages = voyageList.filter(voyage => 
-      filterByDate(voyage.voyageDate) &&
-      (filters.selectedVoyagePurpose === 'All Purposes' || voyage.voyagePurpose === filters.selectedVoyagePurpose)
-    );
+    const filteredVoyages = voyageList.filter(voyage => {
+      // Use voyageDate from VoyageList interface
+      const voyageDate = voyage.voyageDate;
+      return filterByDate(voyageDate) &&
+        (filters.selectedVoyagePurpose === 'All Purposes' || 
+         voyage.voyagePurpose === filters.selectedVoyagePurpose ||
+         voyage.mission === filters.selectedVoyagePurpose)
+    });
 
-    // Calculate basic voyage metrics
+    // Calculate basic voyage metrics using correct field names
     const totalVoyages = filteredVoyages.length;
-    const totalDurationHours = filteredVoyages.reduce((sum, voyage) => sum + (voyage.durationHours || 0), 0);
+    // Use durationHours from VoyageList interface (already in hours)
+    const totalDurationHours = filteredVoyages.reduce((sum, voyage) => 
+      sum + (voyage.durationHours || 0), 0);
     const averageVoyageDuration = totalVoyages > 0 ? totalDurationHours / totalVoyages : 0;
     
     // Purpose distribution
@@ -54,44 +60,55 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       return dist;
     }, {} as Record<string, number>);
 
-    // Mission type distribution
+    // Mission type distribution using correct field name
     const missionTypeDistribution = filteredVoyages.reduce((dist, voyage) => {
-      const missionType = voyage.missionType || voyage.mission || 'Unknown';
+      const missionType = voyage.mission || voyage.missionType || 'Unknown';
       dist[missionType] = (dist[missionType] || 0) + 1;
       return dist;
     }, {} as Record<string, number>);
 
-    const supplyMissions = missionTypeDistribution['Supply'] || 0;
-    const projectMissions = missionTypeDistribution['Project'] || 0;
-    const offhireMissions = missionTypeDistribution['Offhire'] || 0;
+    const supplyMissions = missionTypeDistribution['supply'] || missionTypeDistribution['Supply'] || 0;
+    const projectMissions = missionTypeDistribution['project'] || missionTypeDistribution['Project'] || 0;
+    const offhireMissions = missionTypeDistribution['offhire'] || missionTypeDistribution['Offhire'] || 0;
 
     const drillingVoyages = voyagePurposeDistribution['Drilling'] || 0;
     const drillingVoyagePercentage = totalVoyages > 0 ? (drillingVoyages / totalVoyages) * 100 : 0;
     const mixedVoyageEfficiency = totalVoyages > 0 ? ((voyagePurposeDistribution['Mixed'] || 0) / totalVoyages) * 100 : 0;
 
-    // Route complexity
-    const totalStops = filteredVoyages.reduce((sum, voyage) => sum + voyage.stopCount, 0);
+    // Route complexity - use locations field to estimate stops
+    const totalStops = filteredVoyages.reduce((sum, voyage) => {
+      // Count stops from locations string (e.g., "Fourchon -> Ocean BlackLion -> Fourchon")
+      const stops = (voyage.locations || '').split('->').length;
+      return sum + Math.max(stops - 1, 1); // At least 1 stop
+    }, 0);
     const averageStopsPerVoyage = totalVoyages > 0 ? totalStops / totalVoyages : 0;
-    const multiStopVoyages = filteredVoyages.filter(voyage => voyage.stopCount > 2).length;
+    const multiStopVoyages = filteredVoyages.filter(voyage => 
+      (voyage.locations || '').split('->').length > 2
+    ).length;
     const multiStopPercentage = totalVoyages > 0 ? (multiStopVoyages / totalVoyages) * 100 : 0;
-    const routeEfficiencyScore = averageVoyageDuration > 0 ? averageStopsPerVoyage / (averageVoyageDuration / 24) : 0;
+    const routeEfficiencyScore = averageVoyageDuration > 0 ? averageStopsPerVoyage / (averageVoyageDuration || 1) : 0;
 
-    // Vessel utilization
+    // Vessel utilization - use correct field name
     const uniqueVessels = new Set(filteredVoyages.map(voyage => voyage.vessel));
     const activeVesselsThisMonth = uniqueVessels.size;
     const voyagesPerVessel = activeVesselsThisMonth > 0 ? totalVoyages / activeVesselsThisMonth : 0;
 
-    // Origin analysis
+    // Origin analysis - use correct field names
     const fourchonDepartures = filteredVoyages.filter(voyage => 
-      voyage.originPort === 'Fourchon' || 
-      voyage.locations.toLowerCase().includes('fourchon') ||
-      (voyage.locationList.length > 0 && voyage.locationList[0].toLowerCase().includes('fourchon'))
+      (voyage.originPort || '').toLowerCase().includes('fourchon') || 
+      (voyage.locations || '').toLowerCase().includes('fourchon')
     ).length;
     const routeConcentration = totalVoyages > 0 ? (fourchonDepartures / totalVoyages) * 100 : 0;
 
-    // Popular destinations
+    // Popular destinations - extract from locations or mainDestination
     const destinationCounts = filteredVoyages.reduce((counts, voyage) => {
-      const destination = voyage.mainDestination || 'Unknown';
+      let destination = voyage.mainDestination;
+      if (!destination && voyage.locations) {
+        // Extract destination from locations string like "Fourchon -> Ocean BlackLion -> Fourchon"
+        const parts = voyage.locations.split('->').map(p => p.trim());
+        destination = parts[parts.length - 1] || 'Unknown';
+      }
+      destination = destination || 'Unknown';
       counts[destination] = (counts[destination] || 0) + 1;
       return counts;
     }, {} as Record<string, number>);
@@ -101,11 +118,23 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       .slice(0, 5)
       .map(([destination, count]) => ({ destination, count, percentage: (count / totalVoyages) * 100 }));
 
-    // Calculate additional analytics for charts
+    // Calculate additional analytics for charts - using locations field
     const routeComplexityData = [
-      { name: 'Simple Routes (≤2 stops)', value: filteredVoyages.filter(v => v.stopCount <= 2).length, color: 'bg-green-500' },
-      { name: 'Medium Routes (3 stops)', value: filteredVoyages.filter(v => v.stopCount === 3).length, color: 'bg-yellow-500' },
-      { name: 'Complex Routes (≥4 stops)', value: filteredVoyages.filter(v => v.stopCount >= 4).length, color: 'bg-red-500' }
+      { 
+        name: 'Simple Routes (≤2 stops)', 
+        value: filteredVoyages.filter(v => (v.locations || '').split('->').length <= 2).length, 
+        color: 'bg-green-500' 
+      },
+      { 
+        name: 'Medium Routes (3 stops)', 
+        value: filteredVoyages.filter(v => (v.locations || '').split('->').length === 3).length, 
+        color: 'bg-yellow-500' 
+      },
+      { 
+        name: 'Complex Routes (≥4 stops)', 
+        value: filteredVoyages.filter(v => (v.locations || '').split('->').length >= 4).length, 
+        color: 'bg-red-500' 
+      }
     ];
 
     const purposeDistributionData = Object.entries(voyagePurposeDistribution).map(([purpose, count]) => ({

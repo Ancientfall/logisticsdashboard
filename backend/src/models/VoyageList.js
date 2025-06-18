@@ -84,6 +84,105 @@ const VoyageList = sequelize.define('VoyageList', {
 	remarks: {
 		type: DataTypes.TEXT
 	},
+
+	// Enhanced fields matching IndexedDB processing
+	standardizedVesselName: {
+		type: DataTypes.STRING
+	},
+	month: {
+		type: DataTypes.STRING
+	},
+	year: {
+		type: DataTypes.INTEGER
+	},
+	startDate: {
+		type: DataTypes.DATE
+	},
+	endDate: {
+		type: DataTypes.DATE
+	},
+	type: {
+		type: DataTypes.STRING
+	},
+	mission: {
+		type: DataTypes.STRING
+	},
+	routeType: {
+		type: DataTypes.STRING
+	},
+	locations: {
+		type: DataTypes.TEXT
+	},
+	locationList: {
+		type: DataTypes.JSONB
+	},
+	locationCount: {
+		type: DataTypes.INTEGER
+	},
+	hasProduction: {
+		type: DataTypes.BOOLEAN
+	},
+	hasDrilling: {
+		type: DataTypes.BOOLEAN
+	},
+	isSupplyRun: {
+		type: DataTypes.BOOLEAN
+	},
+	isDrillingSupport: {
+		type: DataTypes.BOOLEAN
+	},
+	isProductionSupport: {
+		type: DataTypes.BOOLEAN
+	},
+	locationType: {
+		type: DataTypes.STRING
+	},
+	voyageClassification: {
+		type: DataTypes.STRING
+	},
+	department: {
+		type: DataTypes.STRING
+	},
+	durationDays: {
+		type: DataTypes.FLOAT
+	},
+	durationHours: {
+		type: DataTypes.FLOAT
+	},
+	distanceCalculated: {
+		type: DataTypes.FLOAT
+	},
+	fuelEfficiency: {
+		type: DataTypes.FLOAT
+	},
+	speedAverage: {
+		type: DataTypes.FLOAT
+	},
+	utilizationPercentage: {
+		type: DataTypes.FLOAT
+	},
+	costPerDay: {
+		type: DataTypes.FLOAT
+	},
+	costPerNauticalMile: {
+		type: DataTypes.FLOAT
+	},
+	efficiencyScore: {
+		type: DataTypes.FLOAT
+	},
+	company: {
+		type: DataTypes.STRING
+	},
+	monthNumber: {
+		type: DataTypes.INTEGER
+	},
+	monthName: {
+		type: DataTypes.STRING
+	},
+	monthYear: {
+		type: DataTypes.STRING
+	},
+
 	metadata: {
 		type: DataTypes.JSONB,
 		defaultValue: {}

@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { uploadAPI } from '../../services/api';
 import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings, Package, Bell } from 'lucide-react';
 import { getVesselTypeFromName, getVesselCompanyFromName, getVesselStatistics } from '../../data/vesselClassification';
 
@@ -20,16 +21,52 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     bulkActions,
     isDataReady,
     forceRefreshFromStorage,
-    clearAllData
+    loadDataFromPostgreSQL
   } = useData();
   
   const { addNotification } = useNotifications();
+  const [isClearing, setIsClearing] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [isPostgreSQLLoading, setIsPostgreSQLLoading] = useState(false);
+  // const [isRollback, setIsRollback] = useState(false); // Unused for now
   
   const handleNavigateToUpload = () => {
     if (onNavigateToUpload) {
       onNavigateToUpload();
     } else {
       navigate('/upload');
+    }
+  };
+
+  const handleForceLoadPostgreSQL = async () => {
+    setIsPostgreSQLLoading(true);
+    try {
+      addNotification('system-update', {
+        title: 'Loading Data',
+        message: 'Force loading data from PostgreSQL database...'
+      });
+      
+      const success = await loadDataFromPostgreSQL();
+      
+      if (success) {
+        addNotification('system-update', {
+          title: 'Success',
+          message: 'Data successfully loaded from PostgreSQL database!'
+        });
+      } else {
+        addNotification('system-update', {
+          title: 'No Data',
+          message: 'No data found in PostgreSQL database. Upload some Excel files first.'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load PostgreSQL data:', error);
+      addNotification('system-update', {
+        title: 'Error',
+        message: 'Failed to load data from PostgreSQL database.'
+      });
+    } finally {
+      setIsPostgreSQLLoading(false);
     }
   };
   
@@ -63,6 +100,24 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     }
   }, [isDataReady, voyageEvents.length, vesselManifests.length, costAllocation.length, voyageList.length, bulkActions.length, forceRefreshFromStorage]);
 
+  // Create Cost Allocation lookup map for department classification
+  const costAllocationMap = useMemo(() => {
+    const map = new Map<string, { projectType: string; description: string; rigReference: string }>();
+    
+    costAllocation.forEach(cost => {
+      const lcNumber = (cost as any).lcNumber || (cost as any).costCode;
+      if (lcNumber) {
+        map.set(lcNumber.toString(), {
+          projectType: (cost as any).projectType || 'Unknown',
+          description: (cost as any).description || '',
+          rigReference: (cost as any).rigReference || (cost as any).locationReference || ''
+        });
+      }
+    });
+    
+    return map;
+  }, [costAllocation]);
+
   // Comprehensive data analysis
   const dataAnalysis = useMemo(() => {
     // Basic counts
@@ -91,10 +146,115 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       ...uniqueVesselsFromVoyageList,
       ...uniqueVesselsFromBulkActions
     ]);
-    
-    // Department breakdown
-    const departmentBreakdown = voyageEvents.reduce((acc, event) => {
-      const dept = event.department || 'Unknown';
+
+    // Department breakdown - Using Cost Allocation data for authoritative department assignment
+    const departmentBreakdown = voyageEvents.reduce((acc, event, index) => {
+      // Try multiple field names for department
+      let dept = event.department || (event as any).finalDepartment || (event as any).directDepartment;
+      
+      // If no explicit department, use Cost Allocation lookup
+      if (!dept) {
+        const costCode = (event.costDedicatedTo || '').toString();
+        
+        // First priority: Cost Allocation lookup
+        if (costCode && costAllocationMap.has(costCode)) {
+          const costData = costAllocationMap.get(costCode)!;
+          const projectType = costData.projectType.toLowerCase();
+          
+          // Debug logging for first few matches
+          if (index < 10) {
+            console.log(`💰 Cost Allocation Match #${index}:`, {
+              costCode,
+              projectType: costData.projectType,
+              description: costData.description,
+              rigReference: costData.rigReference
+            });
+          }
+          
+          // Map Cost Allocation project types to departments
+          if (projectType.includes('drill') || projectType.includes('completion')) {
+            dept = 'Drilling';
+          } else if (projectType.includes('production') || projectType.includes('prod')) {
+            dept = 'Production';
+          } else if (projectType.includes('maintenance') || projectType.includes('maint')) {
+            dept = 'Maintenance';
+          } else {
+            dept = 'Operations';
+          }
+        }
+        // Fallback to location/event-based classification
+        else {
+          const mission = (event.mission || '').toLowerCase();
+          const location = (event.location || '').toLowerCase();
+          const eventName = (event.event || '').toLowerCase();
+          const remarks = (event.remarks || '').toLowerCase();
+          
+          // Drilling indicators (highest priority)
+          if (
+            location.includes('drill') || 
+            eventName.includes('drill') || 
+            eventName.includes('spud') ||
+            eventName.includes('bop') ||
+            eventName.includes('casing') ||
+            eventName.includes('cement') ||
+            eventName.includes('mud') ||
+            remarks.includes('drill') ||
+            remarks.includes('hole') ||
+            location.includes('rig') ||
+            location.includes('spudding')
+          ) {
+            dept = 'Drilling';
+          }
+          // Production platform indicators
+          else if (
+            location.includes('thunder horse') || 
+            location.includes('thunderhorse') ||
+            location.includes('mad dog') ||
+            location.includes('atlantis') ||
+            location.includes('na kika') ||
+            location.includes('nakika') ||
+            location.includes('production') ||
+            location.includes('prod') ||
+            location.includes('platform') ||
+            location.includes('pdq') ||
+            eventName.includes('production') ||
+            remarks.includes('production')
+          ) {
+            dept = 'Production';
+          }
+          // Logistics/Supply operations (base operations, cargo handling, etc.)
+          else if (
+            location.includes('fourchon') ||
+            location.includes('port') ||
+            location.includes('base') ||
+            eventName.includes('cargo') ||
+            eventName.includes('load') ||
+            eventName.includes('waiting') ||
+            eventName.includes('transit') ||
+            eventName.includes('fuel') ||
+            eventName.includes('supply') ||
+            mission.includes('supply')
+          ) {
+            dept = 'Logistics';
+          }
+          // Maintenance and support operations
+          else if (
+            eventName.includes('maintenance') ||
+            eventName.includes('repair') ||
+            eventName.includes('inspection') ||
+            eventName.includes('service') ||
+            remarks.includes('maintenance') ||
+            remarks.includes('repair')
+          ) {
+            dept = 'Maintenance';
+          }
+          // Default to Operations for everything else
+          else {
+            dept = 'Operations';
+          }
+        }
+      }
+      
       acc[dept] = (acc[dept] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -102,20 +262,72 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     // Location analysis
     const uniqueLocations = new Set(voyageEvents.map(e => e.location).filter(Boolean));
     
-    // Data quality checks
+    // Data quality checks - Fixed to use actual database field names and proper duplicate detection
     const dataQuality = {
       voyageEventsWithMissingVessel: voyageEvents.filter(e => !e.vessel || e.vessel.trim() === '').length,
       voyageEventsWithMissingLocation: voyageEvents.filter(e => !e.location || e.location.trim() === '').length,
       manifestsWithMissingTransporter: vesselManifests.filter(m => !m.transporter || m.transporter.trim() === '').length,
-      eventsWithZeroHours: voyageEvents.filter(e => e.finalHours === 0).length,
-      duplicateEventIds: voyageEvents.length - new Set(voyageEvents.map(e => e.id)).size,
-      bulkActionsWithMissingDestination: bulkActions.filter(b => !b.destinationPort || b.destinationPort.trim() === '').length,
-      bulkActionsWithZeroVolume: bulkActions.filter(b => b.volumeBbls === 0).length
+      eventsWithZeroHours: voyageEvents.filter(e => (e.finalHours || e.hours || 0) === 0).length,
+      // Fixed: Check for duplicate business logic records with better handling of null values
+      duplicateEventIds: (() => {
+        const signatures = new Set();
+        const signatureDetails = new Map(); // For debugging
+        let duplicates = 0;
+        
+        voyageEvents.forEach((e, index) => {
+          // Handle null/undefined values properly
+          const mission = e.mission || '';
+          const vessel = e.vessel || '';
+          const voyageNumber = e.voyageNumber || '';
+          const event = e.event || '';
+          const from = e.from || '';
+          const to = e.to || '';
+          const hours = e.hours || 0;
+          
+          const sig = `${mission}-${vessel}-${voyageNumber}-${event}-${from}-${to}-${hours}`;
+          
+          if (signatures.has(sig)) {
+            duplicates++;
+            // Log some examples for debugging (only first 5)
+            if (duplicates <= 5) {
+              console.log(`🔍 Duplicate found #${duplicates}:`, {
+                signature: sig,
+                record: { mission, vessel, voyageNumber, event, from, to, hours },
+                originalIndex: signatureDetails.get(sig),
+                currentIndex: index
+              });
+            }
+          } else {
+            signatures.add(sig);
+            signatureDetails.set(sig, index);
+          }
+        });
+        
+        if (duplicates > 0) {
+          console.log(`📊 Total duplicates found: ${duplicates} out of ${voyageEvents.length} records`);
+        }
+        
+        return duplicates;
+      })(),
+      // Fixed: Check the correct field for bulk actions destination (uses atPort field)
+      bulkActionsWithMissingDestination: bulkActions.filter(b => {
+        const dest = (b as any).atPort || (b as any).destinationPort || (b as any).to;
+        return !dest || dest.trim() === '';
+      }).length,
+      bulkActionsWithZeroVolume: bulkActions.filter(b => ((b as any).volume || (b as any).quantity || 0) === 0).length
     };
     
-    // Monthly breakdown
+    // Monthly breakdown - Fixed to use actual database field names
     const monthlyData = voyageEvents.reduce((acc, event) => {
-      const date = new Date(event.eventDate);
+      // Use 'from' field if eventDate doesn't exist, fall back to current date
+      const dateStr = event.eventDate || event.from;
+      const date = dateStr ? new Date(dateStr) : new Date();
+      
+      // Skip invalid dates
+      if (isNaN(date.getTime())) {
+        return acc;
+      }
+      
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthLabel = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
       
@@ -123,17 +335,18 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
         acc[monthKey] = { key: monthKey, label: monthLabel, events: 0, hours: 0 };
       }
       acc[monthKey].events += 1;
-      acc[monthKey].hours += event.finalHours;
+      // Use 'hours' field instead of 'finalHours'
+      acc[monthKey].hours += (event.finalHours || event.hours || 0);
       return acc;
     }, {} as Record<string, { key: string; label: string; events: number; hours: number }>);
     
-    // Bulk Actions analysis
+    // Bulk Actions analysis - Fixed to use actual database field names from BulkAction interface
     const bulkActionsAnalysis = {
       totalTransfers: bulkActions.length,
-      totalVolumeBbls: bulkActions.reduce((sum, action) => sum + action.volumeBbls, 0),
-      uniqueBulkTypes: new Set(bulkActions.map(b => b.bulkType)).size,
-      shorebaseToRig: bulkActions.filter(b => b.portType === 'base' && b.destinationPort).length,
-      rigToShorebase: bulkActions.filter(b => b.portType === 'rig' || b.isReturn).length
+      totalVolumeBbls: bulkActions.reduce((sum, action) => sum + ((action as any).volumeBbls || (action as any).qty || 0), 0),
+      uniqueBulkTypes: new Set(bulkActions.map(b => (b as any).bulkType || (b as any).cargoType)).size,
+      shorebaseToRig: bulkActions.filter(b => ((b as any).portType || '').toLowerCase() === 'base' && (b as any).atPort).length,
+      rigToShorebase: bulkActions.filter(b => ((b as any).portType || '').toLowerCase() === 'rig').length
     };
     
     return {
@@ -154,7 +367,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       monthlyData: Object.values(monthlyData).sort((a, b) => a.key.localeCompare(b.key)),
       bulkActionsAnalysis
     };
-  }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions]);
+  }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions, costAllocationMap]);
 
   if (!isDataReady) {
     // Still loading initial data check
@@ -237,7 +450,15 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md"
             >
               <RefreshCw size={16} />
-              Refresh Data
+              Refresh Cache
+            </button>
+            <button
+              onClick={handleForceLoadPostgreSQL}
+              disabled={isPostgreSQLLoading}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Database size={16} className={isPostgreSQLLoading ? 'animate-pulse' : ''} />
+              {isPostgreSQLLoading ? 'Loading...' : 'Load from PostgreSQL'}
             </button>
             <button
               onClick={handleNavigateToUpload}
@@ -592,15 +813,67 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             Export Summary Report
           </button>
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
-                clearAllData();
+            onClick={async () => {
+              if (window.confirm('Are you sure you want to clear all data from the database? This action cannot be undone. You can re-upload your Excel files afterwards.')) {
+                setIsClearing(true);
+                try {
+                  const result = await uploadAPI.clearAllData();
+                  
+                  addNotification('data-cleared', {
+                    total: result.deletedCounts.total
+                  });
+                  
+                  // Force refresh the data context to show empty state
+                  setTimeout(() => {
+                    forceRefreshFromStorage();
+                  }, 1000);
+                  
+                } catch (error: any) {
+                  addNotification('system-error', {
+                    message: `Failed to clear data: ${error.message || 'Unknown error'}`
+                  });
+                } finally {
+                  setIsClearing(false);
+                }
               }
             }}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md"
+            disabled={isClearing}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <AlertTriangle size={16} />
-            Clear All Data
+            {isClearing ? 'Clearing...' : 'Clear All Data'}
+          </button>
+          <button
+            onClick={async () => {
+              if (window.confirm('Migrate department fields for existing voyage events? This will classify all records without department values using enhanced processing logic.')) {
+                setIsMigrating(true);
+                try {
+                  const result = await uploadAPI.migrateDepartmentFields();
+                  
+                  addNotification('processing-complete', {
+                    totalRecords: result.details.recordsUpdated,
+                    duration: '< 1 minute'
+                  });
+                  
+                  // Force refresh the data context to show updated data
+                  setTimeout(() => {
+                    forceRefreshFromStorage();
+                  }, 1000);
+                  
+                } catch (error: any) {
+                  addNotification('system-error', {
+                    message: `Failed to migrate department fields: ${error.message || 'Unknown error'}`
+                  });
+                } finally {
+                  setIsMigrating(false);
+                }
+              }
+            }}
+            disabled={isMigrating}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Database size={16} />
+            {isMigrating ? 'Migrating...' : 'Migrate Department Fields'}
           </button>
         </div>
       </div>

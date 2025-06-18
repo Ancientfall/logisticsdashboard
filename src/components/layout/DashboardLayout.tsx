@@ -3,7 +3,7 @@ import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import NotificationPanel from '../notifications/NotificationPanel';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar } from '@nextui-org/react';
 
@@ -16,7 +16,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const location = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
-  const { clearAllData, lastUpdated } = useData();
+  const { lastUpdated } = useData();
   const { state: notificationState } = useNotifications();
   const { user, logout } = useAuth();
 
@@ -43,12 +43,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleResetData = () => {
-    if (window.confirm('Are you sure you want to reset all data? This will clear the dashboard and return to upload mode.')) {
-      clearAllData();
-      navigate('/upload');
-    }
-  };
 
   const navItems = [
     { 

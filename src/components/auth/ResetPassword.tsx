@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Card, CardBody, CardHeader, Button } from '@nextui-org/react'
 import { motion } from 'framer-motion'
-import { Lock, CheckCircle, XCircle } from 'lucide-react'
+import { Lock, XCircle } from 'lucide-react'
 import { authAPI } from '../../services/api'
 import { useNotifications } from '../../context/NotificationContext'
 
@@ -21,16 +21,7 @@ export default function ResetPassword() {
 	
 	const token = searchParams.get('token')
 
-	useEffect(() => {
-		if (!token) {
-			navigate('/forgot-password')
-			return
-		}
-
-		validateToken()
-	}, [token])
-
-	const validateToken = async () => {
+	const validateToken = useCallback(async () => {
 		try {
 			const response = await authAPI.validateResetToken(token!)
 			setIsValidToken(response.valid)
@@ -40,7 +31,16 @@ export default function ResetPassword() {
 		} finally {
 			setIsValidating(false)
 		}
-	}
+	}, [token])
+
+	useEffect(() => {
+		if (!token) {
+			navigate('/forgot-password')
+			return
+		}
+
+		validateToken()
+	}, [token, navigate, validateToken])
 
 	const validateForm = (): boolean => {
 		const newErrors: Record<string, string> = {}

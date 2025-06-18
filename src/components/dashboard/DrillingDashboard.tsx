@@ -19,7 +19,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     costAllocation,
     voyageList,
     bulkActions,
-    isDataReady
+    isDataReady,
+    debugDashboardData
   } = useData();
 
   // Filters state - matching PowerBI layout
@@ -32,6 +33,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
   const drillingMetrics = useMemo(() => {
     try {
       console.log('🔄 Recalculating drilling metrics for:', filters);
+      
+      // Debug function is available as debugDashboardData() in console
       
       // Filter data based on selected filters
       const filterByDate = (date: Date) => {
@@ -415,6 +418,15 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     const completionFluidVolume = filteredBulkActions
       .filter(action => action.isCompletionFluid)
       .reduce((sum, action) => sum + action.volumeBbls, 0);
+      
+    // DEBUG: Concise fluid movement summary
+    if (bulkActions.length === 0) {
+      console.log('❌ FLUID MOVEMENT ISSUE: No bulk actions found');
+    } else if (filteredBulkActions.length === 0) {
+      console.log('❌ FLUID MOVEMENT ISSUE: No bulk actions passed filters. Total actions:', bulkActions.length, 'Drilling fluids:', bulkActions.filter(a => a.isDrillingFluid).length);
+    } else {
+      console.log('✅ FLUID MOVEMENT: Found', filteredBulkActions.length, 'filtered actions with', fluidMovement.toLocaleString(), 'bbls total volume');
+    }
       
     // Calculate daily fluid volumes for the last 30 days
     const now = new Date();

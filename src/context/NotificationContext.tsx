@@ -213,6 +213,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [state.notifications, settings.retentionDays]);
 
+  // Check for duplicate notifications
+  const isDuplicate = useCallback((newNotification: Notification): boolean => {
+    const duplicateWindow = 5000; // 5 seconds
+    const now = new Date().getTime();
+    
+    return state.notifications.some(existing => {
+      const timeDiff = now - existing.timestamp.getTime();
+      return (
+        existing.subType === newNotification.subType &&
+        existing.title === newNotification.title &&
+        existing.message === newNotification.message &&
+        timeDiff < duplicateWindow
+      );
+    });
+  }, [state.notifications]);
+
   // Add notification
   const addNotification = useCallback((
     subType: NotificationSubType, 
@@ -222,6 +238,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!settings.enabled) return;
 
     const notification = createNotification(subType, data, overrides);
+    
+    // Check for duplicates
+    if (isDuplicate(notification)) {
+      console.log('🔄 Skipping duplicate notification:', notification.title);
+      return;
+    }
+
     dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
 
     // Auto-dismiss if enabled
@@ -248,7 +271,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       }
     }
-  }, [settings]);
+  }, [settings, isDuplicate]);
 
   // Add custom notification
   const addCustomNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp'>) => {

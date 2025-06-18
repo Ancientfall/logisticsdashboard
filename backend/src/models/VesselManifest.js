@@ -63,6 +63,69 @@ const VesselManifest = sequelize.define('VesselManifest', {
 	year: {
 		type: DataTypes.INTEGER
 	},
+
+	// Enhanced fields matching IndexedDB processing
+	standardizedTransporter: {
+		type: DataTypes.STRING
+	},
+	standardizedFrom: {
+		type: DataTypes.STRING
+	},
+	standardizedOffshoreLocation: {
+		type: DataTypes.STRING
+	},
+	company: {
+		type: DataTypes.STRING
+	},
+	facilityName: {
+		type: DataTypes.STRING
+	},
+	facilityType: {
+		type: DataTypes.STRING
+	},
+	department: {
+		type: DataTypes.STRING
+	},
+	lcNumber: {
+		type: DataTypes.STRING
+	},
+	costAllocationData: {
+		type: DataTypes.JSONB
+	},
+	month: {
+		type: DataTypes.INTEGER
+	},
+	monthName: {
+		type: DataTypes.STRING
+	},
+	monthYear: {
+		type: DataTypes.STRING
+	},
+	totalWeight: {
+		type: DataTypes.FLOAT
+	},
+	totalVolume: {
+		type: DataTypes.FLOAT
+	},
+	cargoEfficiency: {
+		type: DataTypes.FLOAT
+	},
+	liftsPerTon: {
+		type: DataTypes.FLOAT
+	},
+	utilizationPercentage: {
+		type: DataTypes.FLOAT
+	},
+	voyageSegmentId: {
+		type: DataTypes.STRING
+	},
+	voyageSegmentInfo: {
+		type: DataTypes.JSONB
+	},
+	processedAt: {
+		type: DataTypes.DATE
+	},
+
 	metadata: {
 		type: DataTypes.JSONB,
 		defaultValue: {}

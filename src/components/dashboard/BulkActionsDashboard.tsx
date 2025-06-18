@@ -455,40 +455,40 @@ const BulkActionsDashboard: React.FC<BulkActionsDashboardProps> = ({ onNavigateT
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedBulkActions.map((action) => (
+                {paginatedBulkActions.filter(action => action && action.id).map((action) => (
                   <tr key={action.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {action.startDate.toLocaleDateString()}
+                      {action.startDate ? new Date(action.startDate).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {action.vesselName}
+                      {action.vesselName || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        action.action.toLowerCase().includes('load') ? 'bg-green-100 text-green-800' : 
-                        action.action.toLowerCase().includes('discharge') ? 'bg-red-100 text-red-800' :
+                        (action.action || '').toLowerCase().includes('load') ? 'bg-green-100 text-green-800' : 
+                        (action.action || '').toLowerCase().includes('discharge') ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {action.action}
+                        {action.action || 'Unknown'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {action.bulkType}
+                      {action.bulkType || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {action.bulkDescription || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {action.standardizedOrigin}
+                      {action.standardizedOrigin || action.atPort || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {action.standardizedDestination || '-'}
+                      {action.standardizedDestination || action.atPort || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {formatNumberWhole(action.qty)} {action.unit}
+                      {formatNumberWhole(action.qty || 0)} {action.unit || 'units'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                      {formatNumberWhole(action.volumeBbls)}
+                      {formatNumberWhole(action.volumeBbls || action.qty || 0)}
                     </td>
                   </tr>
                 ))}

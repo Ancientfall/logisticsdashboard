@@ -12,6 +12,7 @@ const authRoutes = require('./routes/auth')
 const dataRoutes = require('./routes/data')
 const uploadRoutes = require('./routes/upload')
 const adminRoutes = require('./routes/admin')
+const referenceRoutes = require('./routes/reference')
 
 // Import models to ensure associations are loaded
 require('./models')
@@ -19,26 +20,44 @@ require('./models')
 const app = express()
 const PORT = process.env.PORT || 5000
 
-// Trust proxy for nginx
-app.set('trust proxy', true)
+// Trust proxy for nginx - disabled for development
+app.set('trust proxy', false)
 
 // Security middleware
 app.use(helmet())
 
 // CORS configuration
 app.use(cors({
-	origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+	origin: [
+		'http://localhost:3000',
+		'http://127.0.0.1:3000',
+		process.env.FRONTEND_URL
+	].filter(Boolean),
 	credentials: true,
-	optionsSuccessStatus: 200
+	optionsSuccessStatus: 200,
+	methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }))
 
-// Rate limiting
-const limiter = rateLimit({
+// Rate limiting - DISABLED FOR DEVELOPMENT
+// Commenting out rate limiting to troubleshoot upload issues
+/*
+const generalLimiter = rateLimit({
 	windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-	max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+	max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10000,
 	message: 'Too many requests from this IP, please try again later.'
 })
-app.use('/api/', limiter)
+
+const uploadLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 500, // 500 uploads per 15 minutes
+	message: 'Too many upload requests, please try again later.'
+})
+
+app.use('/api/upload', uploadLimiter)
+app.use('/api/', generalLimiter)
+*/
+console.log('⚠️ Rate limiting DISABLED for development')
 
 // Body parsing middleware
 app.use(express.json({ limit: '50mb' }))
@@ -50,6 +69,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/data', dataRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/reference', referenceRoutes)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

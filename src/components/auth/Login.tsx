@@ -3,8 +3,9 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Card, CardBody, CardHeader, Button, Checkbox } from '@nextui-org/react'
 import { motion } from 'framer-motion'
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react'
-import { authAPI, handleAPIError } from '../../services/api'
+import { handleAPIError } from '../../services/api'
 import { useNotifications } from '../../context/NotificationContext'
+import { useAuth } from '../../context/AuthContext'
 
 interface LoginCredentials {
 	email: string
@@ -13,6 +14,7 @@ interface LoginCredentials {
 
 export default function Login() {
 	const navigate = useNavigate()
+	const { login } = useAuth()
 	const { addNotification } = useNotifications()
 	const [isLoading, setIsLoading] = useState(false)
 	const [errors, setErrors] = useState<Record<string, string>>({})
@@ -49,7 +51,7 @@ export default function Login() {
 		setErrors({})
 		
 		try {
-			await authAPI.login(credentials)
+			await login(credentials.email, credentials.password)
 			
 			addNotification('system-update', {
 				title: 'Welcome Back!',

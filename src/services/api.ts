@@ -233,6 +233,70 @@ export const dataAPI = {
 	deleteByUploadId: async (uploadId: string) => {
 		const response = await api.delete(`/data/upload/${uploadId}`)
 		return response.data
+	},
+
+	// Logistics data endpoints
+	getVoyageEvents: async (params?: {
+		page?: number
+		limit?: number
+	}) => {
+		const response = await api.get('/data/voyage-events', { params })
+		return response.data
+	},
+
+	getVesselManifests: async (params?: {
+		page?: number
+		limit?: number
+	}) => {
+		const response = await api.get('/data/vessel-manifests', { params })
+		return response.data
+	},
+
+	getVoyageList: async (params?: {
+		page?: number
+		limit?: number
+	}) => {
+		const response = await api.get('/data/voyage-list', { params })
+		return response.data
+	},
+
+	getCostAllocation: async (params?: {
+		page?: number
+		limit?: number
+	}) => {
+		const response = await api.get('/data/cost-allocation', { params })
+		return response.data
+	},
+
+	getBulkActions: async (params?: {
+		page?: number
+		limit?: number
+	}) => {
+		const response = await api.get('/data/bulk-actions', { params })
+		return response.data
+	},
+
+	// Reference data endpoints
+	getMasterFacilities: async (params?: {
+		page?: number
+		limit?: number
+		active?: boolean
+		facilityType?: string
+	}) => {
+		const response = await api.get('/reference/facilities', { params })
+		return response.data
+	},
+
+	getVesselClassifications: async (params?: {
+		page?: number
+		limit?: number
+		active?: boolean
+		vesselType?: string
+		company?: string
+		sizeCategory?: string
+	}) => {
+		const response = await api.get('/reference/vessels', { params })
+		return response.data
 	}
 }
 
@@ -380,6 +444,26 @@ export const uploadAPI = {
 	getUploadDetails: async (uploadId: string) => {
 		const response = await api.get(`/upload/history/${uploadId}`)
 		return response.data.data
+	},
+
+	cleanupDuplicateVoyageEvents: async () => {
+		const response = await api.post('/upload/cleanup-duplicates')
+		return response.data
+	},
+
+	clearAllData: async () => {
+		const response = await api.post('/upload/clear-all-data')
+		return response.data
+	},
+
+	migrateDepartmentFields: async () => {
+		const response = await api.post('/upload/migrate-department-fields')
+		return response.data
+	},
+
+	rollbackMigration: async () => {
+		const response = await api.post('/upload/rollback-migration')
+		return response.data
 	}
 }
 

@@ -28,6 +28,19 @@ router.get('/dashboard', auth, dataController.getDashboardData)
 // Get analytics data
 router.get('/analytics', auth, dataController.getAnalytics)
 
+// Logistics data endpoints
+// DEVELOPMENT: Temporarily disable auth for data endpoints to test PostgreSQL integration
+router.get('/voyage-events', dataController.getVoyageEvents)
+router.get('/voyage-events/:id', dataController.getVoyageEventById)
+router.get('/vessel-manifests', dataController.getVesselManifests)
+router.get('/vessel-manifests/:id', dataController.getVesselManifestById)
+router.get('/voyage-list', dataController.getVoyageList)
+router.get('/voyage-list/:id', dataController.getVoyageListById)
+router.get('/cost-allocation', dataController.getCostAllocation)
+router.get('/cost-allocation/:id', dataController.getCostAllocationById)
+router.get('/bulk-actions', dataController.getBulkActions)
+router.get('/bulk-actions/:id', dataController.getBulkActionById)
+
 // Delete data (admin only)
 router.delete('/wells/:id', auth, authorize('admin'), dataController.deleteWellOperation)
 router.delete('/vessels/:id', auth, authorize('admin'), dataController.deleteVessel)

@@ -237,3 +237,123 @@ This is a BP Logistics Analytics Dashboard built with React 19, TypeScript, and 
 - Use proper links
 - Use proper headings
 - Use proper lists
+
+## Integration Points Memory
+
+### Data Processing and Integration
+
+#### Vessel Cost Calculation
+```javascript
+const baseHourlyRate = vesselSize > 300 ? 1500 : vesselSize > 250 ? 1200 : vesselSize > 200 ? 1000 : 800
+const vesselHourlyRate = vesselType === 'FSV' ? baseHourlyRate * 0.8 : baseHourlyRate
+```
+
+#### NPT (Non-Productive Time) Detection
+```javascript
+if (combined.includes('waiting') || combined.includes('delay') ||
+    combined.includes('breakdown') || combined.includes('weather') ||
+    combined.includes('standby') || combined.includes('equipment failure')) {
+    return 'Non-Productive'
+}
+```
+
+### Reference Data Integration Points
+
+#### Voyage Events
+- Enhanced vessel classification metadata
+- Accurate company assignment from vessel names
+- Size-based cost calculations
+- NPT activity detection
+
+#### Vessel Manifests
+- Company inference from transporter vessel names
+- Enhanced vessel type classification
+- Cargo efficiency based on vessel size
+
+#### Cost Allocation
+- Company inference from vessel names in data
+- Enhanced rig location cost analysis
+- locationReference field for dashboard compatibility
+
+#### Bulk Actions
+- Vessel classification metadata
+- Company assignment for fluid transfers
+- Enhanced vessel type for transfer analysis
+
+#### Voyage List
+- Vessel classification integration
+- Company assignment for voyage planning
+- Vessel size-based efficiency calculations
+
+### Dashboard Improvements
+
+#### Drilling Dashboard
+- NPT Impact: Detects waiting, delays, weather, equipment failures
+- Productive Time: Enhanced LC allocation with vessel classification
+- Rig Cost Analysis: Added locationReference field
+- Vessel Utilization: Size-based cost calculations
+
+#### Production Dashboard
+- Fluid Movements: Enhanced bulk action classification
+- Cargo Operations: Vessel size-based efficiency metrics
+- Company Analytics: Accurate vessel company assignments
+
+### Data Processing Chain
+
+Excel Files → Enhanced Processing → PostgreSQL → APIs → Dashboard KPIs
+
+1. Vessel Names → Vessel Classification
+2. Activity Events → Enhanced Activity Classification
+3. Location Names → Master Facilities
+4. Fluid Types → Bulk Fluid Classification
+5. Cost Data → Enhanced Cost Analysis
+
+### Expected Improvements
+1. Accurate Company Distribution
+2. Proper Vessel Type Analysis
+3. Realistic Cost Calculations
+4. NPT Impact Detection
+5. Enhanced Utilization Metrics
+
+### Next Steps
+Clear all data and re-upload 5 Excel files to validate:
+- Accurate vessel companies
+- NPT percentages
+- Realistic cost calculations
+- Enhanced activity categorization
+- Complete rig location cost analysis
+
+## Data Migration Memory
+
+### Migration Overview
+Key Sections:
+
+1. Migration Overview - The core challenge and approach
+2. Data Processing Requirements - Analysis of 15+ frontend utility files
+3. Enhanced Field Mappings - Complete mapping of 50+ enhanced fields
+4. Migration Phases - The 3-phase approach we used
+5. Database Schema Enhancements - All model updates and indexes
+6. Processing Pipelines - Code examples and implementation details
+7. Validation & Quality Assurance - Data quality scoring system
+8. Performance Considerations - Batch processing and optimization
+9. Troubleshooting - Common issues and solutions
+10. Best Practices - Lessons learned and recommendations
+
+Critical Insights Documented:
+
+- The Core Discovery: Dashboard components expect enhanced, processed data with calculated fields - not just raw Excel data
+- Field Dependencies: Specific fields each dashboard component requires
+- Processing Logic: Complete implementation details for all transformations
+- Migration Results: 51,575 events, 1,475 voyages, 18 months of data
+- Validation Strategy: 99.98% perfect data quality scores
+
+Practical Value:
+
+This guide serves as a complete reference for:
+- Future migrations or similar projects
+- Understanding the sophisticated data processing requirements
+- Implementing enhanced field calculations
+- Troubleshooting dashboard issues
+- Maintaining and extending the PostgreSQL implementation
+
+The document captures the full journey from discovering missing fields to implementing comprehensive voyage analytics, providing a roadmap for anyone working with similar data migration challenges.

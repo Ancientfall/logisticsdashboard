@@ -55,9 +55,72 @@ const CostAllocation = sequelize.define('CostAllocation', {
 		type: DataTypes.ENUM('Drilling', 'Production', 'Logistics', 'Maintenance', 'Operations'),
 		allowNull: true
 	},
+
+	// Enhanced fields matching IndexedDB processing
+	costAllocationDate: {
+		type: DataTypes.DATE
+	},
+	month: {
+		type: DataTypes.INTEGER
+	},
+	year: {
+		type: DataTypes.INTEGER
+	},
+	monthName: {
+		type: DataTypes.STRING
+	},
+	standardizedLCNumber: {
+		type: DataTypes.STRING
+	},
+	standardizedRigReference: {
+		type: DataTypes.STRING
+	},
+	projectCategory: {
+		type: DataTypes.STRING
+	},
+	waterDepthCategory: {
+		type: DataTypes.STRING
+	},
+	waterDepthMeters: {
+		type: DataTypes.FLOAT
+	},
+	location: {
+		type: DataTypes.STRING
+	},
+	costPerHour: {
+		type: DataTypes.FLOAT
+	},
+	costEfficiency: {
+		type: DataTypes.FLOAT
+	},
+	utilizationPercentage: {
+		type: DataTypes.FLOAT
+	},
+	productivityScore: {
+		type: DataTypes.FLOAT
+	},
+	costVariance: {
+		type: DataTypes.FLOAT
+	},
+	budgetUtilization: {
+		type: DataTypes.FLOAT
+	},
+	isActive: {
+		type: DataTypes.BOOLEAN,
+		defaultValue: true
+	},
+
 	metadata: {
 		type: DataTypes.JSONB,
 		defaultValue: {}
+	},
+	
+	// Additional enhanced fields
+	dataQualityScore: {
+		type: DataTypes.INTEGER
+	},
+	dataQualityIssues: {
+		type: DataTypes.TEXT
 	}
 }, {
 	timestamps: true,

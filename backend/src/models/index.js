@@ -9,6 +9,8 @@ const VesselManifest = require('./VesselManifest')
 const CostAllocation = require('./CostAllocation')
 const BulkAction = require('./BulkAction')
 const VoyageList = require('./VoyageList')
+const MasterFacility = require('./MasterFacility')
+const VesselClassification = require('./VesselClassification')
 
 // User -> Upload (One to Many)
 User.hasMany(Upload, { foreignKey: 'userId', as: 'uploads' })
@@ -61,5 +63,7 @@ module.exports = {
 	VesselManifest,
 	CostAllocation,
 	BulkAction,
-	VoyageList
+	VoyageList,
+	MasterFacility,
+	VesselClassification
 }

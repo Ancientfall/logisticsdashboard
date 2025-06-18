@@ -4,8 +4,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { NextUIProvider } from '@nextui-org/react'
 import { DataProvider } from './context/DataContext'
 import { NotificationProvider } from './context/NotificationContext'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider } from './context/AuthContext'
 import { HttpsEnforcer } from './components/security/HttpsEnforcer'
+import LoadingBoundary from './components/layout/LoadingBoundary'
 
 // Auth components
 import Login from './components/auth/Login'
@@ -26,6 +27,7 @@ import ComparisonDashboard from './components/dashboard/ComparisonDashboard'
 import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard'
 import PublicLandingPage from './components/PublicLandingPage'
 import AdminDashboard from './components/admin/AdminDashboard'
+import ReferenceDataManager from './components/admin/ReferenceDataManager'
 
 import './index.css'
 
@@ -33,11 +35,12 @@ function App() {
 	return (
 		<NextUIProvider>
 			<Router>
-				<NotificationProvider>
-					<AuthProvider>
-						<DataProvider>
-							<HttpsEnforcer />
-							<Routes>
+				<LoadingBoundary>
+					<NotificationProvider>
+						<AuthProvider>
+							<DataProvider>
+								<HttpsEnforcer />
+								<Routes>
 								{/* Public routes */}
 								<Route path="/" element={<PublicLandingPage />} />
 								<Route path="/login" element={<Login />} />
@@ -48,7 +51,7 @@ function App() {
 								{/* Protected routes */}
 								
 								<Route path="/upload" element={
-									<PrivateRoute requiredRole="manager">
+									<PrivateRoute>
 										<DashboardLayout>
 											<FileUploadPageWithDB />
 										</DashboardLayout>
@@ -118,13 +121,21 @@ function App() {
 										</DashboardLayout>
 									</PrivateRoute>
 								} />
+								<Route path="/admin/reference" element={
+									<PrivateRoute requiredRole="admin">
+										<DashboardLayout>
+											<ReferenceDataManager />
+										</DashboardLayout>
+									</PrivateRoute>
+								} />
 								
 								{/* Catch all - redirect to home */}
 								<Route path="*" element={<Navigate to="/" replace />} />
-							</Routes>
-						</DataProvider>
-					</AuthProvider>
-				</NotificationProvider>
+								</Routes>
+							</DataProvider>
+						</AuthProvider>
+					</NotificationProvider>
+				</LoadingBoundary>
 			</Router>
 		</NextUIProvider>
 	)

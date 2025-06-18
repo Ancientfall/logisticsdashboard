@@ -1,6 +1,6 @@
 const { Op } = require('sequelize')
 const { sequelize } = require('../config/database')
-const { WellOperation, Vessel, FluidAnalysis, Upload } = require('../models')
+const { WellOperation, Vessel, FluidAnalysis, Upload, VoyageEvent, VesselManifest, VoyageList, CostAllocation, BulkAction } = require('../models')
 const logger = require('../utils/logger')
 
 // Helper function to parse query filters
@@ -402,5 +402,222 @@ exports.deleteByUploadId = async (req, res) => {
 	} catch (error) {
 		logger.error('Delete by upload ID error:', error)
 		res.status(500).json({ error: 'Failed to delete records' })
+	}
+}
+
+// Logistics Data Controllers
+
+// Voyage Events
+exports.getVoyageEvents = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page) || 1
+		const limit = Math.min(parseInt(req.query.limit) || 100, 1000)
+		const offset = (page - 1) * limit
+
+		const { count, rows: data } = await VoyageEvent.findAndCountAll({
+			limit,
+			offset,
+			order: [['createdAt', 'DESC']]
+		})
+
+		logger.info(`Retrieved ${data.length} voyage events (page ${page})`)
+		res.json({
+			success: true,
+			data,
+			pagination: {
+				page,
+				limit,
+				total: count,
+				pages: Math.ceil(count / limit)
+			}
+		})
+	} catch (error) {
+		logger.error('Get voyage events error:', error)
+		res.status(500).json({ error: 'Failed to retrieve voyage events' })
+	}
+}
+
+exports.getVoyageEventById = async (req, res) => {
+	try {
+		const data = await VoyageEvent.findByPk(req.params.id)
+		if (!data) {
+			return res.status(404).json({ error: 'Voyage event not found' })
+		}
+		res.json({ success: true, data })
+	} catch (error) {
+		logger.error('Get voyage event error:', error)
+		res.status(500).json({ error: 'Failed to retrieve voyage event' })
+	}
+}
+
+// Vessel Manifests
+exports.getVesselManifests = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page) || 1
+		const limit = Math.min(parseInt(req.query.limit) || 100, 1000)
+		const offset = (page - 1) * limit
+
+		const { count, rows: data } = await VesselManifest.findAndCountAll({
+			limit,
+			offset,
+			order: [['createdAt', 'DESC']]
+		})
+
+		logger.info(`Retrieved ${data.length} vessel manifests (page ${page})`)
+		res.json({
+			success: true,
+			data,
+			pagination: {
+				page,
+				limit,
+				total: count,
+				pages: Math.ceil(count / limit)
+			}
+		})
+	} catch (error) {
+		logger.error('Get vessel manifests error:', error)
+		res.status(500).json({ error: 'Failed to retrieve vessel manifests' })
+	}
+}
+
+exports.getVesselManifestById = async (req, res) => {
+	try {
+		const data = await VesselManifest.findByPk(req.params.id)
+		if (!data) {
+			return res.status(404).json({ error: 'Vessel manifest not found' })
+		}
+		res.json({ success: true, data })
+	} catch (error) {
+		logger.error('Get vessel manifest error:', error)
+		res.status(500).json({ error: 'Failed to retrieve vessel manifest' })
+	}
+}
+
+// Voyage List
+exports.getVoyageList = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page) || 1
+		const limit = Math.min(parseInt(req.query.limit) || 100, 1000)
+		const offset = (page - 1) * limit
+
+		const { count, rows: data } = await VoyageList.findAndCountAll({
+			limit,
+			offset,
+			order: [['createdAt', 'DESC']]
+		})
+
+		logger.info(`Retrieved ${data.length} voyage list entries (page ${page})`)
+		res.json({
+			success: true,
+			data,
+			pagination: {
+				page,
+				limit,
+				total: count,
+				pages: Math.ceil(count / limit)
+			}
+		})
+	} catch (error) {
+		logger.error('Get voyage list error:', error)
+		res.status(500).json({ error: 'Failed to retrieve voyage list' })
+	}
+}
+
+exports.getVoyageListById = async (req, res) => {
+	try {
+		const data = await VoyageList.findByPk(req.params.id)
+		if (!data) {
+			return res.status(404).json({ error: 'Voyage list entry not found' })
+		}
+		res.json({ success: true, data })
+	} catch (error) {
+		logger.error('Get voyage list entry error:', error)
+		res.status(500).json({ error: 'Failed to retrieve voyage list entry' })
+	}
+}
+
+// Cost Allocation
+exports.getCostAllocation = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page) || 1
+		const limit = Math.min(parseInt(req.query.limit) || 100, 1000)
+		const offset = (page - 1) * limit
+
+		const { count, rows: data } = await CostAllocation.findAndCountAll({
+			limit,
+			offset,
+			order: [['createdAt', 'DESC']]
+		})
+
+		logger.info(`Retrieved ${data.length} cost allocation entries (page ${page})`)
+		res.json({
+			success: true,
+			data,
+			pagination: {
+				page,
+				limit,
+				total: count,
+				pages: Math.ceil(count / limit)
+			}
+		})
+	} catch (error) {
+		logger.error('Get cost allocation error:', error)
+		res.status(500).json({ error: 'Failed to retrieve cost allocation' })
+	}
+}
+
+exports.getCostAllocationById = async (req, res) => {
+	try {
+		const data = await CostAllocation.findByPk(req.params.id)
+		if (!data) {
+			return res.status(404).json({ error: 'Cost allocation entry not found' })
+		}
+		res.json({ success: true, data })
+	} catch (error) {
+		logger.error('Get cost allocation entry error:', error)
+		res.status(500).json({ error: 'Failed to retrieve cost allocation entry' })
+	}
+}
+
+// Bulk Actions
+exports.getBulkActions = async (req, res) => {
+	try {
+		const page = parseInt(req.query.page) || 1
+		const limit = Math.min(parseInt(req.query.limit) || 100, 1000)
+		const offset = (page - 1) * limit
+
+		const { count, rows: data } = await BulkAction.findAndCountAll({
+			limit,
+			offset,
+			order: [['createdAt', 'DESC']]
+		})
+
+		logger.info(`Retrieved ${data.length} bulk actions (page ${page})`)
+		res.json({
+			success: true,
+			data,
+			pagination: {
+				page,
+				limit,
+				total: count,
+				pages: Math.ceil(count / limit)
+			}
+		})
+	} catch (error) {
+		logger.error('Get bulk actions error:', error)
+		res.status(500).json({ error: 'Failed to retrieve bulk actions' })
+	}
+}
+
+exports.getBulkActionById = async (req, res) => {
+	try {
+		const data = await BulkAction.findByPk(req.params.id)
+		if (!data) {
+			return res.status(404).json({ error: 'Bulk action not found' })
+		}
+		res.json({ success: true, data })
+	} catch (error) {
+		logger.error('Get bulk action error:', error)
+		res.status(500).json({ error: 'Failed to retrieve bulk action' })
 	}
 }

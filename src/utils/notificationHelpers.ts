@@ -154,6 +154,22 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationSubType, NotificationTem
     messageTemplate: 'Dashboard has been updated to version {version}. See changelog for details.',
     autoDismiss: false
   },
+  'data-cleared': {
+    type: 'system',
+    subType: 'data-cleared',
+    priority: 'warning',
+    titleTemplate: 'All Data Cleared',
+    messageTemplate: 'Successfully cleared all data from database. Total: {total} records removed. You can now re-upload your Excel files.',
+    autoDismiss: false
+  },
+  'system-error': {
+    type: 'system',
+    subType: 'system-error',
+    priority: 'error',
+    titleTemplate: 'System Error',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
 
   // Operational Insights
   'efficiency-improvement': {

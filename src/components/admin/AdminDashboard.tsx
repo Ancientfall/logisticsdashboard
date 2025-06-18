@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { 
-	Card, 
-	CardBody, 
-	CardHeader, 
 	Table, 
 	TableHeader, 
 	TableColumn, 
@@ -23,9 +20,10 @@ import {
 	Pagination,
 	Spinner
 } from '@nextui-org/react'
-import { Users, Shield, Activity, UserX, UserCheck, Search, RefreshCw } from 'lucide-react'
+import { Users, Shield, Activity, UserCheck, Search, RefreshCw, Database } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import { useNotifications } from '../../context/NotificationContext'
+import ReferenceDataManager from './ReferenceDataManager'
 
 interface User {
 	id: string
@@ -73,12 +71,7 @@ export default function AdminDashboard() {
 		isActive: true
 	})
 
-	useEffect(() => {
-		fetchStats()
-		fetchUsers()
-	}, [currentPage, searchTerm, roleFilter, statusFilter])
-
-	const fetchStats = async () => {
+	const fetchStats = useCallback(async () => {
 		try {
 			const data = await adminAPI.getSystemStats()
 			setStats(data)
@@ -88,9 +81,9 @@ export default function AdminDashboard() {
 				message: 'Failed to fetch system statistics'
 			})
 		}
-	}
+	}, [addNotification])
 
-	const fetchUsers = async () => {
+	const fetchUsers = useCallback(async () => {
 		setLoading(true)
 		try {
 			const response = await adminAPI.getUsers({
@@ -109,7 +102,12 @@ export default function AdminDashboard() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [currentPage, searchTerm, roleFilter, statusFilter, addNotification])
+
+	useEffect(() => {
+		fetchStats()
+		fetchUsers()
+	}, [fetchStats, fetchUsers])
 
 	const handleEditUser = (user: User) => {
 		setSelectedUser(user)

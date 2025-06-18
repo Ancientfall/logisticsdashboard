@@ -69,9 +69,104 @@ const BulkAction = sequelize.define('BulkAction', {
 	remarks: {
 		type: DataTypes.TEXT
 	},
+
+	// Enhanced fields matching IndexedDB processing
+	portType: {
+		type: DataTypes.STRING
+	},
+	startDate: {
+		type: DataTypes.DATE
+	},
+	action: {
+		type: DataTypes.STRING
+	},
+	qty: {
+		type: DataTypes.FLOAT
+	},
+	ppg: {
+		type: DataTypes.FLOAT
+	},
+	bulkType: {
+		type: DataTypes.STRING
+	},
+	bulkDescription: {
+		type: DataTypes.TEXT
+	},
+	fluidClassification: {
+		type: DataTypes.STRING
+	},
+	fluidCategory: {
+		type: DataTypes.STRING
+	},
+	fluidSpecificType: {
+		type: DataTypes.STRING
+	},
+	isDrillingFluid: {
+		type: DataTypes.BOOLEAN
+	},
+	isCompletionFluid: {
+		type: DataTypes.BOOLEAN
+	},
+	productionChemicalType: {
+		type: DataTypes.STRING
+	},
+	atPort: {
+		type: DataTypes.STRING
+	},
+	standardizedOrigin: {
+		type: DataTypes.STRING
+	},
+	destinationPort: {
+		type: DataTypes.STRING
+	},
+	standardizedDestination: {
+		type: DataTypes.STRING
+	},
+	productionPlatform: {
+		type: DataTypes.STRING
+	},
+	volumeBbls: {
+		type: DataTypes.FLOAT
+	},
+	volumeGals: {
+		type: DataTypes.FLOAT
+	},
+	isReturn: {
+		type: DataTypes.BOOLEAN
+	},
+	monthNumber: {
+		type: DataTypes.INTEGER
+	},
+	year: {
+		type: DataTypes.INTEGER
+	},
+	monthName: {
+		type: DataTypes.STRING
+	},
+	monthYear: {
+		type: DataTypes.STRING
+	},
+	tank: {
+		type: DataTypes.STRING
+	},
+
 	metadata: {
 		type: DataTypes.JSONB,
 		defaultValue: {}
+	},
+	
+	// Additional enhanced fields
+	dataQualityScore: {
+		type: DataTypes.INTEGER
+	},
+	dataQualityIssues: {
+		type: DataTypes.TEXT
+	},
+	fluidType: {
+		type: DataTypes.STRING
+	},
+	description: {
+		type: DataTypes.TEXT
 	}
 }, {
 	timestamps: true,

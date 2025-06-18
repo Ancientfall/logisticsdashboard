@@ -67,10 +67,6 @@ Maps to Excel files containing cost allocation information.
 - `Rig Type` → `rig_type`
 - `Water Depth` → `water_depth`
 
-**Department Assignment Logic:**
-- LC Numbers containing `0250` or `0100` → `department` = 'Drilling'
-- LC Numbers containing `0300` → `department` = 'Production'
-- LC Numbers containing `0350` → `department` = 'Logistics'
 
 ### 4. **bulk_actions** - Bulk Action Data
 Maps to Excel files containing bulk cargo operations.

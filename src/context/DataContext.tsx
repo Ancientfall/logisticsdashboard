@@ -62,7 +62,11 @@ interface DataContextType {
   // New navigation functions for our enhanced UI
   resetToUpload: () => void;
   forceRefreshFromStorage: () => void;
+  loadDataFromPostgreSQL: () => Promise<boolean>;
   lastUpdated: Date | null;
+  
+  // Debug function
+  debugDashboardData: () => void;
 }
 
 const DataContext = createContext<DataContextType>({
@@ -108,7 +112,9 @@ const DataContext = createContext<DataContextType>({
   
   resetToUpload: () => {},
   forceRefreshFromStorage: () => {},
-  lastUpdated: null
+  loadDataFromPostgreSQL: async () => false,
+  lastUpdated: null,
+  debugDashboardData: () => {}
 });
 
 export const useData = () => useContext(DataContext);
@@ -165,9 +171,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   }, [dataOps]);
 
   const forceRefreshFromStorage = useCallback(async () => {
-    console.log('🔄 Force refreshing data from Supabase...');
-    const success = await dataOps.loadStoredData();
+    console.log('🔄 Force refreshing data from PostgreSQL...');
+    const success = await dataOps.loadDataFromPostgreSQL();
     console.log(success ? '✅ Data refreshed successfully' : '❌ No data found to refresh');
+  }, [dataOps]);
+
+  const loadDataFromPostgreSQL = useCallback(async (): Promise<boolean> => {
+    console.log('🔄 Loading data from PostgreSQL database...');
+    return await dataOps.loadDataFromPostgreSQL();
   }, [dataOps]);
 
   // Track uploaded files
@@ -181,7 +192,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     bulkActions: dataOps.bulkActions.length > 0
   };
 
-  // Auto-check data readiness when arrays change
+  // Auto-check data readiness when arrays change (with debouncing)
   useEffect(() => {
     const hasAnyData = dataOps.voyageEvents.length > 0 || 
                       dataOps.costAllocation.length > 0 || 
@@ -245,7 +256,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setError: dataOps.setError,
       clearAllData: dataOps.clearAllData,
       resetToUpload,
-      forceRefreshFromStorage
+      forceRefreshFromStorage,
+      loadDataFromPostgreSQL,
+      debugDashboardData: dataOps.debugDashboardData
     }}>
       {children}
     </DataContext.Provider>

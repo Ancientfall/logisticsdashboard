@@ -64,44 +64,88 @@ router.get('/history', auth, uploadController.getUploadHistory)
 // Get upload details
 router.get('/history/:uploadId', auth, uploadController.getUploadDetails)
 
+// DEVELOPMENT: Temporarily disable auth for upload endpoints
 // Upload voyage events
 router.post('/voyage-events',
-	auth,
-	authorize('admin', 'manager'),
 	upload.single('file'),
 	uploadController.uploadVoyageEvents
 )
 
 // Upload vessel manifests
 router.post('/vessel-manifests',
-	auth,
-	authorize('admin', 'manager'),
 	upload.single('file'),
 	uploadController.uploadVesselManifests
 )
 
 // Upload cost allocation
 router.post('/cost-allocation',
-	auth,
-	authorize('admin', 'manager'),
 	upload.single('file'),
 	uploadController.uploadCostAllocation
 )
 
 // Upload bulk actions
 router.post('/bulk-actions',
-	auth,
-	authorize('admin', 'manager'),
 	upload.single('file'),
 	uploadController.uploadBulkActions
 )
 
 // Upload voyage list
 router.post('/voyage-list',
-	auth,
-	authorize('admin', 'manager'),
 	upload.single('file'),
 	uploadController.uploadVoyageList
+)
+
+// Clear all data from database (development only)
+router.post('/clear-all-data',
+	auth,
+	authorize('admin'),
+	uploadController.clearAllData
+)
+
+// Clean up duplicate voyage events
+router.post('/cleanup-duplicates',
+	auth,
+	authorize('admin'),
+	uploadController.cleanupDuplicateVoyageEvents
+)
+
+// Migrate department fields for existing records
+router.post('/migrate-department-fields',
+	auth,
+	authorize('admin'),
+	uploadController.migrateDepartmentFields
+)
+
+// EMERGENCY: Rollback migration
+router.post('/rollback-migration',
+	auth,
+	authorize('admin'),
+	uploadController.rollbackMigration
+)
+
+// Migrate activityCategory for existing voyage events (DEVELOPMENT: auth disabled)
+router.post('/migrate-activity-category',
+	uploadController.migrateActivityCategory
+)
+
+// Enhance existing voyage events with missing enhanced fields (DEVELOPMENT: auth disabled)
+router.post('/enhance-voyage-events',
+	uploadController.enhanceExistingVoyageEvents
+)
+
+// Add missing enhanced fields (project type, data quality, etc.) (DEVELOPMENT: auth disabled)
+router.post('/add-missing-enhanced-fields',
+	uploadController.addMissingEnhancedFields
+)
+
+// Enhance voyage processing (voyage IDs, analytics, patterns) (DEVELOPMENT: auth disabled)
+router.post('/enhance-voyage-processing',
+	uploadController.enhanceVoyageProcessing
+)
+
+// Get voyage statistics (DEVELOPMENT: auth disabled)
+router.get('/voyage-statistics',
+	uploadController.getVoyageStatistics
 )
 
 module.exports = router

@@ -10,7 +10,9 @@ const authLimiter = rateLimit({
 	// Skip successful requests from the count
 	skipSuccessfulRequests: false,
 	// Store in memory (fine for small internal use)
-	store: undefined
+	store: undefined,
+	// Properly handle trust proxy setting
+	trustProxy: false
 })
 
 // More generous rate limiter for general API endpoints
@@ -19,7 +21,8 @@ const apiLimiter = rateLimit({
 	max: 100, // Limit each IP to 100 requests per windowMs
 	message: 'Too many requests from this IP, please try again later.',
 	standardHeaders: true,
-	legacyHeaders: false
+	legacyHeaders: false,
+	trustProxy: false
 })
 
 // Very strict limiter for password reset
@@ -27,7 +30,8 @@ const passwordResetLimiter = rateLimit({
 	windowMs: 60 * 60 * 1000, // 1 hour
 	max: 3, // Limit each IP to 3 password reset requests per hour
 	message: 'Too many password reset attempts, please try again later.',
-	skipSuccessfulRequests: true
+	skipSuccessfulRequests: true,
+	trustProxy: false
 })
 
 module.exports = {
