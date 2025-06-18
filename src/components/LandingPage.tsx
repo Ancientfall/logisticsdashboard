@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Sparkles
 } from 'lucide-react';
+import { useServerFileLoader } from '../hooks/useServerFileLoader';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -25,6 +26,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   const [currentStat, setCurrentStat] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  
+  // Server file loading
+  const { 
+    isLoadingFromServer, 
+    serverFilesAvailable, 
+    checkServerFiles, 
+    loadFromServer 
+  } = useServerFileLoader();
 
   // Track mouse position for interactive gradient
   useEffect(() => {
@@ -114,15 +123,39 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     }
   ];
 
-  // Debug localStorage on component mount
+  // Check for server files and set up component
   useEffect(() => {
     console.log('🔍 LandingPage mounted - Checking for data:', { hasData });
     setIsVisible(true);
+    
+    // Check if server files are available
+    checkServerFiles();
+    
     const interval = setInterval(() => {
       setCurrentStat((prev) => (prev + 1) % stats.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [stats.length, hasData]);
+  }, [stats.length, hasData, checkServerFiles]);
+
+  // Handle "View Analytics" button click
+  const handleViewAnalytics = async () => {
+    if (isLoadingFromServer) return;
+    
+    try {
+      const success = await loadFromServer();
+      if (success) {
+        // Navigate to dashboard after successful loading
+        onViewDashboard();
+      } else {
+        // If server loading fails, fall back to upload page
+        onGetStarted();
+      }
+    } catch (error) {
+      console.error('Failed to load server data:', error);
+      // Fall back to upload page
+      onGetStarted();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 overflow-hidden">
@@ -157,10 +190,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             </div>
             <div className={`flex items-center gap-4 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
               <button 
-                onClick={hasData ? onViewDashboard : onGetStarted}
+                onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
                 className="px-6 py-2.5 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                disabled={isLoadingFromServer}
               >
-                {hasData ? 'View Analytics' : 'Demo'}
+                {isLoadingFromServer ? 'Loading...' : (hasData ? 'View Analytics' : (serverFilesAvailable ? 'View Analytics' : 'Demo'))}
               </button>
               <button 
                 onClick={onGetStarted}
@@ -195,19 +229,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
                 <button 
-                  onClick={onGetStarted}
-                  className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
+                  onClick={serverFilesAvailable ? handleViewAnalytics : onGetStarted}
+                  className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoadingFromServer}
                 >
                   <BarChart3 size={20} />
-                  View Analytics
+                  {isLoadingFromServer ? 'Loading Data...' : (serverFilesAvailable ? 'View Analytics' : 'Upload Data')}
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
                 </button>
                 <button 
-                  onClick={hasData ? onViewDashboard : undefined}
-                  className="group bg-white text-gray-900 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-50 transition-all duration-300 shadow-lg border border-gray-200 flex items-center gap-3 justify-center"
+                  onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
+                  className="group bg-white text-gray-900 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-50 transition-all duration-300 shadow-lg border border-gray-200 flex items-center gap-3 justify-center disabled:opacity-50"
+                  disabled={isLoadingFromServer}
                 >
                   <Activity size={20} />
-                  Explore Dashboards
+                  {isLoadingFromServer ? 'Loading...' : 'Explore Dashboards'}
                 </button>
               </div>
             </div>
@@ -359,18 +395,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
-              onClick={onGetStarted}
-              className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
+              onClick={serverFilesAvailable ? handleViewAnalytics : onGetStarted}
+              className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center disabled:opacity-50"
+              disabled={isLoadingFromServer}
             >
               <BarChart3 size={20} />
-              Access Analytics
+              {isLoadingFromServer ? 'Loading...' : 'Access Analytics'}
               <ArrowRight size={20} />
             </button>
             <button 
-              onClick={hasData ? onViewDashboard : onGetStarted}
-              className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border-2 border-white/30"
+              onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
+              className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/30 transition-all duration-300 border-2 border-white/30 disabled:opacity-50"
+              disabled={isLoadingFromServer}
             >
-              {hasData ? 'Go to Dashboard' : 'Request Access'}
+              {isLoadingFromServer ? 'Loading Data...' : (hasData ? 'Go to Dashboard' : (serverFilesAvailable ? 'View Analytics' : 'Request Access'))}
             </button>
           </div>
         </div>
