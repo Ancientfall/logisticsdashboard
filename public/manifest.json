@@ -9,6 +9,11 @@
   "orientation": "landscape",
   "theme_color": "#00754F",
   "background_color": "#ffffff",
+  "purpose": "Business Intelligence and Analytics",
+  "industry": "Energy, Oil & Gas, Maritime Logistics",
+  "classification": "Internal Business Application",
+  "app_type": "Enterprise Analytics Dashboard",
+  "target_audience": "Business Operations Team",
   "icons": [
     {
       "src": "favicon.ico",
