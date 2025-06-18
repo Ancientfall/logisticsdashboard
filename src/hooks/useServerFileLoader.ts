@@ -50,10 +50,18 @@ export const useServerFileLoader = () => {
   const [serverFiles, setServerFiles] = useState<ServerFile[]>([])
   const [errorMessage, setErrorMessage] = useState('')
 
+  // Get API base URL for local development vs production
+  const getApiBaseUrl = () => {
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://localhost:5001'
+    }
+    return window.location.origin
+  }
+
   // Check server files availability
   const checkServerFiles = async (): Promise<boolean> => {
     try {
-      const response = await fetch('/api/excel-files', {
+      const response = await fetch(`${getApiBaseUrl()}/api/excel-files`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -117,7 +125,7 @@ export const useServerFileLoader = () => {
         
         if (fileType) {
           try {
-            const response = await fetch(`/api/excel-files/${encodeURIComponent(serverFile.name)}`)
+            const response = await fetch(`${getApiBaseUrl()}/api/excel-files/${encodeURIComponent(serverFile.name)}`)
             
             if (response.ok) {
               const blob = await response.blob()

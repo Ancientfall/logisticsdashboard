@@ -29,7 +29,7 @@ const LandingPageWrapper: React.FC = () => {
 	
 	return (
 		<LandingPage 
-			onGetStarted={() => navigate('/upload')} 
+			onGetStarted={() => navigate('/dashboard')} 
 			onViewDashboard={() => navigate('/dashboard')} 
 			hasData={false} 
 		/>
