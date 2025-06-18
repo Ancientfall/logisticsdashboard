@@ -1,6 +1,6 @@
 // src/App.tsx
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { NextUIProvider } from '@nextui-org/react'
 import { DataProvider } from './context/DataContext'
 import { NotificationProvider } from './context/NotificationContext'
@@ -25,11 +25,24 @@ import CostAllocationManagerRedesigned from './components/dashboard/CostAllocati
 import ProductionDashboard from './components/dashboard/ProductionDashboard'
 import ComparisonDashboard from './components/dashboard/ComparisonDashboard'
 import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard'
-import PublicLandingPage from './components/PublicLandingPage'
+import LandingPage from './components/LandingPage'
 import AdminDashboard from './components/admin/AdminDashboard'
 import ReferenceDataManager from './components/admin/ReferenceDataManager'
 
 import './index.css'
+
+// Wrapper component to use navigation
+const LandingPageWrapper: React.FC = () => {
+	const navigate = useNavigate()
+	
+	return (
+		<LandingPage 
+			onGetStarted={() => navigate('/upload')} 
+			onViewDashboard={() => navigate('/dashboard')} 
+			hasData={false} 
+		/>
+	)
+}
 
 function App() {
 	return (
@@ -42,7 +55,7 @@ function App() {
 								<HttpsEnforcer />
 								<Routes>
 								{/* Public routes */}
-								<Route path="/" element={<PublicLandingPage />} />
+								<Route path="/" element={<LandingPageWrapper />} />
 								<Route path="/login" element={<Login />} />
 								<Route path="/register" element={<Register />} />
 								<Route path="/forgot-password" element={<ForgotPassword />} />
