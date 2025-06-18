@@ -20,7 +20,7 @@ export interface VesselClassification {
   status: 'Active' | 'Standby' | 'Maintenance' | 'Retired';
 }
 
-// Generated from Excel file on 2025-06-18T18:26:50.116Z
+// Generated from Excel file on 2025-06-18T18:32:27.705Z
 export const vesselClassificationData: VesselClassification[] = [
   {
     "vesselName": "Amber",
@@ -394,6 +394,20 @@ export const vesselClassificationData: VesselClassification[] = [
     "category": "Supply",
     "specifications": {
       "length": 270
+    },
+    "operationalArea": [
+      "Gulf of Mexico"
+    ],
+    "status": "Active"
+  },
+  {
+    "vesselName": "Millie",
+    "company": "Edison Chouest Offshore",
+    "size": 298,
+    "vesselType": "OSV",
+    "category": "Supply",
+    "specifications": {
+      "length": 298
     },
     "operationalArea": [
       "Gulf of Mexico"
