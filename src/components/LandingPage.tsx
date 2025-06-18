@@ -190,11 +190,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             </div>
             <div className={`flex items-center gap-4 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
               <button 
-                onClick={hasData ? onViewDashboard : (serverFilesAvailable ? handleViewAnalytics : onGetStarted)}
+                onClick={hasData ? onViewDashboard : handleViewAnalytics}
                 className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50"
                 disabled={isLoadingFromServer}
               >
-                {isLoadingFromServer ? 'Loading...' : (hasData ? 'View Analytics' : (serverFilesAvailable ? 'View Analytics' : 'Upload Data'))}
+                {isLoadingFromServer ? 'Loading...' : 'View Analytics'}
               </button>
             </div>
           </nav>
@@ -223,12 +223,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
                 <button 
-                  onClick={serverFilesAvailable ? handleViewAnalytics : onGetStarted}
+                  onClick={hasData ? onViewDashboard : handleViewAnalytics}
                   className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isLoadingFromServer}
                 >
                   <BarChart3 size={20} />
-                  {isLoadingFromServer ? 'Loading Data...' : (serverFilesAvailable ? 'Access Analytics Dashboard' : 'Upload Your Data')}
+                  {isLoadingFromServer ? 'Loading Data...' : 'View Analytics Dashboard'}
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
                 </button>
               </div>
