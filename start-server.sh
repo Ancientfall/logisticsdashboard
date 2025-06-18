@@ -14,11 +14,8 @@ echo "🚀 Starting BP Logistics Dashboard Server..."
 ssh "$VPS_USER@$VPS_IP" "
     cd '$SERVER_DIR'
     
-    # Kill any existing server processes
-    pkill -f '$SERVER_FILE' || true
-    
-    # Start server detached from SSH session
-    nohup node '$SERVER_FILE' > vps-server.log 2>&1 & disown
+    # Restart server with PM2
+    pm2 restart bp-logistics-dashboard || pm2 start '$SERVER_FILE' --name bp-logistics-dashboard
     
     echo '✓ Server started successfully'
     echo 'Waiting 3 seconds for startup...'

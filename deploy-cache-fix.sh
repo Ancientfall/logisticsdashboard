@@ -38,8 +38,8 @@ fi
 echo "✅ Files deployed successfully"
 
 # Restart server to apply changes
-echo "🔄 Restarting server..."
-ssh $SERVER "cd $REMOTE_PATH && pkill -f 'node vps-server.js' && nohup node vps-server.js > /dev/null 2>&1 & disown"
+echo "🔄 Restarting server with PM2..."
+ssh $SERVER "cd $REMOTE_PATH && pm2 restart bp-logistics-dashboard || pm2 start vps-server.js --name bp-logistics-dashboard"
 
 if [ $? -ne 0 ]; then
     echo "❌ Server restart failed"
