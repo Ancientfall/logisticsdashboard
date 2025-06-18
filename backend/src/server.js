@@ -13,6 +13,7 @@ const dataRoutes = require('./routes/data')
 const uploadRoutes = require('./routes/upload')
 const adminRoutes = require('./routes/admin')
 const referenceRoutes = require('./routes/reference')
+const excelFilesRoutes = require('./routes/excel-files')
 
 // Import models to ensure associations are loaded
 require('./models')
@@ -70,6 +71,7 @@ app.use('/api/data', dataRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/reference', referenceRoutes)
+app.use('/api/excel-files', excelFilesRoutes)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -1,6 +1,14 @@
 {
   "short_name": "BP Dashboard",
-  "name": "BP Logistics Dashboard",
+  "name": "BP Logistics Dashboard - Business Analytics Platform",
+  "description": "Enterprise logistics analytics and business intelligence dashboard for BP operations",
+  "categories": ["business", "productivity", "utilities"],
+  "scope": "/",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#00754F",
+  "background_color": "#ffffff",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,16 +18,14 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#00914F",
-  "background_color": "#ffffff"
+  ]
 }

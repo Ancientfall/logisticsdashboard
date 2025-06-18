@@ -20,10 +20,11 @@ import {
 	Pagination,
 	Spinner
 } from '@nextui-org/react'
-import { Users, Shield, Activity, UserCheck, Search, RefreshCw, Database } from 'lucide-react'
+import { Users, Shield, Activity, UserCheck, Search, RefreshCw, Database, Server } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import { useNotifications } from '../../context/NotificationContext'
 import ReferenceDataManager from './ReferenceDataManager'
+import ExcelFileManager from './ExcelFileManager'
 
 interface User {
 	id: string
@@ -70,6 +71,7 @@ export default function AdminDashboard() {
 		role: '',
 		isActive: true
 	})
+	const [activeTab, setActiveTab] = useState<'users' | 'files' | 'reference'>('users')
 
 	const fetchStats = useCallback(async () => {
 		try {
@@ -161,13 +163,59 @@ export default function AdminDashboard() {
 					Admin Dashboard
 				</h1>
 				<p className="text-gray-600">
-					Manage users and monitor system activity
+					Manage users, files, and monitor system activity
 				</p>
+				
+				{/* Tab Navigation */}
+				<div className="flex gap-1 mt-4">
+					<button
+						onClick={() => setActiveTab('users')}
+						className={`px-4 py-2 rounded-lg transition-all ${
+							activeTab === 'users'
+								? 'bg-blue-500 text-white shadow-md'
+								: 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+						}`}
+					>
+						<div className="flex items-center gap-2">
+							<Users className="w-4 h-4" />
+							Users
+						</div>
+					</button>
+					<button
+						onClick={() => setActiveTab('files')}
+						className={`px-4 py-2 rounded-lg transition-all ${
+							activeTab === 'files'
+								? 'bg-blue-500 text-white shadow-md'
+								: 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+						}`}
+					>
+						<div className="flex items-center gap-2">
+							<Server className="w-4 h-4" />
+							Excel Files
+						</div>
+					</button>
+					<button
+						onClick={() => setActiveTab('reference')}
+						className={`px-4 py-2 rounded-lg transition-all ${
+							activeTab === 'reference'
+								? 'bg-blue-500 text-white shadow-md'
+								: 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+						}`}
+					>
+						<div className="flex items-center gap-2">
+							<Database className="w-4 h-4" />
+							Reference Data
+						</div>
+					</button>
+				</div>
 			</div>
 
-			{/* Stats Cards */}
-			{stats && (
-				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+			{/* Tab Content */}
+			{activeTab === 'users' && (
+				<>
+					{/* Stats Cards */}
+					{stats && (
+						<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 					<div className="bg-white/90 backdrop-blur-md shadow-sm rounded-xl border border-gray-200/50 p-6">
 						<div className="flex items-center gap-4">
 							<div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md">
@@ -366,6 +414,18 @@ export default function AdminDashboard() {
 					)}
 				</div>
 			</div>
+				</>
+			)}
+
+			{/* Excel Files Tab */}
+			{activeTab === 'files' && (
+				<ExcelFileManager />
+			)}
+
+			{/* Reference Data Tab */}
+			{activeTab === 'reference' && (
+				<ReferenceDataManager />
+			)}
 
 			{/* Edit User Modal */}
 			<Modal 

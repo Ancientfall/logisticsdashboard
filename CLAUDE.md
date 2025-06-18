@@ -357,3 +357,235 @@ This guide serves as a complete reference for:
 - Maintaining and extending the PostgreSQL implementation
 
 The document captures the full journey from discovering missing fields to implementing comprehensive voyage analytics, providing a roadmap for anyone working with similar data migration challenges.
+
+## Hostinger VPS Server Implementation
+
+### Overview
+The BP Logistics Dashboard is deployed on a Hostinger VPS server with a file-based approach for Excel data distribution. This implementation preserves the current working IndexedDB + client-side processing architecture while enabling server-side data management.
+
+### Architecture: File-Based Server Approach
+
+#### Current Working System (Preserved)
+```
+Excel Files (Local) → Client Processing → IndexedDB → Dashboard Display
+```
+
+#### Enhanced System (Hostinger VPS)
+```
+Excel Files (VPS) → Client Processing → IndexedDB → Dashboard Display
+                ↓
+        Server-Side Management
+```
+
+### Hostinger VPS Configuration
+
+#### Server Directory Structure
+```bash
+/var/www/html/logistics-data/
+├── excel-files/
+│   ├── voyage-events.xlsx
+│   ├── cost-allocation.xlsx
+│   ├── vessel-manifests.xlsx
+│   ├── voyage-list.xlsx
+│   └── bulk-actions.xlsx
+├── reference-data/
+│   ├── vessel-classifications.xlsx
+│   └── master-facilities.xlsx
+└── api/
+    └── file-server.js
+```
+
+#### File Management Approach
+- **Admin uploads**: Excel files stored in `/var/www/html/logistics-data/excel-files/`
+- **User access**: Files served via API endpoints
+- **Processing**: Client-side using existing `dataProcessing.ts` logic
+- **Storage**: IndexedDB with current enhancement pipeline
+
+### Implementation Details
+
+#### Server-Side File API
+```javascript
+// file-server.js - Simple Express file server
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+
+const app = express();
+const DATA_DIR = '/var/www/html/logistics-data/excel-files';
+
+// Serve Excel files
+app.get('/api/excel-files/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(DATA_DIR, filename);
+  
+  if (fs.existsSync(filepath)) {
+    res.sendFile(filepath);
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
+
+// List available files
+app.get('/api/excel-files', (req, res) => {
+  const files = fs.readdirSync(DATA_DIR)
+    .filter(file => file.endsWith('.xlsx'))
+    .map(file => ({
+      name: file,
+      size: fs.statSync(path.join(DATA_DIR, file)).size,
+      modified: fs.statSync(path.join(DATA_DIR, file)).mtime
+    }));
+  
+  res.json(files);
+});
+```
+
+#### Client-Side Integration
+```typescript
+// Enhanced FileUpload component
+const FileUpload = () => {
+  const [serverFiles, setServerFiles] = useState<ServerFile[]>([]);
+  
+  // Load files from Hostinger VPS
+  const loadFromServer = async () => {
+    try {
+      // Fetch file list from server
+      const response = await fetch('/api/excel-files');
+      const files = await response.json();
+      setServerFiles(files);
+      
+      // Download and process each file
+      for (const file of files) {
+        const fileResponse = await fetch(`/api/excel-files/${file.name}`);
+        const blob = await fileResponse.blob();
+        const excelFile = new File([blob], file.name);
+        
+        // Process using existing dataProcessing.ts logic
+        await processExcelFile(excelFile);
+      }
+      
+      // Save to IndexedDB using current flow
+      await saveToIndexedDB(processedData);
+      
+    } catch (error) {
+      console.error('Failed to load from server:', error);
+      // Fallback to local upload
+    }
+  };
+  
+  return (
+    <div>
+      <Button onClick={loadFromServer}>Load Data from Server</Button>
+      <FileUploadComponent /> {/* Existing component */}
+    </div>
+  );
+};
+```
+
+### Key Preservation Points
+
+#### What Remains Unchanged
+1. **Data Processing Logic**: All existing processors in `src/processors/` remain identical
+2. **Enhancement Pipeline**: `enhanceDataWithProcessors` function preserved
+3. **IndexedDB Storage**: Current caching and storage system maintained
+4. **Dashboard Components**: No changes to data expectations or interfaces
+5. **Fallback System**: Smart fallback hierarchy (IndexedDB → localStorage → reference data)
+
+#### What Gets Enhanced
+1. **File Source**: Excel files can come from VPS instead of local upload
+2. **Data Sharing**: Multiple users can access same dataset
+3. **Admin Management**: Centralized file management on server
+4. **Deployment**: Consistent data across all user sessions
+
+### Benefits of This Approach
+
+#### Technical Benefits
+- **Zero Risk**: Preserves all current working functionality
+- **Backward Compatible**: Local file upload still works as fallback
+- **Performance**: Client-side processing maintains speed
+- **Reliability**: Current data enhancement pipeline unchanged
+
+#### User Benefits
+- **No Local Files**: Users don't need Excel files on their computers
+- **Consistent Data**: Everyone sees same dataset
+- **Instant Access**: Load data with single button click
+- **Admin Control**: Centralized data management
+
+#### Operational Benefits
+- **Simple Deployment**: No database migration required
+- **Easy Backup**: Excel files can be backed up/versioned
+- **Debugging**: Easy to inspect raw data files
+- **Maintenance**: Simple file management interface
+
+### Implementation Strategy
+
+#### Phase 1: Add Server File Loading
+```typescript
+// Add to existing FileUpload component
+const useServerFiles = () => {
+  const loadServerData = async () => {
+    // Fetch from Hostinger VPS
+    // Process with existing logic
+    // Save to IndexedDB
+    // Update contexts
+  };
+  
+  return { loadServerData };
+};
+```
+
+#### Phase 2: Admin File Management
+```typescript
+// Admin interface for file management
+const AdminFileManager = () => {
+  const uploadToServer = async (files: File[]) => {
+    // Upload Excel files to VPS
+    // Update file listings
+    // Notify users of new data
+  };
+  
+  return <FileManagementInterface />;
+};
+```
+
+#### Phase 3: User Experience Enhancement
+```typescript
+// Enhanced user interface
+const DataLoadingOptions = () => {
+  return (
+    <div>
+      <Button onClick={loadFromServer}>Load Latest Data</Button>
+      <Button onClick={loadFromLocal}>Upload Local Files</Button>
+    </div>
+  );
+};
+```
+
+### Deployment Considerations
+
+#### Hostinger VPS Requirements
+- **File Storage**: Sufficient space for Excel files (~10-50MB each)
+- **API Endpoints**: Simple Express server for file serving
+- **Security**: Basic authentication for admin file uploads
+- **Backup**: Regular backup of Excel files directory
+
+#### File Management Best Practices
+- **Naming Convention**: Consistent file naming (e.g., `voyage-events-2024-Q1.xlsx`)
+- **Version Control**: Keep previous versions for rollback
+- **Validation**: Server-side file validation before serving
+- **Monitoring**: Log file access and processing success rates
+
+### Success Metrics
+
+#### Technical Metrics
+- **Processing Time**: Maintain current client-side processing speed
+- **Data Quality**: Preserve 99.98% data quality scores
+- **Error Rate**: Maintain current low error rates
+- **Compatibility**: 100% backward compatibility with existing features
+
+#### User Experience Metrics
+- **Load Time**: Single-click data loading under 30 seconds
+- **Reliability**: 99.9% successful data loading from server
+- **Accessibility**: Zero learning curve for existing users
+- **Convenience**: Eliminate need for local file management
+
+This implementation provides the server-side data management capabilities while preserving the robust, proven client-side processing architecture that currently works well.

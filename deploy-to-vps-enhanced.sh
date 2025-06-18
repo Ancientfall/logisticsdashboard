@@ -363,7 +363,8 @@ npm install --production
 # Create required directories
 print_status "Creating required directories..."
 mkdir -p uploads logs
-chmod -R 775 uploads logs
+mkdir -p excel-data/excel-files excel-data/reference-data excel-data/metadata
+chmod -R 775 uploads logs excel-data
 
 # Create or update .env file for backend
 if [ -f ".env" ]; then

@@ -1,12 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardBody, CardHeader, Button, Progress, Chip } from '@nextui-org/react'
-import { Upload, FileCheck, AlertCircle, Database, ChevronRight, Folder, File } from 'lucide-react'
+import { Upload, FileCheck, AlertCircle, Database, ChevronRight, Folder, File, Server, Cloud } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { useNotifications } from '../../context/NotificationContext'
 import { uploadAPI, dataAPI } from '../../services/api'
 import { useData } from '../../context/DataContext'
 import { motion } from 'framer-motion'
+import EnhancedFileUploadWithServer from '../EnhancedFileUploadWithServer'
 
 export default function FileUploadPageWithDB() {
 	const navigate = useNavigate()
@@ -18,6 +19,50 @@ export default function FileUploadPageWithDB() {
 	const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'uploading' | 'success' | 'error'>('idle')
 	const [statusMessage, setStatusMessage] = useState('')
 	const [processedFiles, setProcessedFiles] = useState<string[]>([])
+	const [showServerUpload, setShowServerUpload] = useState(false)
+	const [serverFilesAvailable, setServerFilesAvailable] = useState(false)
+	const [checkingServerFiles, setCheckingServerFiles] = useState(true)
+
+	// Check for server files on component mount
+	useEffect(() => {
+		checkServerFiles()
+	}, [])
+
+	// Check server files availability
+	const checkServerFiles = async () => {
+		try {
+			setCheckingServerFiles(true)
+			
+			const response = await fetch('/api/excel-files', {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			})
+			
+			if (response.ok) {
+				const data = await response.json()
+				
+				if (data.success && data.files.length > 0) {
+					// Check if we have key required files
+					const requiredFiles = ['Voyage Events.xlsx', 'Cost Allocation.xlsx']
+					const availableFiles = data.files.map((f: any) => f.name)
+					const hasRequired = requiredFiles.every(file => availableFiles.includes(file))
+					
+					setServerFilesAvailable(hasRequired)
+				} else {
+					setServerFilesAvailable(false)
+				}
+			} else {
+				setServerFilesAvailable(false)
+			}
+		} catch (error) {
+			console.log('Server files not available')
+			setServerFilesAvailable(false)
+		} finally {
+			setCheckingServerFiles(false)
+		}
+	}
 
 	// Function to fetch ALL data from backend with pagination
 	const fetchAllData = async (fetchFunction: Function, dataType: string) => {
@@ -412,6 +457,27 @@ export default function FileUploadPageWithDB() {
 
 							{!isProcessing && !isLoadingPostgreSQL && acceptedFiles.length === 0 && (
 								<div className="space-y-3">
+									{checkingServerFiles && (
+										<div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+											<div className="flex items-center gap-2">
+												<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+												<span className="text-sm text-blue-700">Checking for server files...</span>
+											</div>
+										</div>
+									)}
+									
+									{serverFilesAvailable && !checkingServerFiles && (
+										<Button
+											color="success"
+											variant="solid"
+											endContent={<Server className="w-4 h-4" />}
+											onClick={() => setShowServerUpload(true)}
+											className="w-full"
+										>
+											🚀 Load Latest Data from Server
+										</Button>
+									)}
+									
 									<Button
 										color="primary"
 										variant="solid"
@@ -436,6 +502,43 @@ export default function FileUploadPageWithDB() {
 						</div>
 					</CardBody>
 				</Card>
+				
+				{/* Server File Upload Modal */}
+				{showServerUpload && (
+					<motion.div
+						initial={{ opacity: 0, y: 20 }}
+						animate={{ opacity: 1, y: 0 }}
+						className="mt-6"
+					>
+						<Card className="shadow-xl border-2 border-green-200">
+							<CardHeader className="pb-4 bg-green-50">
+								<div className="flex items-center justify-between w-full">
+									<div className="flex items-center gap-3">
+										<div className="p-3 bg-green-500/10 rounded-lg">
+											<Cloud className="w-6 h-6 text-green-600" />
+										</div>
+										<div>
+											<h3 className="text-xl font-bold text-green-800">Server File Loading</h3>
+											<p className="text-green-600">Load the latest Excel files from the server</p>
+										</div>
+									</div>
+									<Button
+										color="danger"
+										variant="light"
+										onClick={() => setShowServerUpload(false)}
+										size="sm"
+									>
+										✕
+									</Button>
+								</div>
+							</CardHeader>
+							
+							<CardBody>
+								<EnhancedFileUploadWithServer />
+							</CardBody>
+						</Card>
+					</motion.div>
+				)}
 			</motion.div>
 		</div>
 	)
