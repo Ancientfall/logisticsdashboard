@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { formatNumberWhole } from '../../utils/formatters';
 import { useData } from '../../context/DataContext';
+import { calculateEnhancedBulkFluidMetrics } from '../../utils/metricsCalculation';
 import KPICard from './KPICard';
 import SmartFilterBar from './SmartFilterBar';
 import BulkFluidDebugPanel from '../debug/BulkFluidDebugPanel';
@@ -57,7 +58,14 @@ const BulkActionsDashboard: React.FC<BulkActionsDashboardProps> = ({ onNavigateT
   // Calculate KPIs
   const kpis = useMemo(() => {
     const totalTransfers = filteredBulkActions.length;
-    const totalVolumeBbls = filteredBulkActions.reduce((sum, action) => sum + action.volumeBbls, 0);
+    // Use deduplication engine to prevent double-counting loads/offloads
+    const bulkMetrics = calculateEnhancedBulkFluidMetrics(
+      filteredBulkActions,
+      undefined, // no month filter
+      undefined, // no year filter  
+      'All' // all departments
+    );
+    const totalVolumeBbls = bulkMetrics.totalFluidVolume;
     const shorebaseToRig = filteredBulkActions.filter(a => 
       a.portType === 'base' && a.destinationPort
     ).length;
@@ -68,14 +76,23 @@ const BulkActionsDashboard: React.FC<BulkActionsDashboardProps> = ({ onNavigateT
     // Calculate drilling and completion fluid metrics
     const drillingFluids = filteredBulkActions.filter(a => a.isDrillingFluid);
     const completionFluids = filteredBulkActions.filter(a => a.isCompletionFluid);
-    const drillingFluidVolume = drillingFluids.reduce((sum, a) => sum + a.volumeBbls, 0);
-    const completionFluidVolume = completionFluids.reduce((sum, a) => sum + a.volumeBbls, 0);
+    // Use deduplication for specific fluid types
+    const drillingMetrics = calculateEnhancedBulkFluidMetrics(
+      drillingFluids, undefined, undefined, 'Drilling'
+    );
+    const completionMetrics = calculateEnhancedBulkFluidMetrics(
+      completionFluids, undefined, undefined, 'Drilling'
+    );
+    const drillingFluidVolume = drillingMetrics.totalFluidVolume;
+    const completionFluidVolume = completionMetrics.totalFluidVolume;
 
-    // Calculate volume by bulk type
-    const volumeByType = filteredBulkActions.reduce((acc, action) => {
-      acc[action.bulkType] = (acc[action.bulkType] || 0) + action.volumeBbls;
-      return acc;
-    }, {} as Record<string, number>);
+    // Calculate volume by bulk type using delivery operations only
+    const volumeByType = bulkMetrics.deduplicationResult.consolidatedOperations
+      .filter(op => op.isDelivery)
+      .reduce((acc, op) => {
+        acc[op.bulkType] = (acc[op.bulkType] || 0) + op.totalVolumeBbls;
+        return acc;
+      }, {} as Record<string, number>);
 
     // Calculate transfers by vessel
     const transfersByVessel = filteredBulkActions.reduce((acc, action) => {

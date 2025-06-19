@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import KPICard from './KPICard';
 import SmartFilterBar from './SmartFilterBar';
-import { Target, Route, Clock, MapPin, ArrowLeft, BarChart3, Activity } from 'lucide-react';
+import VoyageDebugPanel from '../debug/VoyageDebugPanel';
+import { Target, Route, Clock, MapPin, ArrowLeft, BarChart3, Activity, Bug } from 'lucide-react';
 
 interface VoyageAnalyticsDashboardProps {
   onNavigateToUpload?: () => void;
@@ -23,11 +24,18 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
     selectedVesselType: 'All Vessels'
   });
 
+  // Debug panel state
+  const [isDebugPanelOpen, setIsDebugPanelOpen] = useState(false);
+
   // Calculate voyage analytics directly from data
   const voyageAnalytics = useMemo(() => {
     if (!voyageList || voyageList.length === 0) {
+      console.log('❌ VOYAGE DEBUG: No voyage data available');
       return null;
     }
+
+    console.log(`🚢 VOYAGE DEBUG: Total voyages in dataset: ${voyageList.length}`);
+    console.log(`🚢 VOYAGE DEBUG: Current filters:`, filters);
 
     // Filter data based on selected filters
     const filterByDate = (date: Date) => {
@@ -37,30 +45,119 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
       return monthLabel === filters.selectedMonth;
     };
 
+    console.log(`🚢 VOYAGE RECORDS: Processing ${voyageList.length} voyage records`);
+
+    // Debug: Check all May 2025 voyages before filtering
+    if (filters.selectedMonth === 'May 2025') {
+      const may2025Voyages = voyageList.filter(voyage => {
+        const voyageDate = voyage.voyageDate;
+        const itemDate = new Date(voyageDate);
+        const monthLabel = `${itemDate.toLocaleString('default', { month: 'long' })} ${itemDate.getFullYear()}`;
+        return monthLabel === 'May 2025';
+      });
+      
+      console.log(`🗓️ MAY 2025 DEBUG: Found ${may2025Voyages.length} voyages for May 2025`);
+      console.log('📊 MAY 2025 VOYAGES BREAKDOWN:');
+      
+      // Group by vessel (the supply vessel making the voyage)
+      const vesselBreakdown = may2025Voyages.reduce((acc, voyage) => {
+        acc[voyage.vessel] = (acc[voyage.vessel] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      Object.entries(vesselBreakdown)
+        .sort(([,a], [,b]) => b - a)
+        .forEach(([vessel, count]) => {
+          console.log(`   ${vessel}: ${count} voyages`);
+        });
+      
+      // Check specifically for voyages visiting Stena IceMAX
+      const stenaVoyages = may2025Voyages.filter(voyage => 
+        voyage.locations?.toLowerCase().includes('stena') && 
+        voyage.locations?.toLowerCase().includes('icemax')
+      );
+      
+      console.log(`🎯 STENA ICEMAX VOYAGES: ${stenaVoyages.length} voyages visited Stena IceMAX in May 2025`);
+      
+      if (stenaVoyages.length > 0) {
+        console.log('📋 STENA VOYAGES SAMPLE:', stenaVoyages.slice(0, 5).map(v => ({
+          supplyVessel: v.vessel,
+          voyageNumber: v.voyageNumber,
+          voyageDate: v.voyageDate?.toISOString().substring(0, 10),
+          fullRoute: v.locations,
+          mainDestination: v.mainDestination
+        })));
+      }
+    }
+
+    // Filter voyage records
     const filteredVoyages = voyageList.filter(voyage => {
       // Use voyageDate from VoyageList interface
       const voyageDate = voyage.voyageDate;
-      return filterByDate(voyageDate) &&
-        (filters.selectedVoyagePurpose === 'All Purposes' || 
+      const dateFilter = filterByDate(voyageDate);
+      const purposeFilter = (filters.selectedVoyagePurpose === 'All Purposes' || 
          voyage.voyagePurpose === filters.selectedVoyagePurpose ||
-         voyage.mission === filters.selectedVoyagePurpose)
+         voyage.mission === filters.selectedVoyagePurpose);
+      
+      return dateFilter && purposeFilter;
     });
 
-    // Calculate basic voyage metrics using correct field names
+    console.log(`🎯 FILTERED VOYAGES: ${filteredVoyages.length} voyages after applying filters`);
+    
+    if (filters.selectedMonth === 'May 2025') {
+      console.log('🔍 FILTER ANALYSIS:');
+      console.log(`   Purpose filter: ${filters.selectedVoyagePurpose}`);
+      
+      const dateFailures = voyageList.filter(voyage => !filterByDate(voyage.voyageDate));
+      const purposeFailures = voyageList.filter(voyage => {
+        const dateFilter = filterByDate(voyage.voyageDate);
+        const purposeFilter = (filters.selectedVoyagePurpose === 'All Purposes' || 
+           voyage.voyagePurpose === filters.selectedVoyagePurpose ||
+           voyage.mission === filters.selectedVoyagePurpose);
+        return dateFilter && !purposeFilter;
+      });
+      
+      console.log(`   Filtered out by date: ${dateFailures.length}`);
+      console.log(`   Filtered out by purpose: ${purposeFailures.length}`);
+    }
+
+    // Debug logging for Stena IceMAX specifically
+    if (filters.selectedMonth === 'May 2025') {
+      const stenaVoyages = voyageList.filter(v => 
+        v.vessel && v.vessel.toLowerCase().includes('stena') && v.vessel.toLowerCase().includes('icemax')
+      );
+      const stenaFiltered = filteredVoyages.filter(v => 
+        v.locations && v.locations.toLowerCase().includes('stena') && v.locations.toLowerCase().includes('icemax')
+      );
+      
+      console.log('🚢 STENA ICEMAX DEBUG:', {
+        totalStenaVoyages: stenaVoyages.length,
+        may2025StenaVoyages: stenaFiltered.length,
+        selectedMonth: filters.selectedMonth,
+        filterDetails: stenaVoyages.map(v => ({
+          voyageNumber: v.voyageNumber,
+          voyageDate: v.voyageDate?.toISOString().substring(0, 10),
+          monthLabel: v.voyageDate ? `${new Date(v.voyageDate).toLocaleString('default', { month: 'long' })} ${new Date(v.voyageDate).getFullYear()}` : 'No Date',
+          passesFilter: filterByDate(v.voyageDate)
+        }))
+      });
+    }
+
+    // Calculate basic voyage metrics using filtered voyage records
     const totalVoyages = filteredVoyages.length;
-    // Use durationHours from VoyageList interface (already in hours)
+    
     const totalDurationHours = filteredVoyages.reduce((sum, voyage) => 
       sum + (voyage.durationHours || 0), 0);
     const averageVoyageDuration = totalVoyages > 0 ? totalDurationHours / totalVoyages : 0;
     
-    // Purpose distribution
+    // Purpose distribution based on voyage records
     const voyagePurposeDistribution = filteredVoyages.reduce((dist, voyage) => {
       const purpose = voyage.voyagePurpose || 'Other';
       dist[purpose] = (dist[purpose] || 0) + 1;
       return dist;
     }, {} as Record<string, number>);
 
-    // Mission type distribution using correct field name
+    // Mission type distribution using voyage records
     const missionTypeDistribution = filteredVoyages.reduce((dist, voyage) => {
       const missionType = voyage.mission || voyage.missionType || 'Unknown';
       dist[missionType] = (dist[missionType] || 0) + 1;
@@ -75,7 +172,7 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
     const drillingVoyagePercentage = totalVoyages > 0 ? (drillingVoyages / totalVoyages) * 100 : 0;
     const mixedVoyageEfficiency = totalVoyages > 0 ? ((voyagePurposeDistribution['Mixed'] || 0) / totalVoyages) * 100 : 0;
 
-    // Route complexity - use locations field to estimate stops
+    // Route complexity - calculate from filtered voyage records
     const totalStops = filteredVoyages.reduce((sum, voyage) => {
       // Count stops from locations string (e.g., "Fourchon -> Ocean BlackLion -> Fourchon")
       const stops = (voyage.locations || '').split('->').length;
@@ -88,19 +185,19 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
     const multiStopPercentage = totalVoyages > 0 ? (multiStopVoyages / totalVoyages) * 100 : 0;
     const routeEfficiencyScore = averageVoyageDuration > 0 ? averageStopsPerVoyage / (averageVoyageDuration || 1) : 0;
 
-    // Vessel utilization - use correct field name
+    // Vessel utilization - calculate from filtered voyage records
     const uniqueVessels = new Set(filteredVoyages.map(voyage => voyage.vessel));
     const activeVesselsThisMonth = uniqueVessels.size;
     const voyagesPerVessel = activeVesselsThisMonth > 0 ? totalVoyages / activeVesselsThisMonth : 0;
 
-    // Origin analysis - use correct field names
+    // Origin analysis - use filtered voyage records
     const fourchonDepartures = filteredVoyages.filter(voyage => 
       (voyage.originPort || '').toLowerCase().includes('fourchon') || 
       (voyage.locations || '').toLowerCase().includes('fourchon')
     ).length;
     const routeConcentration = totalVoyages > 0 ? (fourchonDepartures / totalVoyages) * 100 : 0;
 
-    // Popular destinations - extract from locations or mainDestination
+    // Popular destinations - extract from voyage records
     const destinationCounts = filteredVoyages.reduce((counts, voyage) => {
       let destination = voyage.mainDestination;
       if (!destination && voyage.locations) {
@@ -244,6 +341,14 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
               <div className="text-2xl font-bold text-blue-600">{voyageAnalytics.totalVoyages.toLocaleString()}</div>
               <div className="text-sm text-gray-500">Total Voyages</div>
             </div>
+            <button
+              onClick={() => setIsDebugPanelOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-red-700 transition-all duration-200"
+              title="Debug voyage data"
+            >
+              <Bug size={16} />
+              Debug
+            </button>
             <button
               onClick={onNavigateToUpload}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-gray-700 transition-all duration-200"
@@ -802,6 +907,12 @@ const VoyageAnalyticsDashboard: React.FC<VoyageAnalyticsDashboardProps> = ({ onN
           </div>
         </div>
       </div>
+
+      {/* Debug Panel */}
+      <VoyageDebugPanel 
+        isOpen={isDebugPanelOpen} 
+        onClose={() => setIsDebugPanelOpen(false)} 
+      />
     </div>
   );
 };

@@ -220,8 +220,10 @@ const validateVoyageEvents = (voyageEvents: VoyageEvent[]): DatasetValidation =>
     consistencyScore,
     validationResults: {
       isValid: issues.filter(i => i.severity === 'Critical').length === 0,
-      errorCount: issues.length,
-      warningCount: warnings.length,
+      errors: issues.map(i => i.message),
+      warnings: warnings.map(w => w.message),
+      recordCount: 0,
+      duplicateCount: 0,
       missingFieldCount
     },
     issues,
@@ -292,8 +294,10 @@ const validateVesselManifests = (vesselManifests: VesselManifest[]): DatasetVali
     consistencyScore,
     validationResults: {
       isValid: issues.filter(i => i.severity === 'Critical').length === 0,
-      errorCount: issues.length,
-      warningCount: warnings.length,
+      errors: issues.map(i => i.message),
+      warnings: warnings.map(w => w.message),
+      recordCount: 0,
+      duplicateCount: 0,
       missingFieldCount
     },
     issues,
@@ -376,8 +380,10 @@ const validateCostAllocation = (costAllocation: CostAllocation[]): DatasetValida
     consistencyScore,
     validationResults: {
       isValid: issues.filter(i => i.severity === 'Critical').length === 0,
-      errorCount: issues.length,
-      warningCount: warnings.length,
+      errors: issues.map(i => i.message),
+      warnings: warnings.map(w => w.message),
+      recordCount: 0,
+      duplicateCount: 0,
       missingFieldCount
     },
     issues,
@@ -451,8 +457,10 @@ const validateBulkActions = (bulkActions: BulkAction[]): DatasetValidation => {
     consistencyScore,
     validationResults: {
       isValid: issues.filter(i => i.severity === 'Critical').length === 0,
-      errorCount: issues.length,
-      warningCount: warnings.length,
+      errors: issues.map(i => i.message),
+      warnings: warnings.map(w => w.message),
+      recordCount: 0,
+      duplicateCount: 0,
       missingFieldCount
     },
     issues,
@@ -509,8 +517,10 @@ const validateVoyageList = (voyageList: VoyageList[]): DatasetValidation => {
     consistencyScore,
     validationResults: {
       isValid: issues.filter(i => i.severity === 'Critical').length === 0,
-      errorCount: issues.length,
-      warningCount: warnings.length,
+      errors: issues.map(i => i.message),
+      warnings: warnings.map(w => w.message),
+      recordCount: 0,
+      duplicateCount: 0,
       missingFieldCount
     },
     issues,
@@ -572,15 +582,17 @@ const validateLCNumberConsistency = (
   const voyageEventLCs = new Set(voyageEvents.map(ve => ve.lcNumber).filter(Boolean));
   const manifestCostCodes = new Set(vesselManifests.map(vm => vm.costCode).filter(Boolean));
   
-  const orphanedVoyageEventLCs = [...voyageEventLCs].filter(lc => !costAllocationLCs.has(lc));
-  const orphanedManifestCodes = [...manifestCostCodes].filter(code => !costAllocationLCs.has(code));
+  const orphanedVoyageEventLCs = [...voyageEventLCs].filter(lc => lc && !costAllocationLCs.has(lc));
+  const orphanedManifestCodes = [...manifestCostCodes].filter(code => code && !costAllocationLCs.has(code));
   
   const errorCount = orphanedVoyageEventLCs.length + orphanedManifestCodes.length;
   
   return {
     isValid: errorCount === 0,
-    errorCount,
-    warningCount: 0,
+    errors: orphanedVoyageEventLCs.concat(orphanedManifestCodes).filter(Boolean) as string[],
+    warnings: [],
+    recordCount: voyageEvents.length + vesselManifests.length,
+    duplicateCount: 0,
     missingFieldCount: 0
   };
 };
@@ -597,8 +609,10 @@ const validateLocationMappingConsistency = (
   // For now, return a basic validation
   return {
     isValid: true,
-    errorCount: 0,
-    warningCount: 0,
+    errors: [],
+    warnings: [],
+    recordCount: 0,
+    duplicateCount: 0,
     missingFieldCount: 0
   };
 };
@@ -632,8 +646,10 @@ const validateDateRangeConsistency = (
   
   return {
     isValid: !hasUnreasonableDates,
-    errorCount: hasUnreasonableDates ? 1 : 0,
-    warningCount: 0,
+    errors: hasUnreasonableDates ? ['Unreasonable date ranges detected'] : [],
+    warnings: [],
+    recordCount: allDates.length,
+    duplicateCount: 0,
     missingFieldCount: 0
   };
 };
@@ -656,8 +672,10 @@ const validateVesselNameConsistency = (
   // For now, return a basic validation - in practice this would check for naming inconsistencies
   return {
     isValid: true,
-    errorCount: 0,
-    warningCount: 0,
+    errors: [],
+    warnings: [],
+    recordCount: 0,
+    duplicateCount: 0,
     missingFieldCount: 0
   };
 };
@@ -676,8 +694,10 @@ const validateCostAllocationCoverage = (
   
   return {
     isValid: coverage >= 80, // 80% coverage threshold
-    errorCount: coverage < 80 ? 1 : 0,
-    warningCount: coverage < 90 ? 1 : 0,
+    errors: coverage < 80 ? ['Low cost allocation coverage'] : [],
+    warnings: coverage < 90 ? ['Cost allocation coverage below 90%'] : [],
+    recordCount: totalVoyageEvents,
+    duplicateCount: 0,
     missingFieldCount: totalVoyageEvents - eventsWithLC
   };
 };
@@ -691,8 +711,10 @@ const validateFluidVolumeConsistency = (bulkActions: BulkAction[]): ValidationRe
   
   return {
     isValid: inconsistencies === 0,
-    errorCount: inconsistencies,
-    warningCount: 0,
+    errors: inconsistencies > 0 ? ['Fluid volume inconsistencies detected'] : [],
+    warnings: [],
+    recordCount: bulkActions.length,
+    duplicateCount: 0,
     missingFieldCount: 0
   };
 };

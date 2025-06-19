@@ -31,20 +31,32 @@ const SmartFilterBar: React.FC<SmartFilterBarProps> = ({
   showPresets = true
 }) => {
   // Quick preset filters
-  const handlePreset = (preset: 'current-month' | 'last-30-days' | 'ytd' | 'reset') => {
+  const handlePreset = (preset: 'current-month' | 'ytd' | 'reset') => {
     const now = new Date();
     
     switch (preset) {
       case 'current-month':
-        const currentMonth = `${now.toLocaleString('en-US', { month: 'long' })} ${now.getFullYear()}`;
-        onTimeChange(currentMonth);
-        break;
-      case 'last-30-days':
-        // Find the closest month option or use 'All Months' 
-        onTimeChange('All Months');
+        // Find the most recent month option (accounting for 1-month lag)
+        const lastMonth = new Date(now);
+        lastMonth.setMonth(now.getMonth() - 1); // 1 month lag for data availability
+        const recentMonth = `${lastMonth.toLocaleString('en-US', { month: 'long' })} ${lastMonth.getFullYear()}`;
+        
+        // Check if this month exists in timeOptions, otherwise use the latest available
+        const availableMonths = timeOptions.filter(opt => opt.value !== 'All Months');
+        const targetMonth = availableMonths.find(opt => opt.value === recentMonth);
+        
+        if (targetMonth) {
+          onTimeChange(recentMonth);
+        } else if (availableMonths.length > 0) {
+          // Use the latest available month
+          onTimeChange(availableMonths[availableMonths.length - 1].value);
+        } else {
+          onTimeChange('All Months');
+        }
         break;
       case 'ytd':
-        onTimeChange('All Months');
+        // Year to Date - use special YTD filter
+        onTimeChange('YTD');
         break;
       case 'reset':
         onTimeChange('All Months');

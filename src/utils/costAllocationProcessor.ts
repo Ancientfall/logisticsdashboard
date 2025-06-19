@@ -207,7 +207,9 @@ export function enhancedProcessCostAllocation(
     return {
       ...lc,
       // Enhanced classification fields
-      department: classification.department,
+      department: classification.department === 'Integrated' ? 'Drilling' : 
+                 classification.department === 'Unknown' ? undefined : 
+                 classification.department as 'Drilling' | 'Production' | 'Logistics',
       facilityType: classification.facilityType,
       isDrillingLC: classification.isDrillingLC,
       isProductionLC: classification.isProductionLC,

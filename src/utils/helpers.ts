@@ -91,20 +91,26 @@ export const includesProductionLocation = (locations: string[]): boolean => {
     "Thunder Horse PDQ", "Thunder Horse Prod", "Mad Dog", "Argos"
   ];
   
+  // Case-insensitive checking for consistency
   return locations.some(location => 
-    productionLocations.some(prodLoc => location.includes(prodLoc))
+    productionLocations.some(prodLoc => 
+      location.toLowerCase().includes(prodLoc.toLowerCase())
+    )
   );
 };
 
 export const includesDrillingLocation = (locations: string[]): boolean => {
   const drillingLocations = [
-    "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean BlackHornet",
-    "Ocean BlackLion", "Stena IceMAX", "Ocean Blacktip", "Island Venture",
+    "Thunder Horse Drilling", "Mad Dog Drilling", "Ocean BlackHornet", "Ocean Blackhornet",
+    "Ocean BlackLion", "Ocean Blacklion", "Stena IceMAX", "Ocean Blacktip", "Island Venture",
     "Deepwater Invictus"
   ];
   
+  // Case-insensitive checking to handle variations like "BlackHornet" vs "Blackhornet"
   return locations.some(location => 
-    drillingLocations.some(drillLoc => location.includes(drillLoc))
+    drillingLocations.some(drillLoc => 
+      location.toLowerCase().includes(drillLoc.toLowerCase())
+    )
   );
 };
 

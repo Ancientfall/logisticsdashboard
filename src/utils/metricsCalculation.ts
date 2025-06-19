@@ -23,21 +23,24 @@ import { deduplicateBulkActions, getDrillingFluidMovements, getProductionFluidMo
 export const calculateEnhancedManifestMetrics = (
   vesselManifests: VesselManifest[],
   costAllocation: CostAllocation[],
-  currentMonth: number,
-  currentYear: number,
-  department: 'Drilling' | 'Production' | 'All' = 'All'
+  currentMonth?: number,
+  currentYear?: number,
+  department: 'Drilling' | 'Production' | 'All' = 'All',
+  locationFilter?: string
 ) => {
-  console.log(`🚢 ENHANCED MANIFEST METRICS for ${department}`);
+  // Minimal logging for manifest metrics
   
-  // Filter manifests for current month
-  const currentMonthManifests = vesselManifests.filter(manifest => 
-    manifest.manifestDate.getMonth() === currentMonth && 
-    manifest.manifestDate.getFullYear() === currentYear
-  );
+  // Filter manifests for current month - only if month/year specified
+  const currentMonthManifests = (currentMonth !== undefined && currentYear !== undefined) 
+    ? vesselManifests.filter(manifest => 
+        manifest.manifestDate.getMonth() === currentMonth && 
+        manifest.manifestDate.getFullYear() === currentYear
+      )
+    : vesselManifests; // Use all manifests if no month/year filter
 
   // Validate manifests against cost allocation
   const validation = validateManifestsAgainstCostAllocation(currentMonthManifests, costAllocation);
-  console.log(`📊 Manifest validation: ${validation.validationSummary.validationRate.toFixed(1)}% valid`);
+  // Validation summary available in validation object
 
   // Filter manifests by department using cost allocation
   let filteredManifests = validation.validManifests;
@@ -53,7 +56,48 @@ export const calculateEnhancedManifestMetrics = (
       manifest.costCode && departmentLCs.has(manifest.costCode)
     );
     
-    console.log(`📋 Filtered to ${filteredManifests.length} ${department} manifests (from ${validation.validManifests.length} valid)`);
+    // Department filtering completed
+  }
+
+  // Apply location filtering if specified
+  if (locationFilter && locationFilter !== 'All Locations') {
+    // Enhanced location filtering for drilling vs production locations
+    let locationCostAllocations: any[] = [];
+    
+    // Handle specific drilling location filters
+    if (locationFilter === 'Thunder Horse (Drilling)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isDrilling && ca.isThunderHorse
+      );
+    } else if (locationFilter === 'Mad Dog (Drilling)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isDrilling && ca.isMadDog
+      );
+    } else if (locationFilter === 'Thunder Horse (Production)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isThunderHorse && !ca.isDrilling
+      );
+    } else if (locationFilter === 'Mad Dog (Production)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isMadDog && !ca.isDrilling
+      );
+    } else {
+      // Fallback to text-based matching for other locations
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.locationReference?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        ca.description?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        ca.rigLocation?.toLowerCase().includes(locationFilter.toLowerCase())
+      );
+    }
+    
+    const locationLCs = new Set(locationCostAllocations.map(ca => ca.lcNumber));
+    
+    const beforeLocationFilter = filteredManifests.length;
+    filteredManifests = filteredManifests.filter(manifest => 
+      manifest.costCode && locationLCs.has(manifest.costCode)
+    );
+    
+    console.log(`📍 Location filter "${locationFilter}": Found ${locationCostAllocations.length} cost allocations, ${locationLCs.size} unique LCs, ${filteredManifests.length}/${beforeLocationFilter} manifests match`);
   }
 
   // Calculate enhanced cargo metrics
@@ -75,14 +119,7 @@ export const calculateEnhancedManifestMetrics = (
   // Vessel visits (unique vessels)
   const vesselVisits = new Set(filteredManifests.map(m => m.transporter)).size;
 
-  console.log(`✅ ${department} CARGO METRICS:`, {
-    totalCargoTons: totalCargoTons.toLocaleString(),
-    totalOutboundTons: totalOutboundTons.toLocaleString(),
-    totalRTTons: totalRTTons.toLocaleString(),
-    rtPercentage: rtPercentage.toFixed(1) + '%',
-    totalLifts: totalLifts.toLocaleString(),
-    vesselVisits
-  });
+  // Cargo metrics calculated successfully
 
   return {
     totalDeckTons,
@@ -107,17 +144,20 @@ export const calculateEnhancedManifestMetrics = (
 export const calculateEnhancedVoyageEventMetrics = (
   voyageEvents: VoyageEvent[],
   costAllocation: CostAllocation[],
-  currentMonth: number,
-  currentYear: number,
-  department: 'Drilling' | 'Production' | 'All' = 'All'
+  currentMonth?: number,
+  currentYear?: number,
+  department: 'Drilling' | 'Production' | 'All' = 'All',
+  locationFilter?: string
 ) => {
-  console.log(`⚓ ENHANCED VOYAGE EVENT METRICS for ${department}`);
+  // Enhanced voyage event metrics calculation
   
-  // Filter events for current month
-  const currentMonthEvents = voyageEvents.filter(event => 
-    event.eventDate.getMonth() === currentMonth && 
-    event.eventDate.getFullYear() === currentYear
-  );
+  // Filter events for current month - only if month/year specified
+  const currentMonthEvents = (currentMonth !== undefined && currentYear !== undefined)
+    ? voyageEvents.filter(event => 
+        event.eventDate.getMonth() === currentMonth && 
+        event.eventDate.getFullYear() === currentYear
+      )
+    : voyageEvents; // Use all events if no month/year filter
 
   // Filter events by department using cost allocation
   let filteredEvents = currentMonthEvents;
@@ -133,7 +173,50 @@ export const calculateEnhancedVoyageEventMetrics = (
       event.lcNumber && departmentLCs.has(event.lcNumber)
     );
     
-    console.log(`📋 Filtered to ${filteredEvents.length} ${department} events (from ${currentMonthEvents.length} total)`);
+    // Department filtering completed for events
+  }
+
+  // Apply location filtering if specified
+  if (locationFilter && locationFilter !== 'All Locations') {
+    // Enhanced location filtering for drilling vs production locations
+    let locationCostAllocations: any[] = [];
+    
+    // Handle specific drilling location filters
+    if (locationFilter === 'Thunder Horse (Drilling)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isDrilling && ca.isThunderHorse
+      );
+    } else if (locationFilter === 'Mad Dog (Drilling)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isDrilling && ca.isMadDog
+      );
+    } else if (locationFilter === 'Thunder Horse (Production)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isThunderHorse && !ca.isDrilling
+      );
+    } else if (locationFilter === 'Mad Dog (Production)') {
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.isMadDog && !ca.isDrilling
+      );
+    } else {
+      // Fallback to text-based matching for other locations
+      locationCostAllocations = costAllocation.filter(ca => 
+        ca.locationReference?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        ca.description?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        ca.rigLocation?.toLowerCase().includes(locationFilter.toLowerCase())
+      );
+    }
+    
+    const locationLCs = new Set(locationCostAllocations.map(ca => ca.lcNumber));
+    
+    const beforeLocationFilter = filteredEvents.length;
+    filteredEvents = filteredEvents.filter(event => 
+      (event.lcNumber && locationLCs.has(event.lcNumber)) ||
+      event.location?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+      event.mappedLocation?.toLowerCase().includes(locationFilter.toLowerCase())
+    );
+    
+    console.log(`📍 Voyage events location filter "${locationFilter}": Found ${locationCostAllocations.length} cost allocations, ${locationLCs.size} unique LCs, ${filteredEvents.length}/${beforeLocationFilter} events match`);
   }
 
   // Enhanced productive/non-productive classification using vessel codes
@@ -178,7 +261,9 @@ export const calculateEnhancedVoyageEventMetrics = (
       return sum + (event.finalHours * percentage);
     }, 0);
   
-  const transitTime = filteredEvents
+  // Calculate total transit time (both directions)
+  // Outbound transit: from base (Fourchon) to rig location
+  const outboundTransitTime = filteredEvents
     .filter(event => 
       event.portType === 'base' && 
       event.parentEvent === 'Transit'
@@ -187,6 +272,20 @@ export const calculateEnhancedVoyageEventMetrics = (
       const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
       return sum + (event.finalHours * percentage);
     }, 0);
+
+  // Return transit: from rig location back to base (Fourchon)
+  const returnTransitTime = filteredEvents
+    .filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent === 'Transit'
+    )
+    .reduce((sum, event) => {
+      const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+      return sum + (event.finalHours * percentage);
+    }, 0);
+
+  // Total transit time (both directions)
+  const transitTime = outboundTransitTime + returnTransitTime;
   
   const totalOffshoreTime = rigActivities + transitTime;
 
@@ -205,14 +304,55 @@ export const calculateEnhancedVoyageEventMetrics = (
   // Waiting time percentage
   const waitingTimePercentage = totalOffshoreTime > 0 ? (waitingTimeOffshore / totalOffshoreTime) * 100 : 0;
 
-  console.log(`✅ ${department} VOYAGE EVENT METRICS:`, {
-    productiveHours: productiveHours.toFixed(1),
-    nonProductiveHours: nonProductiveHours.toFixed(1),
-    waitingTimeOffshore: waitingTimeOffshore.toFixed(1),
-    totalOffshoreTime: totalOffshoreTime.toFixed(1),
-    vesselUtilization: vesselUtilization.toFixed(1) + '%',
-    cargoOpsHours: cargoOpsHours.toFixed(1)
-  });
+  // Enhanced transit time diagnostic
+  if (transitTime === 0 && filteredEvents.length > 0) {
+    const transitEventSamples = filteredEvents
+      .filter(event => event.parentEvent?.toLowerCase().includes('transit'))
+      .slice(0, 5);
+    
+    console.warn(`⚠️ No transit time found for ${department}`, {
+      outboundTransitTime: outboundTransitTime.toFixed(1),
+      returnTransitTime: returnTransitTime.toFixed(1),
+      transitEventSamples: transitEventSamples.map(e => ({
+        parentEvent: e.parentEvent,
+        portType: e.portType,
+        hours: e.finalHours
+      }))
+    });
+  } else if (transitTime > 0) {
+    console.log(`✅ Transit time calculated for ${department}:`, {
+      outboundTransit: outboundTransitTime.toFixed(1),
+      returnTransit: returnTransitTime.toFixed(1),
+      totalTransit: transitTime.toFixed(1)
+    });
+  }
+
+  // Additional debugging for Stena IceMAX activity comparison
+  if (locationFilter?.toLowerCase().includes('stena')) {
+    const activityBreakdown = filteredEvents.reduce((breakdown, event) => {
+      const activity = event.parentEvent || 'Unknown';
+      const hours = event.finalHours || 0;
+      breakdown[activity] = (breakdown[activity] || 0) + hours;
+      return breakdown;
+    }, {} as Record<string, number>);
+    
+    console.log('🔍 STENA ACTIVITY BREAKDOWN (Dashboard vs Kabal):', {
+      dashboardActivities: activityBreakdown,
+      totalDashboardHours: Object.values(activityBreakdown).reduce((sum, hours) => sum + hours, 0),
+      kabalExpectedMay: {
+        'Cargo Ops': 291,
+        'Waiting on Installation': 231,
+        'Transit': 209,
+        'Maneuvering': 71,
+        'Total': 802
+      },
+      monthFilter: currentMonth !== undefined ? `${currentMonth + 1}/${currentYear}` : 'All Months',
+      discrepancies: {
+        transitDiff: `Dashboard: ${transitTime.toFixed(1)} vs Kabal: 209`,
+        cargoOpsDiff: `Dashboard: ${cargoOpsHours.toFixed(1)} vs Kabal: 291`
+      }
+    });
+  }
 
   return {
     productiveHours,
@@ -220,6 +360,8 @@ export const calculateEnhancedVoyageEventMetrics = (
     waitingTimeOffshore,
     totalOffshoreTime,
     transitTime,
+    outboundTransitTime,
+    returnTransitTime,
     cargoOpsHours,
     vesselUtilization,
     waitingTimePercentage,
@@ -233,20 +375,74 @@ export const calculateEnhancedVoyageEventMetrics = (
  */
 export const calculateEnhancedBulkFluidMetrics = (
   bulkActions: BulkAction[],
-  currentMonth: number,
-  currentYear: number,
-  department: 'Drilling' | 'Production' | 'All' = 'All'
+  currentMonth?: number,
+  currentYear?: number,
+  department: 'Drilling' | 'Production' | 'All' = 'All',
+  locationFilter?: string
 ) => {
-  console.log(`🧪 ENHANCED BULK FLUID METRICS for ${department}`);
+  // Enhanced bulk fluid metrics calculation
   
-  // Filter bulk actions for current month
-  const currentMonthActions = bulkActions.filter(action => 
-    action.startDate.getMonth() === currentMonth && 
-    action.startDate.getFullYear() === currentYear
-  );
+  // Filter bulk actions for current month - only if month/year specified
+  const currentMonthActions = (currentMonth !== undefined && currentYear !== undefined)
+    ? bulkActions.filter(action => 
+        action.startDate.getMonth() === currentMonth && 
+        action.startDate.getFullYear() === currentYear
+      )
+    : bulkActions; // Use all actions if no month/year filter
+
+  // Apply location filtering if specified
+  let locationFilteredActions = currentMonthActions;
+  if (locationFilter && locationFilter !== 'All Locations') {
+    const beforeLocationFilter = locationFilteredActions.length;
+    
+    // Use Set to prevent duplicate actions from being included multiple times
+    const actionIds = new Set<string>();
+    locationFilteredActions = currentMonthActions.filter(action => {
+      if (actionIds.has(action.id)) return false; // Prevent duplicates
+      
+      const includesLocation = (
+        action.atPort?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        action.standardizedOrigin?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        action.destinationPort?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        action.standardizedDestination?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        action.productionPlatform?.toLowerCase().includes(locationFilter.toLowerCase())
+      );
+      
+      if (includesLocation) {
+        actionIds.add(action.id);
+        return true;
+      }
+      return false;
+    });
+    
+    // Specific debugging for Stena IceMAX issue
+    if (locationFilter.toLowerCase().includes('stena')) {
+      console.log('🔍 STENA ICEMAX BULK DEBUG:', {
+        locationFilter,
+        beforeLocationFilter,
+        afterLocationFilter: locationFilteredActions.length,
+        sampleActions: locationFilteredActions.slice(0, 5).map(a => ({
+          id: a.id,
+          vesselName: a.vesselName,
+          atPort: a.atPort,
+          destinationPort: a.destinationPort,
+          volumeBbls: a.volumeBbls,
+          action: a.action,
+          bulkType: a.bulkType
+        })),
+        totalVolumeBeforeDedup: locationFilteredActions.reduce((sum, a) => sum + a.volumeBbls, 0),
+        duplicateAnalysis: {
+          dieselActions: locationFilteredActions.filter(a => a.bulkType?.toLowerCase().includes('diesel')).length,
+          calciumChlorideActions: locationFilteredActions.filter(a => a.bulkType?.toLowerCase().includes('calcium')).length,
+          totalUniqueVessels: [...new Set(locationFilteredActions.map(a => a.vesselName))].length,
+          totalUniqueBulkTypes: [...new Set(locationFilteredActions.map(a => a.bulkType))].length
+        }
+      });
+    }
+  }
 
   // Apply deduplication logic
-  const deduplicationResult = deduplicateBulkActions(currentMonthActions, department);
+  const deduplicationResult = deduplicateBulkActions(locationFilteredActions, department);
   
   // Get department-specific fluid movements
   let fluidMovements = deduplicationResult.consolidatedOperations;
@@ -257,8 +453,9 @@ export const calculateEnhancedBulkFluidMetrics = (
     fluidMovements = getProductionFluidMovements(deduplicationResult.consolidatedOperations);
   }
 
-  // Calculate total fluid volume (deduplicated)
-  const totalFluidVolume = fluidMovements.reduce((sum, movement) => sum + movement.totalVolumeBbls, 0);
+  // Calculate total fluid volume (deduplicated) - only count delivery operations
+  const deliveryMovements = fluidMovements.filter(movement => movement.isDelivery);
+  const totalFluidVolume = deliveryMovements.reduce((sum, movement) => sum + movement.totalVolumeBbls, 0);
   
   // Count delivery operations
   const deliveryOperations = fluidMovements.filter(movement => movement.isDelivery).length;
@@ -276,6 +473,75 @@ export const calculateEnhancedBulkFluidMetrics = (
     totalFluidVolume: totalFluidVolume.toLocaleString() + ' bbls',
     deliveryOperations
   });
+  
+  // Additional debugging for Stena IceMAX
+  if (locationFilter?.toLowerCase().includes('stena')) {
+    const allOperationsVolume = deduplicationResult.consolidatedOperations.reduce((sum, op) => sum + op.totalVolumeBbls, 0);
+    const deliveryOnlyVolume = deduplicationResult.consolidatedOperations.filter(op => op.isDelivery).reduce((sum, op) => sum + op.totalVolumeBbls, 0);
+    
+    // Debug May 2025 specifically for bulk fluid investigation
+    const may2025Actions = currentMonth === 4 && currentYear === 2025 ? locationFilteredActions : [];
+    console.log('🔍 MAY 2025 STENA ICEMAX BULK FLUID DEBUG:', {
+      isFilteringMay2025: currentMonth === 4 && currentYear === 2025,
+      monthFilter: currentMonth,
+      yearFilter: currentYear,
+      originalBulkActions: bulkActions.length,
+      currentMonthActions: currentMonthActions.length,
+      locationFilteredActions: locationFilteredActions.length,
+      may2025ActionsCount: may2025Actions.length,
+      kabalExpected: '34,622 bbls',
+      sampleMay2025Actions: may2025Actions.slice(0, 10).map(a => ({
+        id: a.id,
+        startDate: a.startDate,
+        vesselName: a.vesselName,
+        atPort: a.atPort,
+        destinationPort: a.destinationPort,
+        volumeBbls: a.volumeBbls,
+        action: a.action,
+        bulkType: a.bulkType
+      })),
+      totalVolumeRawMay2025: may2025Actions.reduce((sum, a) => sum + a.volumeBbls, 0),
+      locationFilterPattern: locationFilter
+    });
+    console.log('🔍 STENA DEDUPLICATION RESULT:', {
+      originalActions: deduplicationResult.originalActions,
+      consolidatedOperations: deduplicationResult.consolidatedOperations.length,
+      duplicatesRemoved: deduplicationResult.duplicatesRemoved,
+      volumeReduction: `${(651274.45).toLocaleString()} → ${allOperationsVolume.toLocaleString()} bbls (all ops) → ${deliveryOnlyVolume.toLocaleString()} bbls (deliveries only)`,
+      reductionPercentage: `${(((651274.45 - deliveryOnlyVolume) / 651274.45) * 100).toFixed(1)}%`,
+      sampleOperations: deduplicationResult.consolidatedOperations.slice(0, 5).map(op => ({
+        vesselName: op.vesselName,
+        bulkType: op.bulkType,
+        totalVolumeBbls: op.totalVolumeBbls,
+        originLocation: op.originLocation,
+        destinationLocation: op.destinationLocation,
+        movementType: op.movementType,
+        isDelivery: op.isDelivery
+      })),
+      expectedVolume: '189,529 bbls',
+      actualVolume: `${deliveryOnlyVolume.toLocaleString()} bbls`,
+      stillOverBy: deliveryOnlyVolume > 189529 ? `${(deliveryOnlyVolume - 189529).toLocaleString()} bbls` : 'Within target!',
+      kabalActivityComparison: {
+        expectedKabalMay: {
+          cargoOps: 291,
+          waitingOnInstallation: 231,
+          transit: 209,
+          maneuvering: 71,
+          totalHours: 802
+        },
+        actualDashboard: 'See voyageEventMetrics for comparison'
+      },
+      movementTypeAnalysis: {
+        fourchonToOffshore: deduplicationResult.consolidatedOperations.filter(op => op.movementType === 'Fourchon-to-Offshore').length,
+        offshoreToOffshore: deduplicationResult.consolidatedOperations.filter(op => op.movementType === 'Offshore-to-Offshore').length,
+        vesselToFacility: deduplicationResult.consolidatedOperations.filter(op => op.movementType === 'Vessel-to-Facility').length,
+        other: deduplicationResult.consolidatedOperations.filter(op => op.movementType === 'Other').length,
+        deliveryOperations: deduplicationResult.consolidatedOperations.filter(op => op.isDelivery).length,
+        nonDeliveryOperations: deduplicationResult.consolidatedOperations.filter(op => !op.isDelivery).length,
+        totalOperations: deduplicationResult.consolidatedOperations.length
+      }
+    });
+  }
 
   return {
     totalFluidVolume,
@@ -297,7 +563,10 @@ export const calculateEnhancedKPIMetrics = (
   voyageList: VoyageList[],
   costAllocation: CostAllocation[],
   bulkActions: BulkAction[],
-  department: 'Drilling' | 'Production' | 'All' = 'All'
+  department: 'Drilling' | 'Production' | 'All' = 'All',
+  filterMonth?: number,
+  filterYear?: number,
+  locationFilter?: string
 ): KPIMetrics & {
   enhancedMetrics: {
     manifestMetrics: ReturnType<typeof calculateEnhancedManifestMetrics>;
@@ -305,11 +574,13 @@ export const calculateEnhancedKPIMetrics = (
     bulkFluidMetrics: ReturnType<typeof calculateEnhancedBulkFluidMetrics>;
   };
 } => {
-  console.log(`🎯 CALCULATING ENHANCED KPI METRICS for ${department}`);
+  console.log(`🎯 CALCULATING ENHANCED KPI METRICS for ${department}`, 
+    filterMonth !== undefined ? `(${filterMonth + 1}/${filterYear})` : '(All Months)'
+  );
   
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  // Use provided filter dates or undefined for all months
+  const currentMonth = filterMonth;
+  const currentYear = filterYear;
 
   // Calculate enhanced metrics using new infrastructure
   const manifestMetrics = calculateEnhancedManifestMetrics(
@@ -321,7 +592,7 @@ export const calculateEnhancedKPIMetrics = (
   );
   
   const bulkFluidMetrics = calculateEnhancedBulkFluidMetrics(
-    bulkActions, currentMonth, currentYear, department
+    bulkActions, currentMonth, currentYear, department, locationFilter
   );
 
   // Calculate lifts per hour using enhanced data
@@ -329,11 +600,27 @@ export const calculateEnhancedKPIMetrics = (
     ? manifestMetrics.totalLifts / voyageEventMetrics.cargoOpsHours 
     : 0;
 
-  // Use existing cost calculation logic
-  const vesselCostMetrics = calculateVesselCostMetrics(voyageEvents.filter(event => 
-    event.eventDate.getMonth() === currentMonth && 
-    event.eventDate.getFullYear() === currentYear
-  ));
+  // Use existing cost calculation logic with proper month/year filtering
+  const monthFilteredEvents = (currentMonth !== undefined && currentYear !== undefined)
+    ? voyageEvents.filter(event => 
+        event.eventDate.getMonth() === currentMonth && 
+        event.eventDate.getFullYear() === currentYear
+      )
+    : voyageEvents; // Use all events if no month/year filter
+    
+  const vesselCostMetrics = calculateVesselCostMetrics(monthFilteredEvents);
+  
+  // Enhanced cost logging with detailed breakdown
+  console.log(`💰 VESSEL COST CALCULATION for ${department}:`, {
+    monthFilteredEventsCount: monthFilteredEvents.length,
+    totalVesselCost: vesselCostMetrics.totalVesselCost,
+    averageVesselCostPerHour: vesselCostMetrics.averageVesselCostPerHour,
+    vesselCostByDepartment: vesselCostMetrics.vesselCostByDepartment
+  });
+  
+  if (vesselCostMetrics.totalVesselCost === 0 && monthFilteredEvents.length > 0) {
+    console.warn(`⚠️ No vessel cost calculated for ${department} - check cost allocation data`);
+  }
 
   // Build enhanced KPI metrics response
   const enhancedKPIMetrics = {

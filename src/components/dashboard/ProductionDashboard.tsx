@@ -6,6 +6,7 @@ import KPICard from './KPICard';
 import StatusDashboard from './StatusDashboard';
 import SmartFilterBar from './SmartFilterBar';
 import { Activity, Clock, Ship, BarChart3, TrendingUp, TrendingDown, Anchor, DollarSign, Droplet } from 'lucide-react';
+import { calculateEnhancedBulkFluidMetrics } from '../../utils/metricsCalculation';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -558,8 +559,26 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       });
       
       // Calculate volumes
-      const fluidMovement = filteredBulkActions.reduce((sum, action) => sum + (action.volumeGals || 0), 0);
-      const dieselVolume = dieselBulkActions.reduce((sum, action) => sum + (action.volumeGals || 0), 0);
+      // Use deduplication engine to prevent double-counting loads/offloads
+    const bulkMetrics = calculateEnhancedBulkFluidMetrics(
+      filteredBulkActions.map(action => ({
+        ...action,
+        volumeBbls: (action.volumeGals || 0) / 42 // Convert gallons to barrels
+      })),
+      undefined, // no month filter
+      undefined, // no year filter
+      'Production' // department filter
+    );
+    const fluidMovement = bulkMetrics.totalFluidVolume * 42; // Convert back to gallons
+      // Use deduplication for diesel volume as well
+      const dieselMetrics = calculateEnhancedBulkFluidMetrics(
+        dieselBulkActions.map(action => ({
+          ...action,
+          volumeBbls: (action.volumeGals || 0) / 42
+        })),
+        undefined, undefined, 'Production'
+      );
+      const dieselVolume = dieselMetrics.totalFluidVolume * 42;
       const dieselTransfers = dieselBulkActions.length;
       
       // Calculate daily fluid volumes for the last 30 days
@@ -588,12 +607,16 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       });
       
       // Populate with actual data where available
+      // Only count delivery operations to prevent double-counting loads/offloads
       last30DaysBulkActions.forEach(action => {
         const actionDate = safeParseDate(action.startDate);
         if (actionDate) {
           const daysAgo = Math.floor((now.getTime() - actionDate.getTime()) / (24 * 60 * 60 * 1000));
           if (daysAgo >= 0 && daysAgo < 30) {
-            dailyFluidVolumes[29 - daysAgo] += action.volumeGals || 0; // Most recent day at the end of the array
+            // Only count offload operations (deliveries) to avoid double-counting
+            if (action.action?.toLowerCase() === 'offload') {
+              dailyFluidVolumes[29 - daysAgo] += action.volumeGals || 0;
+            }
           }
         }
       });
@@ -624,8 +647,13 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         console.log('🎲 Production: Generated sample daily volumes for visualization');
       }
       
-      const currentFluidVolume = last30DaysBulkActions.reduce((sum, a) => sum + (a.volumeGals || 0), 0);
-      const previousFluidVolume = previous30DaysBulkActions.reduce((sum, a) => sum + (a.volumeGals || 0), 0);
+      // Only count delivery operations to prevent double-counting
+      const currentFluidVolume = last30DaysBulkActions
+        .filter(a => a.action?.toLowerCase() === 'offload')
+        .reduce((sum, a) => sum + (a.volumeGals || 0), 0);
+      const previousFluidVolume = previous30DaysBulkActions
+        .filter(a => a.action?.toLowerCase() === 'offload')
+        .reduce((sum, a) => sum + (a.volumeGals || 0), 0);
 
       // Calculate trends using historical data comparison
       const calculateTrend = (current: number, previous: number) => {
@@ -2032,7 +2060,10 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                           action.bulkDescription?.toLowerCase().includes(chemical.toLowerCase()) ||
                           action.bulkType?.toLowerCase().includes(chemical.toLowerCase())
                         );
-                        const volume = transfers.reduce((sum, action) => sum + (action.volumeGals || 0), 0);
+                        // Only count delivery operations to prevent double-counting
+                        const volume = transfers
+                          .filter(action => action.action?.toLowerCase() === 'offload')
+                          .reduce((sum, action) => sum + (action.volumeGals || 0), 0);
                         return {
                           name: chemical,
                           transfers: transfers.length,
@@ -2052,7 +2083,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                         activeChemicals.push({
                           name: 'Diesel Fuel',
                           transfers: dieselTransfers.length,
-                          volume: Math.round(dieselTransfers.reduce((sum, action) => sum + (action.volumeGals || 0), 0)),
+                          volume: Math.round(dieselTransfers
+                            .filter(action => action.action?.toLowerCase() === 'offload')
+                            .reduce((sum, action) => sum + (action.volumeGals || 0), 0)),
                           hasData: true
                         });
                       }

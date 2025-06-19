@@ -14,12 +14,12 @@ export const debugStoredData = async () => {
     console.log('🔍 Checking IndexedDB...');
     const indexedDBData = await indexedDBService.loadAllData();
     console.log('🔍 IndexedDB data:', {
-      voyageEventsCount: indexedDBData.voyageEvents?.length || 0,
-      costAllocationCount: indexedDBData.costAllocation?.length || 0,
-      voyageListCount: indexedDBData.voyageList?.length || 0,
-      vesselManifestsCount: indexedDBData.vesselManifests?.length || 0,
-      isDataReady: indexedDBData.isDataReady,
-      lastUpdated: indexedDBData.lastUpdated
+      voyageEventsCount: indexedDBData?.voyageEvents?.length || 0,
+      costAllocationCount: indexedDBData?.costAllocation?.length || 0,
+      voyageListCount: indexedDBData?.voyageList?.length || 0,
+      vesselManifestsCount: indexedDBData?.vesselManifests?.length || 0,
+      bulkActionsCount: indexedDBData?.bulkActions?.length || 0,
+      lastUpdated: indexedDBData?.metadata?.lastUpdated
     });
     
     // Check localStorage

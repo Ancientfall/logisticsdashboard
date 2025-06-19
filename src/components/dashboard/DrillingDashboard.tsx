@@ -109,10 +109,38 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     
     return voyageEvents
       .filter(event => {
-        // Apply location filtering
-        if (filters.selectedLocation !== 'All Locations' && 
-            !event.location?.toLowerCase().includes(filters.selectedLocation.toLowerCase())) {
-          return false;
+        // Apply location filtering with proper facility mapping
+        if (filters.selectedLocation !== 'All Locations') {
+          const selectedFacility = getAllDrillingCapableLocations().find(
+            f => f.displayName === filters.selectedLocation
+          );
+          
+          if (selectedFacility) {
+            // Check multiple location fields and use facility mapping
+            const eventLocation = event.location?.toLowerCase().trim() || '';
+            const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+            const facilityLocationName = selectedFacility.locationName.toLowerCase();
+            const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+            
+            // Check if any location field matches or contains the facility name
+            const matchesLocation = 
+              eventLocation.includes(facilityLocationName) ||
+              mappedLocation.includes(facilityLocationName) ||
+              facilityLocationName.includes(eventLocation) ||
+              eventLocation.includes(facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim()) || // Remove parentheses
+              mappedLocation.includes(facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim());
+            
+            if (!matchesLocation) {
+              return false;
+            }
+          } else {
+            // Fallback: if no facility found, skip this filter (show all)
+            console.warn(`⚠️ No facility found for selected location: ${filters.selectedLocation}`);
+            console.log('🔍 PARENT EVENT DEBUG - Available locations in events:', 
+              [...new Set(voyageEvents.slice(0, 20).map(e => e.location).filter(Boolean))]);
+            console.log('🔍 PARENT EVENT DEBUG - Available drilling facilities:', 
+              getAllDrillingCapableLocations().map(f => ({ locationName: f.locationName, displayName: f.displayName })));
+          }
         }
         
         // Apply month/year filtering if specified
@@ -274,6 +302,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         bulk: {
           totalBulkVolume: prevBulkMetrics.totalFluidVolume || 0
         },
+        costs: {
+          totalVesselCost: prevEnhancedKPIs.totalVesselCost || 0
+        },
         utilization: {
           transitTimeHours: prevVoyageMetrics.transitTime || 0
         }
@@ -286,6 +317,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         lifts: { totalLifts: 0, liftsPerHour: 0, vesselVisits: 0 },
         hours: { totalProductiveHours: 0 },
         bulk: { totalBulkVolume: 0 },
+        costs: { totalVesselCost: 0 },
         utilization: { transitTimeHours: 0 }
       };
     }
@@ -363,16 +395,41 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         
         // Apply location filtering if specified
         if (selectedLocation && selectedLocation !== 'All Locations') {
-          filteredAllocations = filteredAllocations.filter(allocation => 
-            allocation.locationReference?.toLowerCase().includes(selectedLocation.toLowerCase()) ||
-            allocation.rigLocation?.toLowerCase().includes(selectedLocation.toLowerCase()) ||
-            allocation.description?.toLowerCase().includes(selectedLocation.toLowerCase())
+          const selectedFacility = getAllDrillingCapableLocations().find(
+            f => f.displayName === selectedLocation
           );
+          
+          if (selectedFacility) {
+            const facilityLocationName = selectedFacility.locationName.toLowerCase();
+            const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+            const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
+            
+            filteredAllocations = filteredAllocations.filter(allocation => {
+              const locationRef = allocation.locationReference?.toLowerCase().trim() || '';
+              const rigLocation = allocation.rigLocation?.toLowerCase().trim() || '';
+              const description = allocation.description?.toLowerCase().trim() || '';
+              
+              return locationRef.includes(facilityLocationName) ||
+                     rigLocation.includes(facilityLocationName) ||
+                     description.includes(facilityLocationName) ||
+                     facilityLocationName.includes(locationRef) ||
+                     facilityLocationName.includes(rigLocation) ||
+                     locationRef.includes(facilityNameCore) ||
+                     rigLocation.includes(facilityNameCore) ||
+                     facilityNameCore.includes(locationRef) ||
+                     facilityNameCore.includes(rigLocation);
+            });
+          } else {
+            console.warn(`⚠️ No facility found for cost allocation location filtering: ${selectedLocation}`);
+          }
         }
         
         console.log('🔍 AFTER FILTERING:', {
           filteredCount: filteredAllocations.length,
-          sampleFiltered: filteredAllocations.slice(0, 3)
+          sampleFiltered: filteredAllocations.slice(0, 3),
+          selectedLocation,
+          uniqueLocationReferences: [...new Set(filteredAllocations.map(a => a.locationReference).filter(Boolean))],
+          uniqueRigLocations: [...new Set(filteredAllocations.map(a => a.rigLocation).filter(Boolean))]
         });
         
         // Group by DRILLING RIG location only and calculate metrics
@@ -596,7 +653,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             voyage.locations && voyage.locations.toLowerCase().includes(filters.selectedLocation.toLowerCase())
           ).length;
         } else {
-          // Count all drilling-related voyages (including drilling and mixed purposes)
+          // Count all drilling-related voyages (now properly classified at source)
           drillingVoyages = filteredVoyages.filter(voyage => 
             voyage.voyagePurpose === 'Drilling' || 
             voyage.voyagePurpose === 'Mixed' ||
@@ -604,12 +661,66 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           ).length;
         }
         
+        // Debug voyage purpose distribution
+        const voyagePurposeCount = filteredVoyages.reduce((acc, voyage) => {
+          const purpose = voyage.voyagePurpose || 'Unknown';
+          acc[purpose] = (acc[purpose] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        const drillingFlagCount = filteredVoyages.reduce((acc, voyage) => {
+          if (voyage.includesDrilling) acc.includesDrilling++;
+          if (voyage.includesProduction) acc.includesProduction++;
+          if (!voyage.includesDrilling && !voyage.includesProduction) acc.neither++;
+          return acc;
+        }, { includesDrilling: 0, includesProduction: 0, neither: 0 });
+        
         console.log(`🚢 DRILLING VOYAGES CALCULATION:`, {
           totalVoyageRecords: voyageList.length,
           filteredByTime: filteredVoyages.length,
           drillingVoyages: drillingVoyages,
           locationFilter: filters.selectedLocation,
-          timeFilter: `${filterMonth !== undefined ? filterMonth + 1 : 'All'}/${filterYear || 'All'}`
+          timeFilter: `${filterMonth !== undefined ? filterMonth + 1 : 'All'}/${filterYear || 'All'}`,
+          
+          // Debug voyage classification
+          voyagePurposeDistribution: voyagePurposeCount,
+          drillingFlagDistribution: drillingFlagCount,
+          
+          // Sample of filtered voyages
+          sampleVoyages: filteredVoyages.slice(0, 5).map(v => ({
+            vessel: v.vessel,
+            voyagePurpose: v.voyagePurpose,
+            includesDrilling: v.includesDrilling,
+            includesProduction: v.includesProduction,
+            locations: v.locations,
+            mission: v.mission
+          })),
+          
+          // What would happen with different counting methods
+          alternativeCount: {
+            allFilteredVoyages: filteredVoyages.length,
+            supplyMissionOnly: filteredVoyages.filter(v => v.mission === 'Supply').length,
+            newInclusiveLogic: filteredVoyages.filter(v => 
+              v.voyagePurpose === 'Drilling' || 
+              v.voyagePurpose === 'Mixed' ||
+              v.includesDrilling ||
+              (v.locations && (
+                v.locations.toLowerCase().includes('ocean black') ||
+                v.locations.toLowerCase().includes('stena') ||
+                v.locations.toLowerCase().includes('drilling') ||
+                v.locations.toLowerCase().includes('blacklion') ||
+                v.locations.toLowerCase().includes('blackhornet') ||
+                v.locations.toLowerCase().includes('icemax')
+              )) ||
+              (v.voyagePurpose === 'Other' && v.locations && (
+                v.locations.toLowerCase().includes('ocean') ||
+                v.locations.toLowerCase().includes('stena')
+              ))
+            ).length,
+            drillingPlusMixed: filteredVoyages.filter(v => 
+              v.voyagePurpose === 'Drilling' || v.voyagePurpose === 'Mixed'
+            ).length
+          }
         });
       }
 
@@ -1108,58 +1219,193 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           }
           heroMetrics={[
             {
-              title: "Total Cargo Tons Moved",
+              title: "Outbound Tonnage",
               value: Math.round(drillingMetrics.cargo.totalCargoTons).toLocaleString(),
               unit: "tons",
               target: dynamicTargets.cargoTons,
-              contextualHelp: `Calculated from vessel manifests filtered for drilling operations only. Includes all cargo types (RT + Outbound) delivered to drilling rigs. Uses cost allocation LC validation to ensure drilling-only operations. RT cargo = cargo delivered from rig to base, Outbound = cargo delivered from base to rig.`
+              trend: previousPeriodMetrics.cargo.totalCargoTons > 0 ? 
+                ((drillingMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
+              isPositive: drillingMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
+              contextualHelp: filters.selectedLocation === 'All Locations' ? 
+                "Total outbound tonnage delivered from base to all drilling rigs across GoA. Calculated from vessel manifests filtered for drilling operations using cost allocation LC validation. Includes deck cargo, tubulars, and drilling supplies." :
+                `Outbound tonnage specific to ${filters.selectedLocation}. Filtered from vessel manifests where destination matches selected drilling location. Validated against cost allocation LC numbers.`
             },
             {
-              title: "Efficiency", 
-              value: Math.round(drillingMetrics.lifts.liftsPerHour).toLocaleString(),
+              title: filters.selectedLocation === 'All Locations' ? "Avg Visits/Week" : "Visits per Week",
+              value: (() => {
+                // Calculate number of weeks in the current period
+                let weeks = 1;
+                if (filters.selectedMonth === 'YTD') {
+                  // YTD: calculate weeks from start of year to now (accounting for 1 month lag)
+                  const now = new Date();
+                  const currentYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                  const startOfYear = new Date(currentYear, 0, 1);
+                  const endDate = now.getMonth() === 0 ? new Date(currentYear, 11, 31) : now;
+                  weeks = Math.ceil((endDate.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                } else if (filters.selectedMonth !== 'All Months') {
+                  // Specific month: exactly 4 weeks for cleaner calculation
+                  weeks = 4;
+                } else {
+                  // All Months: use actual data span from available months
+                  const availableMonths = filterOptions.months.length - 2; // Exclude 'All Months' and 'YTD'
+                  weeks = Math.max(availableMonths * 4, 52); // At least 52 weeks for full dataset
+                }
+                
+                // For debug: calculate active drilling locations count
+                const debugActiveDrillingLocations = new Set<string>();
+                costAllocation.forEach(allocation => {
+                  if (allocation.locationReference && allocation.locationReference.trim() !== '') {
+                    debugActiveDrillingLocations.add(allocation.locationReference.trim());
+                  }
+                });
+                
+                console.log('🔍 WEEKLY VISITS DEBUG:', {
+                  selectedMonth: filters.selectedMonth,
+                  selectedLocation: filters.selectedLocation,
+                  totalVesselVisits: drillingMetrics.lifts.vesselVisits,
+                  activeDrillingLocationsPeriod: 'Will be calculated below',
+                  totalDrillingLocationsEver: debugActiveDrillingLocations.size,
+                  filterLocationsFound: filterOptions.locations.length - 1,
+                  calculatedWeeks: weeks,
+                  
+                  // Debug the source of vessel visits
+                  vesselVisitsSource: {
+                    drillingMetricsLifts: drillingMetrics.lifts,
+                    voyageListTotal: voyageList ? voyageList.length : 0,
+                    voyageEventsTotal: voyageEvents ? voyageEvents.length : 0,
+                    vesselManifestsTotal: vesselManifests ? vesselManifests.length : 0
+                  },
+                  
+                  note: 'Active locations calculated dynamically based on selected period - CHECK IF TOTAL VISITS IS TOO LOW'
+                });
+                
+                if (filters.selectedLocation === 'All Locations') {
+                  // Dynamically calculate active drilling locations for the selected period
+                  const totalVisits = drillingMetrics.lifts.vesselVisits;
+                  
+                  // Get active drilling locations from cost allocation data for the selected period
+                  let activeDrillingLocations = new Set<string>();
+                  
+                  // Filter cost allocation by the same period logic as the metrics
+                  const filteredCostAllocation = costAllocation.filter(allocation => {
+                    if (!allocation.costAllocationDate) return false;
+                    
+                    const allocDate = new Date(allocation.costAllocationDate);
+                    
+                    // Apply same filtering logic as used in metrics
+                    if (filters.selectedMonth === 'YTD') {
+                      const currentYear = allocDate.getMonth() === 0 ? allocDate.getFullYear() - 1 : allocDate.getFullYear();
+                      return allocDate.getFullYear() === currentYear;
+                    } else if (filters.selectedMonth !== 'All Months') {
+                      const [monthName, year] = filters.selectedMonth.split(' ');
+                      if (monthName && year) {
+                        const filterMonth = new Date(`${monthName} 1, ${year}`).getMonth();
+                        const filterYear = parseInt(year);
+                        return allocDate.getMonth() === filterMonth && allocDate.getFullYear() === filterYear;
+                      }
+                    }
+                    return true; // For 'All Months'
+                  });
+                  
+                  // Extract unique drilling locations that had cost allocation in the period
+                  filteredCostAllocation.forEach(allocation => {
+                    if (allocation.locationReference && allocation.locationReference.trim() !== '') {
+                      activeDrillingLocations.add(allocation.locationReference.trim());
+                    }
+                  });
+                  
+                  const numActiveDrillingLocations = Math.max(activeDrillingLocations.size, 1);
+                  const avgVisitsPerLocationPerWeek = totalVisits / numActiveDrillingLocations / weeks;
+                  
+                  console.log('📊 AVG VISITS/WEEK BREAKDOWN:', {
+                    totalVisits,
+                    numActiveDrillingLocations,
+                    activeDrillingLocationsList: Array.from(activeDrillingLocations),
+                    weeks,
+                    avgVisitsPerLocationPerWeek,
+                    expectedMinimum: 2.0,
+                    selectedPeriod: filters.selectedMonth,
+                    
+                    // Detailed breakdown for debugging
+                    calculation: {
+                      step1_totalVisits: totalVisits,
+                      step2_divideByLocations: totalVisits / numActiveDrillingLocations,
+                      step3_divideByWeeks: (totalVisits / numActiveDrillingLocations) / weeks,
+                      expectedWith80Voyages: {
+                        if80VoyagesAnd4Locations: (80 / 4) / weeks,
+                        if80VoyagesAnd6Locations: (80 / 6) / weeks,
+                        if80VoyagesAnd8Locations: (80 / 8) / weeks
+                      }
+                    },
+                    
+                    costAllocationInfo: {
+                      totalCostAllocRecords: costAllocation.length,
+                      filteredCostAllocRecords: filteredCostAllocation.length,
+                      costAllocSample: filteredCostAllocation.slice(0, 3).map(a => ({
+                        locationReference: a.locationReference,
+                        date: a.costAllocationDate,
+                        projectType: a.projectType
+                      }))
+                    },
+                    
+                    note: 'Using dynamic count of active drilling locations from cost allocation data'
+                  });
+                  
+                  return avgVisitsPerLocationPerWeek.toFixed(1);
+                } else {
+                  // Visits per week for specific location
+                  return (drillingMetrics.lifts.vesselVisits / weeks).toFixed(1);
+                }
+              })(),
+              unit: "visits/week",
+              target: filters.selectedLocation === 'All Locations' ? 2.0 : 8,
+              trend: previousPeriodMetrics.lifts.vesselVisits > 0 ? 
+                ((drillingMetrics.lifts.vesselVisits - previousPeriodMetrics.lifts.vesselVisits) / previousPeriodMetrics.lifts.vesselVisits) * 100 : 0,
+              isPositive: drillingMetrics.lifts.vesselVisits >= previousPeriodMetrics.lifts.vesselVisits,
+              contextualHelp: filters.selectedLocation === 'All Locations' ?
+                "Average vessel visits per drilling location per week across GoA operations. Calculated as (total drilling voyages ÷ active drilling locations with cost allocation in period) ÷ weeks in period. Only counts locations that were on-hire/active during the selected timeframe. Helps assess weekly operational tempo and logistics efficiency." :
+                `Average vessel visits per week to ${filters.selectedLocation}. Calculated as total visits divided by weeks in the selected time period. Each round trip voyage counts as one visit. Useful for planning weekly logistics capacity.`
+            },
+            {
+              title: "Lifts per Hour",
+              value: (Math.round(drillingMetrics.lifts.liftsPerHour * 100) / 100).toString(),
               unit: "lifts/hr",
               target: dynamicTargets.liftsPerHour,
-              contextualHelp: `Calculated as Total Lifts ÷ Productive Hours. Total Lifts from drilling manifest data validated against cost allocation LCs. Productive Hours from voyage events classified as 'Cargo Ops' and other productive activities via vessel codes integration.`
+              trend: previousPeriodMetrics.lifts.liftsPerHour > 0 ? 
+                ((drillingMetrics.lifts.liftsPerHour - previousPeriodMetrics.lifts.liftsPerHour) / previousPeriodMetrics.lifts.liftsPerHour) * 100 : 0,
+              isPositive: drillingMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour,
+              contextualHelp: filters.selectedLocation === 'All Locations' ?
+                "Average operational efficiency across all GoA drilling locations. Calculated as total lifts divided by total productive hours. Includes all crane operations from drilling manifests validated against cost allocation LCs." :
+                `Operational efficiency specific to ${filters.selectedLocation}. Lifts per productive hour for this drilling location only. Productive hours exclude weather, waiting, and non-operational time.`
             },
             {
-              title: "Data Integrity",
-              value: Math.round(drillingMetrics.integrityScore),
-              unit: "%",
-              target: 95,
-              status: drillingMetrics.integrityScore >= 95 ? 'good' : drillingMetrics.integrityScore >= 80 ? 'warning' : 'critical',
-              contextualHelp: "Comprehensive data integrity score calculated from: LC validation (cost allocation alignment), anti-double-counting (bulk fluid deduplication), data completeness, cross-dataset consistency, and critical error detection. Score = (Valid Records ÷ Total Records) × 100."
+              title: "Logistics Cost",
+              value: `$${Math.round(drillingMetrics.costs.totalVesselCost / 1000).toLocaleString()}K`,
+              unit: "",
+              target: filters.selectedLocation === 'All Locations' ? 15000 : 3000,
+              trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
+                ((drillingMetrics.costs.totalVesselCost - (previousPeriodMetrics.costs?.totalVesselCost || 0)) / (previousPeriodMetrics.costs?.totalVesselCost || 1)) * 100 : 0,
+              isPositive: drillingMetrics.costs.totalVesselCost <= (previousPeriodMetrics.costs?.totalVesselCost || 0), // Lower cost is positive
+              contextualHelp: filters.selectedLocation === 'All Locations' ?
+                "Total logistics cost for all GoA drilling operations. Calculated from cost allocation data including vessel rates, fuel, and operational expenses. Represents comprehensive drilling support cost across all locations." :
+                `Logistics cost specific to ${filters.selectedLocation}. Includes vessel charter, fuel, and operational costs allocated to this drilling location. Based on cost allocation percentages and actual vessel utilization.`
+            },
+            {
+              title: "Fluid Volume",
+              value: Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString(),
+              unit: "bbls",
+              target: filters.selectedLocation === 'All Locations' ? 25000 : 5000,
+              trend: previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
+                ((drillingMetrics.bulk.totalBulkVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0,
+              isPositive: drillingMetrics.bulk.totalBulkVolume >= previousPeriodMetrics.bulk.totalBulkVolume,
+              contextualHelp: filters.selectedLocation === 'All Locations' ?
+                "Total drilling and completion fluid volume moved across all GoA drilling operations. Includes drilling mud, completion fluids, chemicals, and specialized fluids. Anti-double-counting applied to avoid load/offload duplication." :
+                `Total drilling and completion fluid volume moved to ${filters.selectedLocation}. Includes all bulk fluid transfers supporting drilling operations at this location. Calculated from bulk actions with deduplication.`
             }
           ]}
           onViewDetails={onNavigateToUpload}
         />
 
-        {/* Progressive KPI Hierarchy - Hero Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <KPICard 
-            title="Outbound Tonnage" 
-            value={Math.round(drillingMetrics.cargo.totalCargoTons).toLocaleString()}
-            variant="hero"
-            unit="tons"
-            target={dynamicTargets.cargoTons}
-            trend={previousPeriodMetrics.cargo.totalCargoTons > 0 ? 
-              ((drillingMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0}
-            isPositive={drillingMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons}
-            subtitle={`${Math.round(drillingMetrics.cargo.rtPercentage)}% RT | ${Math.round(drillingMetrics.cargo.outboundPercentage)}% Outbound`}
-            contextualHelp="Outbound tonnage represents cargo delivered from base to drilling rigs. Calculated from vessel manifests where Acct Code matches drilling cost allocation LC numbers. Includes deck cargo, tubulars, and drilling supplies. Excludes production/integrated facilities using master facilities validation."
-          />
-          <KPICard 
-            title="Operational Efficiency" 
-            value={Math.round(drillingMetrics.lifts.liftsPerHour).toLocaleString()}
-            variant="hero"
-            unit="lifts/hr"
-            target={dynamicTargets.liftsPerHour}
-            trend={previousPeriodMetrics.lifts.liftsPerHour > 0 ? 
-              ((drillingMetrics.lifts.liftsPerHour - previousPeriodMetrics.lifts.liftsPerHour) / previousPeriodMetrics.lifts.liftsPerHour) * 100 : 0}
-            isPositive={drillingMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour}
-            subtitle={`${drillingMetrics.lifts.totalLifts.toLocaleString()} total lifts with LC validation`}
-            contextualHelp="Operational efficiency measured as lifts per productive hour. Lifts = total crane operations from drilling manifests. Productive Hours = time spent in 'Cargo Ops', 'Maneuvering', and other value-adding activities (excluding weather, waiting, transit). Uses vessel codes for accurate activity classification."
-          />
-        </div>
 
         {/* Compact KPI Cards Row - Matching your image layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">

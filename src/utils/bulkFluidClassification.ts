@@ -272,7 +272,3 @@ function isOffshoreLocation(location: string): boolean {
   const normalizedLocation = location.toLowerCase();
   return offshoreKeywords.some(keyword => normalizedLocation.includes(keyword));
 }
-
-export function getProductionFluidTypes(): string[] {
-  return Object.values(ProductionFluidType);
-}

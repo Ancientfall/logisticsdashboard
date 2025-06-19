@@ -272,6 +272,12 @@ const determineIfDelivery = (
     return true;
   }
   
+  // Vessel-to-facility operations at offshore rigs are also deliveries
+  // These represent fluid transfers from vessels to rig facilities
+  if (offloadActions.length > 0 && movementType === 'Vessel-to-Facility') {
+    return true;
+  }
+  
   return false;
 };
 

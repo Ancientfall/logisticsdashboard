@@ -111,7 +111,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 110,
-    drillingLCs: '10101,10102,10103,10104,10105',
+    drillingLCs: '',  // NOTE: Drilling activities are identified by location mapping, not specific LC numbers
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
@@ -127,7 +127,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 120,
-    drillingLCs: '10106,10107,10108,10109,10110',
+    drillingLCs: '',  // NOTE: Drilling activities are identified by location mapping, not specific LC numbers
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',

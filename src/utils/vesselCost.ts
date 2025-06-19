@@ -12,13 +12,13 @@ import { VoyageEvent } from '../types';
 const VESSEL_COST_RATES = [
   {
     startDate: new Date('2024-01-01'),    // January 1, 2024
-    endDate: new Date('2025-03-31'),      // March 31, 2025
+    endDate: new Date('2025-04-01'),      // April 1, 2025 (inclusive of March 31)
     dailyRate: 33000, // $33,000 per day
     description: 'Jan 2024 - Mar 2025 Rate'
   },
   {
     startDate: new Date('2025-04-01'),    // April 1, 2025
-    endDate: new Date('2025-05-31'),      // May 31, 2025 (end of data range)
+    endDate: new Date('2025-06-01'),      // June 1, 2025 (inclusive of May 31)
     dailyRate: 37800, // $37,800 per day
     description: 'Apr-May 2025 Rate'
   }
@@ -78,8 +78,24 @@ export const calculateVesselCostMetrics = (events: VoyageEvent[]): {
   vesselCostByActivity: Record<string, { cost: number; hours: number; events: number }>;
   vesselCostRateBreakdown: Record<string, { cost: number; hours: number; events: number }>;
 } => {
-  const totalVesselCost = events.reduce((sum, event) => sum + (event.vesselCostTotal || 0), 0);
-  const totalHours = events.reduce((sum, event) => sum + (event.finalHours || 0), 0);
+  // Calculate costs on-the-fly if not already populated
+  let totalVesselCost = 0;
+  let totalHours = 0;
+  
+  // First pass: calculate costs and populate totals
+  for (const event of events) {
+    const hours = event.finalHours || 0;
+    totalHours += hours;
+    
+    // Use existing cost if available, otherwise calculate it
+    if (event.vesselCostTotal) {
+      totalVesselCost += event.vesselCostTotal;
+    } else if (hours > 0 && event.eventDate) {
+      // Calculate cost on-the-fly using vessel cost rates
+      const costData = calculateVesselCost(event.eventDate, hours);
+      totalVesselCost += costData.totalCost;
+    }
+  }
 
   // Calculate average costs
   const averageVesselCostPerHour = totalHours > 0 ? totalVesselCost / totalHours : 0;
@@ -91,8 +107,18 @@ export const calculateVesselCostMetrics = (events: VoyageEvent[]): {
     if (!acc[dept]) {
       acc[dept] = { cost: 0, hours: 0, events: 0 };
     }
-    acc[dept].cost += event.vesselCostTotal || 0;
-    acc[dept].hours += event.finalHours || 0;
+    
+    const hours = event.finalHours || 0;
+    let eventCost = event.vesselCostTotal || 0;
+    
+    // Calculate cost if not already populated
+    if (!eventCost && hours > 0 && event.eventDate) {
+      const costData = calculateVesselCost(event.eventDate, hours);
+      eventCost = costData.totalCost;
+    }
+    
+    acc[dept].cost += eventCost;
+    acc[dept].hours += hours;
     acc[dept].events += 1;
     return acc;
   }, {} as Record<string, { cost: number; hours: number; events: number }>);
@@ -103,23 +129,59 @@ export const calculateVesselCostMetrics = (events: VoyageEvent[]): {
     if (!acc[activity]) {
       acc[activity] = { cost: 0, hours: 0, events: 0 };
     }
-    acc[activity].cost += event.vesselCostTotal || 0;
-    acc[activity].hours += event.finalHours || 0;
+    
+    const hours = event.finalHours || 0;
+    let eventCost = event.vesselCostTotal || 0;
+    
+    // Calculate cost if not already populated
+    if (!eventCost && hours > 0 && event.eventDate) {
+      const costData = calculateVesselCost(event.eventDate, hours);
+      eventCost = costData.totalCost;
+    }
+    
+    acc[activity].cost += eventCost;
+    acc[activity].hours += hours;
     acc[activity].events += 1;
     return acc;
   }, {} as Record<string, { cost: number; hours: number; events: number }>);
 
   // Cost breakdown by rate period
   const vesselCostRateBreakdown = events.reduce((acc, event) => {
-    const rateDesc = event.vesselCostRateDescription || 'Unknown Rate';
+    const hours = event.finalHours || 0;
+    let eventCost = event.vesselCostTotal || 0;
+    let rateDesc = event.vesselCostRateDescription || 'Unknown Rate';
+    
+    // Calculate cost and rate description if not already populated
+    if (!eventCost && hours > 0 && event.eventDate) {
+      const costData = calculateVesselCost(event.eventDate, hours);
+      eventCost = costData.totalCost;
+      rateDesc = costData.rateDescription;
+    }
+    
     if (!acc[rateDesc]) {
       acc[rateDesc] = { cost: 0, hours: 0, events: 0 };
     }
-    acc[rateDesc].cost += event.vesselCostTotal || 0;
-    acc[rateDesc].hours += event.finalHours || 0;
+    
+    acc[rateDesc].cost += eventCost;
+    acc[rateDesc].hours += hours;
     acc[rateDesc].events += 1;
     return acc;
   }, {} as Record<string, { cost: number; hours: number; events: number }>);
+
+  // Debug logging for vessel cost calculations
+  if (totalVesselCost === 0 && events.length > 0) {
+    console.warn('⚠️ Vessel cost calculation resulted in $0', {
+      eventsCount: events.length,
+      totalHours,
+      sampleEvent: events[0] ? {
+        eventDate: events[0].eventDate,
+        finalHours: events[0].finalHours,
+        vesselCostTotal: events[0].vesselCostTotal
+      } : null
+    });
+  } else {
+    console.log(`✅ Vessel cost calculated: $${totalVesselCost.toLocaleString()} for ${events.length} events`);
+  }
 
   return {
     totalVesselCost,
