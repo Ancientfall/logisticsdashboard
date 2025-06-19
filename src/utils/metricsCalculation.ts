@@ -1,9 +1,418 @@
-import { VoyageEvent, VesselManifest, VoyageList, CostAllocation, KPIMetrics } from '../types';
+import { VoyageEvent, VesselManifest, VoyageList, CostAllocation, KPIMetrics, BulkAction } from '../types';
 import { calculateTotalHours, calculateAverageTripDuration } from './helpers';
 import { calculateVesselCostMetrics } from './vesselCost';
+import { 
+  enhancedProcessCostAllocation, 
+  getDrillingCostAllocations, 
+  getProductionCostAllocations,
+  validateManifestsAgainstCostAllocation 
+} from './costAllocationProcessor';
+import { classifyEventWithVesselCodes, isProductiveEvent, isNonProductiveEvent } from './vesselCodesProcessor';
+import { deduplicateBulkActions, getDrillingFluidMovements, getProductionFluidMovements } from './bulkFluidDeduplicationEngine';
 
 /**
  * KPI metrics calculation utilities
+ * Enhanced with new infrastructure for accurate drilling/production separation
+ */
+
+// ==================== ENHANCED KPI CALCULATION FUNCTIONS ====================
+
+/**
+ * Enhanced vessel manifest metrics with proper drilling/production filtering
+ */
+export const calculateEnhancedManifestMetrics = (
+  vesselManifests: VesselManifest[],
+  costAllocation: CostAllocation[],
+  currentMonth: number,
+  currentYear: number,
+  department: 'Drilling' | 'Production' | 'All' = 'All'
+) => {
+  console.log(`🚢 ENHANCED MANIFEST METRICS for ${department}`);
+  
+  // Filter manifests for current month
+  const currentMonthManifests = vesselManifests.filter(manifest => 
+    manifest.manifestDate.getMonth() === currentMonth && 
+    manifest.manifestDate.getFullYear() === currentYear
+  );
+
+  // Validate manifests against cost allocation
+  const validation = validateManifestsAgainstCostAllocation(currentMonthManifests, costAllocation);
+  console.log(`📊 Manifest validation: ${validation.validationSummary.validationRate.toFixed(1)}% valid`);
+
+  // Filter manifests by department using cost allocation
+  let filteredManifests = validation.validManifests;
+  
+  if (department !== 'All') {
+    const departmentCostAllocations = department === 'Drilling' 
+      ? getDrillingCostAllocations(costAllocation)
+      : getProductionCostAllocations(costAllocation);
+    
+    const departmentLCs = new Set(departmentCostAllocations.map(ca => ca.lcNumber));
+    
+    filteredManifests = validation.validManifests.filter(manifest => 
+      manifest.costCode && departmentLCs.has(manifest.costCode)
+    );
+    
+    console.log(`📋 Filtered to ${filteredManifests.length} ${department} manifests (from ${validation.validManifests.length} valid)`);
+  }
+
+  // Calculate enhanced cargo metrics
+  const totalDeckTons = filteredManifests.reduce((sum, manifest) => sum + manifest.deckTons, 0);
+  const totalRTTons = filteredManifests.reduce((sum, manifest) => sum + manifest.rtTons, 0);
+  const totalOutboundTons = totalDeckTons; // Deck tons are outbound only
+  const totalCargoTons = totalDeckTons + totalRTTons;
+  
+  const uniqueManifests = new Set(filteredManifests.map(m => m.manifestNumber)).size;
+  const cargoTonnagePerVisit = uniqueManifests > 0 ? totalCargoTons / uniqueManifests : 0;
+
+  // Enhanced RT analysis
+  const rtPercentage = totalCargoTons > 0 ? (totalRTTons / totalCargoTons) * 100 : 0;
+  const outboundPercentage = totalCargoTons > 0 ? (totalOutboundTons / totalCargoTons) * 100 : 0;
+  
+  // Lifts calculation
+  const totalLifts = filteredManifests.reduce((sum, manifest) => sum + manifest.lifts, 0);
+  
+  // Vessel visits (unique vessels)
+  const vesselVisits = new Set(filteredManifests.map(m => m.transporter)).size;
+
+  console.log(`✅ ${department} CARGO METRICS:`, {
+    totalCargoTons: totalCargoTons.toLocaleString(),
+    totalOutboundTons: totalOutboundTons.toLocaleString(),
+    totalRTTons: totalRTTons.toLocaleString(),
+    rtPercentage: rtPercentage.toFixed(1) + '%',
+    totalLifts: totalLifts.toLocaleString(),
+    vesselVisits
+  });
+
+  return {
+    totalDeckTons,
+    totalRTTons,
+    totalOutboundTons,
+    totalCargoTons,
+    cargoTonnagePerVisit,
+    rtPercentage,
+    outboundPercentage,
+    totalLifts,
+    vesselVisits,
+    uniqueManifests,
+    validationRate: validation.validationSummary.validationRate,
+    invalidManifests: validation.validationSummary.invalidCount,
+    orphanedManifests: validation.validationSummary.orphanedCount
+  };
+};
+
+/**
+ * Enhanced voyage event metrics with vessel codes integration
+ */
+export const calculateEnhancedVoyageEventMetrics = (
+  voyageEvents: VoyageEvent[],
+  costAllocation: CostAllocation[],
+  currentMonth: number,
+  currentYear: number,
+  department: 'Drilling' | 'Production' | 'All' = 'All'
+) => {
+  console.log(`⚓ ENHANCED VOYAGE EVENT METRICS for ${department}`);
+  
+  // Filter events for current month
+  const currentMonthEvents = voyageEvents.filter(event => 
+    event.eventDate.getMonth() === currentMonth && 
+    event.eventDate.getFullYear() === currentYear
+  );
+
+  // Filter events by department using cost allocation
+  let filteredEvents = currentMonthEvents;
+  
+  if (department !== 'All') {
+    const departmentCostAllocations = department === 'Drilling' 
+      ? getDrillingCostAllocations(costAllocation)
+      : getProductionCostAllocations(costAllocation);
+    
+    const departmentLCs = new Set(departmentCostAllocations.map(ca => ca.lcNumber));
+    
+    filteredEvents = currentMonthEvents.filter(event => 
+      event.lcNumber && departmentLCs.has(event.lcNumber)
+    );
+    
+    console.log(`📋 Filtered to ${filteredEvents.length} ${department} events (from ${currentMonthEvents.length} total)`);
+  }
+
+  // Enhanced productive/non-productive classification using vessel codes
+  const productiveEvents = filteredEvents.filter(event => 
+    isProductiveEvent(event.parentEvent, event.event, event.portType)
+  );
+  
+  const nonProductiveEvents = filteredEvents.filter(event => 
+    isNonProductiveEvent(event.parentEvent, event.event, event.portType)
+  );
+
+  // Calculate time metrics with proper allocation
+  const productiveHours = productiveEvents.reduce((sum, event) => {
+    const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+    return sum + (event.finalHours * percentage);
+  }, 0);
+  
+  const nonProductiveHours = nonProductiveEvents.reduce((sum, event) => {
+    const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+    return sum + (event.finalHours * percentage);
+  }, 0);
+
+  // Waiting time offshore (rig activities excluding weather)
+  const waitingTimeOffshore = filteredEvents
+    .filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent === 'Waiting on Installation'
+    )
+    .reduce((sum, event) => {
+      const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+      return sum + (event.finalHours * percentage);
+    }, 0);
+
+  // Total offshore time (rig activities + transit time from base)
+  const rigActivities = filteredEvents
+    .filter(event => 
+      event.portType === 'rig' && 
+      event.parentEvent !== 'Waiting on Weather'
+    )
+    .reduce((sum, event) => {
+      const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+      return sum + (event.finalHours * percentage);
+    }, 0);
+  
+  const transitTime = filteredEvents
+    .filter(event => 
+      event.portType === 'base' && 
+      event.parentEvent === 'Transit'
+    )
+    .reduce((sum, event) => {
+      const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+      return sum + (event.finalHours * percentage);
+    }, 0);
+  
+  const totalOffshoreTime = rigActivities + transitTime;
+
+  // Cargo operations hours
+  const cargoOpsHours = filteredEvents
+    .filter(event => event.parentEvent === 'Cargo Ops')
+    .reduce((sum, event) => {
+      const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+      return sum + (event.finalHours * percentage);
+    }, 0);
+
+  // Vessel utilization
+  const totalHours = productiveHours + nonProductiveHours;
+  const vesselUtilization = totalOffshoreTime > 0 ? (productiveHours / totalOffshoreTime) * 100 : 0;
+  
+  // Waiting time percentage
+  const waitingTimePercentage = totalOffshoreTime > 0 ? (waitingTimeOffshore / totalOffshoreTime) * 100 : 0;
+
+  console.log(`✅ ${department} VOYAGE EVENT METRICS:`, {
+    productiveHours: productiveHours.toFixed(1),
+    nonProductiveHours: nonProductiveHours.toFixed(1),
+    waitingTimeOffshore: waitingTimeOffshore.toFixed(1),
+    totalOffshoreTime: totalOffshoreTime.toFixed(1),
+    vesselUtilization: vesselUtilization.toFixed(1) + '%',
+    cargoOpsHours: cargoOpsHours.toFixed(1)
+  });
+
+  return {
+    productiveHours,
+    nonProductiveHours,
+    waitingTimeOffshore,
+    totalOffshoreTime,
+    transitTime,
+    cargoOpsHours,
+    vesselUtilization,
+    waitingTimePercentage,
+    totalHours,
+    filteredEventCount: filteredEvents.length
+  };
+};
+
+/**
+ * Enhanced bulk fluid metrics with deduplication
+ */
+export const calculateEnhancedBulkFluidMetrics = (
+  bulkActions: BulkAction[],
+  currentMonth: number,
+  currentYear: number,
+  department: 'Drilling' | 'Production' | 'All' = 'All'
+) => {
+  console.log(`🧪 ENHANCED BULK FLUID METRICS for ${department}`);
+  
+  // Filter bulk actions for current month
+  const currentMonthActions = bulkActions.filter(action => 
+    action.startDate.getMonth() === currentMonth && 
+    action.startDate.getFullYear() === currentYear
+  );
+
+  // Apply deduplication logic
+  const deduplicationResult = deduplicateBulkActions(currentMonthActions, department);
+  
+  // Get department-specific fluid movements
+  let fluidMovements = deduplicationResult.consolidatedOperations;
+  
+  if (department === 'Drilling') {
+    fluidMovements = getDrillingFluidMovements(deduplicationResult.consolidatedOperations);
+  } else if (department === 'Production') {
+    fluidMovements = getProductionFluidMovements(deduplicationResult.consolidatedOperations);
+  }
+
+  // Calculate total fluid volume (deduplicated)
+  const totalFluidVolume = fluidMovements.reduce((sum, movement) => sum + movement.totalVolumeBbls, 0);
+  
+  // Count delivery operations
+  const deliveryOperations = fluidMovements.filter(movement => movement.isDelivery).length;
+  
+  // Calculate fluid movement by type
+  const movementTypeBreakdown = fluidMovements.reduce((breakdown, movement) => {
+    breakdown[movement.movementType] = (breakdown[movement.movementType] || 0) + movement.totalVolumeBbls;
+    return breakdown;
+  }, {} as Record<string, number>);
+
+  console.log(`✅ ${department} BULK FLUID METRICS:`, {
+    originalActions: deduplicationResult.originalActions,
+    consolidatedOperations: deduplicationResult.consolidatedOperations.length,
+    duplicatesRemoved: deduplicationResult.duplicatesRemoved,
+    totalFluidVolume: totalFluidVolume.toLocaleString() + ' bbls',
+    deliveryOperations
+  });
+
+  return {
+    totalFluidVolume,
+    deliveryOperations,
+    fluidMovements: fluidMovements.length,
+    deduplicationResult,
+    movementTypeBreakdown,
+    originalActionCount: deduplicationResult.originalActions,
+    duplicatesRemoved: deduplicationResult.duplicatesRemoved
+  };
+};
+
+/**
+ * Enhanced integrated KPI calculation function
+ */
+export const calculateEnhancedKPIMetrics = (
+  voyageEvents: VoyageEvent[],
+  vesselManifests: VesselManifest[],
+  voyageList: VoyageList[],
+  costAllocation: CostAllocation[],
+  bulkActions: BulkAction[],
+  department: 'Drilling' | 'Production' | 'All' = 'All'
+): KPIMetrics & {
+  enhancedMetrics: {
+    manifestMetrics: ReturnType<typeof calculateEnhancedManifestMetrics>;
+    voyageEventMetrics: ReturnType<typeof calculateEnhancedVoyageEventMetrics>;
+    bulkFluidMetrics: ReturnType<typeof calculateEnhancedBulkFluidMetrics>;
+  };
+} => {
+  console.log(`🎯 CALCULATING ENHANCED KPI METRICS for ${department}`);
+  
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  // Calculate enhanced metrics using new infrastructure
+  const manifestMetrics = calculateEnhancedManifestMetrics(
+    vesselManifests, costAllocation, currentMonth, currentYear, department
+  );
+  
+  const voyageEventMetrics = calculateEnhancedVoyageEventMetrics(
+    voyageEvents, costAllocation, currentMonth, currentYear, department
+  );
+  
+  const bulkFluidMetrics = calculateEnhancedBulkFluidMetrics(
+    bulkActions, currentMonth, currentYear, department
+  );
+
+  // Calculate lifts per hour using enhanced data
+  const liftsPerCargoHour = voyageEventMetrics.cargoOpsHours > 0 
+    ? manifestMetrics.totalLifts / voyageEventMetrics.cargoOpsHours 
+    : 0;
+
+  // Use existing cost calculation logic
+  const vesselCostMetrics = calculateVesselCostMetrics(voyageEvents.filter(event => 
+    event.eventDate.getMonth() === currentMonth && 
+    event.eventDate.getFullYear() === currentYear
+  ));
+
+  // Build enhanced KPI metrics response
+  const enhancedKPIMetrics = {
+    // Time Metrics (enhanced)
+    totalOffshoreTime: voyageEventMetrics.totalOffshoreTime,
+    totalOnshoreTime: 0, // Would need onshore calculation
+    productiveHours: voyageEventMetrics.productiveHours,
+    nonProductiveHours: voyageEventMetrics.nonProductiveHours,
+    
+    // Drilling Metrics (enhanced)
+    drillingHours: department === 'Drilling' ? voyageEventMetrics.totalHours : 0,
+    drillingNPTHours: department === 'Drilling' ? voyageEventMetrics.nonProductiveHours : 0,
+    drillingNPTPercentage: department === 'Drilling' && voyageEventMetrics.totalHours > 0 
+      ? (voyageEventMetrics.nonProductiveHours / voyageEventMetrics.totalHours) * 100 : 0,
+    drillingCargoOpsHours: voyageEventMetrics.cargoOpsHours,
+    
+    // Waiting Time Metrics (enhanced)
+    waitingTimeOffshore: voyageEventMetrics.waitingTimeOffshore,
+    waitingTimePercentage: voyageEventMetrics.waitingTimePercentage,
+    weatherWaitingHours: 0, // Would need weather-specific calculation
+    installationWaitingHours: voyageEventMetrics.waitingTimeOffshore,
+    
+    // Cargo Metrics (enhanced)
+    cargoOpsHours: voyageEventMetrics.cargoOpsHours,
+    liftsPerCargoHour,
+    totalLifts: manifestMetrics.totalLifts,
+    totalDeckTons: manifestMetrics.totalDeckTons,
+    totalRTTons: manifestMetrics.totalRTTons,
+    cargoTonnagePerVisit: manifestMetrics.cargoTonnagePerVisit,
+    
+    // Vessel Metrics (enhanced)
+    vesselUtilizationRate: voyageEventMetrics.vesselUtilization,
+    averageTripDuration: 0, // Would use existing calculation
+    
+    // Cost Metrics
+    totalVesselCost: vesselCostMetrics.totalVesselCost,
+    averageVesselCostPerHour: vesselCostMetrics.averageVesselCostPerHour,
+    averageVesselCostPerDay: vesselCostMetrics.averageVesselCostPerDay,
+    vesselCostByDepartment: vesselCostMetrics.vesselCostByDepartment,
+    vesselCostByActivity: vesselCostMetrics.vesselCostByActivity,
+    vesselCostRateBreakdown: vesselCostMetrics.vesselCostRateBreakdown,
+    
+    // Placeholder for budget analysis
+    budgetVsActualAnalysis: {} as any,
+    
+    // Voyage List Metrics (would use existing calculations)
+    voyageListMetrics: {} as any,
+    
+    // Month-over-month changes (placeholder)
+    momChanges: {
+      waitingTimePercentage: 0,
+      cargoOpsHours: 0,
+      liftsPerCargoHour: 0,
+      drillingNPTPercentage: 0,
+      vesselUtilizationRate: 0,
+      totalVesselCost: 0,
+      averageVesselCostPerHour: 0
+    },
+    
+    // Enhanced metrics
+    enhancedMetrics: {
+      manifestMetrics,
+      voyageEventMetrics,
+      bulkFluidMetrics
+    }
+  };
+
+  console.log(`✅ ENHANCED KPI CALCULATION COMPLETE for ${department}`);
+  console.log(`   Cargo Tons: ${manifestMetrics.totalCargoTons.toLocaleString()}`);
+  console.log(`   Lifts/Hr: ${liftsPerCargoHour.toFixed(2)}`);
+  console.log(`   Productive Hours: ${voyageEventMetrics.productiveHours.toFixed(1)}`);
+  console.log(`   Vessel Utilization: ${voyageEventMetrics.vesselUtilization.toFixed(1)}%`);
+  console.log(`   Fluid Volume: ${bulkFluidMetrics.totalFluidVolume.toLocaleString()} bbls`);
+
+  return enhancedKPIMetrics;
+};
+
+/**
+ * Original KPI metrics calculation utilities
  * Extracted from dataProcessing.ts to improve modularity
  */
 
