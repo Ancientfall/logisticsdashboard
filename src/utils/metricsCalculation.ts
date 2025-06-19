@@ -2,12 +2,11 @@ import { VoyageEvent, VesselManifest, VoyageList, CostAllocation, KPIMetrics, Bu
 import { calculateTotalHours, calculateAverageTripDuration } from './helpers';
 import { calculateVesselCostMetrics } from './vesselCost';
 import { 
-  enhancedProcessCostAllocation, 
   getDrillingCostAllocations, 
   getProductionCostAllocations,
   validateManifestsAgainstCostAllocation 
 } from './costAllocationProcessor';
-import { classifyEventWithVesselCodes, isProductiveEvent, isNonProductiveEvent } from './vesselCodesProcessor';
+import { isProductiveEvent, isNonProductiveEvent } from './vesselCodesProcessor';
 import { deduplicateBulkActions, getDrillingFluidMovements, getProductionFluidMovements } from './bulkFluidDeduplicationEngine';
 
 /**

@@ -477,7 +477,7 @@ export const debugVesselCodes = () => {
   });
 };
 
-export default {
+const vesselCodesProcessor = {
   classifyEventWithVesselCodes,
   isWeatherRelatedEvent,
   isCargoOperationEvent,
@@ -488,3 +488,5 @@ export default {
   getVesselCodesStats,
   debugVesselCodes
 };
+
+export default vesselCodesProcessor;

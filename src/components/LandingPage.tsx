@@ -123,19 +123,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     }
   ];
 
-  // Check for server files and set up component
+  // Set up component on mount only
   useEffect(() => {
-    console.log('🔍 LandingPage mounted - Checking for data:', { hasData });
     setIsVisible(true);
-    
-    // Check if server files are available
-    checkServerFiles();
     
     const interval = setInterval(() => {
       setCurrentStat((prev) => (prev + 1) % stats.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [stats.length, hasData, checkServerFiles]);
+  }, [stats.length]);
+
+  // Check for server files on mount only
+  useEffect(() => {
+    console.log('🔍 LandingPage mounted - Checking for data:', { hasData });
+    checkServerFiles();
+  }, [checkServerFiles]);
 
   // Handle "View Analytics" button click
   const handleViewAnalytics = async () => {

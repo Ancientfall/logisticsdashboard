@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
-import { VoyageList } from '../../types';
 
 interface VoyageDebugPanelProps {
   isOpen: boolean;

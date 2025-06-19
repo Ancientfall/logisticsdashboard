@@ -401,7 +401,7 @@ export const generateDeduplicationReport = (
 ): string => {
   const report = [
     '🧪 BULK FLUID DEDUPLICATION REPORT',
-    '=' .repeat(50),
+    '='.repeat(50),
     '',
     `Original Actions: ${result.originalActions.toLocaleString()}`,
     `Consolidated Operations: ${result.consolidatedOperations.length.toLocaleString()}`,
@@ -423,7 +423,7 @@ export const generateDeduplicationReport = (
   return report.join('\n');
 };
 
-export default {
+const bulkFluidDeduplicationEngine = {
   deduplicateBulkActions,
   validateFluidMovements,
   getDrillingFluidMovements,
@@ -431,3 +431,5 @@ export default {
   getFluidMovementsByLocation,
   generateDeduplicationReport
 };
+
+export default bulkFluidDeduplicationEngine;

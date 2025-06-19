@@ -431,7 +431,6 @@ const validateBulkActions = (bulkActions: BulkAction[]): DatasetValidation => {
     }
 
     // Destination port validation for deliveries
-    const isLoad = action.action.toLowerCase().includes('load');
     const isOffload = action.action.toLowerCase().includes('offload');
     
     if (isOffload && !action.destinationPort) {
@@ -664,10 +663,7 @@ const validateVesselNameConsistency = (
   voyageList: VoyageList[]
 ): ValidationResult => {
   // Get unique vessel names from each dataset
-  const voyageEventVessels = new Set(voyageEvents.map(ve => ve.vessel?.toLowerCase().trim()).filter(Boolean));
-  const manifestVessels = new Set(vesselManifests.map(vm => vm.transporter?.toLowerCase().trim()).filter(Boolean));
-  const bulkActionVessels = new Set(bulkActions.map(ba => ba.vesselName?.toLowerCase().trim()).filter(Boolean));
-  const voyageListVessels = new Set(voyageList.map(vl => vl.vessel?.toLowerCase().trim()).filter(Boolean));
+  // Note: These vessel sets would be used for cross-dataset validation in a full implementation
   
   // For now, return a basic validation - in practice this would check for naming inconsistencies
   return {
@@ -727,7 +723,7 @@ const validateFluidVolumeConsistency = (bulkActions: BulkAction[]): ValidationRe
 export const generateIntegrityReport = (report: DataIntegrityReport): string => {
   const lines = [
     '🔍 DATA INTEGRITY VALIDATION REPORT',
-    '=' .repeat(60),
+    '='.repeat(60),
     `Generated: ${report.timestamp.toLocaleString()}`,
     `Overall Data Quality Score: ${report.overallScore.toFixed(1)}%`,
     ''
@@ -768,7 +764,9 @@ export const generateIntegrityReport = (report: DataIntegrityReport): string => 
   return lines.join('\n');
 };
 
-export default {
+const dataIntegrityValidator = {
   validateDataIntegrity,
   generateIntegrityReport
 };
+
+export default dataIntegrityValidator;

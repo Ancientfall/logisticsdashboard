@@ -84,6 +84,64 @@ const DrillingBulkInsights: React.FC<DrillingBulkInsightsProps> = ({
       dateRange: dateRange ? [dateRange[0]?.toISOString(), dateRange[1]?.toISOString()] : null
     });
     
+    // ENHANCED MAD DOG DEBUGGING
+    if (selectedLocation && normalizeLocationForComparison(selectedLocation).includes('mad dog')) {
+      console.log('🐕 MAD DOG DEBUGGING ACTIVE');
+      
+      // Check all Mad Dog related bulk actions
+      const madDogActions = bulkActions.filter(action => {
+        if (!action) return false;
+        const destination = normalizeLocationForComparison(action.standardizedDestination || '');
+        const origin = normalizeLocationForComparison(action.standardizedOrigin || '');
+        return destination.includes('mad dog') || origin.includes('mad dog');
+      });
+      
+      console.log(`🐕 Total Mad Dog bulk actions: ${madDogActions.length}`);
+      
+      if (madDogActions.length > 0) {
+        // Analyze Mad Dog action properties
+        const madDogAnalysis = {
+          withDrillingFluid: madDogActions.filter(a => a.isDrillingFluid).length,
+          withCompletionFluid: madDogActions.filter(a => a.isCompletionFluid).length,
+          withRigPortType: madDogActions.filter(a => a.portType === 'rig').length,
+          withLoadAction: madDogActions.filter(a => a.action && a.action.toLowerCase().includes('load')).length,
+          withOffloadAction: madDogActions.filter(a => a.action && a.action.toLowerCase().includes('offload')).length,
+          uniqueActions: [...new Set(madDogActions.map(a => a.action))],
+          uniquePortTypes: [...new Set(madDogActions.map(a => a.portType))],
+          uniqueBulkTypes: [...new Set(madDogActions.map(a => a.bulkType))],
+          uniqueDestinations: [...new Set(madDogActions.map(a => a.standardizedDestination).filter(Boolean))]
+        };
+        
+        console.log('🐕 Mad Dog Analysis:', madDogAnalysis);
+        
+        // Check which Mad Dog actions meet Enhanced Fluid Analytics criteria
+        const qualifyingMadDogActions = madDogActions.filter(action => {
+          return (action.isDrillingFluid || action.isCompletionFluid) &&
+                 (action.action && (action.action.toLowerCase().includes('offload') || action.action.toLowerCase().includes('load'))) &&
+                 (action.portType === 'rig');
+        });
+        
+        console.log(`🐕 Mad Dog actions meeting Enhanced Fluid Analytics criteria: ${qualifyingMadDogActions.length}`);
+        
+        if (qualifyingMadDogActions.length > 0) {
+          console.log('🐕 Sample qualifying Mad Dog actions:', qualifyingMadDogActions.slice(0, 3).map(a => ({
+            bulkType: a.bulkType,
+            action: a.action,
+            portType: a.portType,
+            isDrillingFluid: a.isDrillingFluid,
+            isCompletionFluid: a.isCompletionFluid,
+            destination: a.standardizedDestination,
+            volumeBbls: a.volumeBbls
+          })));
+        } else {
+          console.log('🐕 No Mad Dog actions meet criteria. Sample actions:');
+          madDogActions.slice(0, 5).forEach((action, i) => {
+            console.log(`  ${i + 1}. ${action.bulkType} - Action: "${action.action}", PortType: "${action.portType}", Drilling: ${action.isDrillingFluid}, Completion: ${action.isCompletionFluid}`);
+          });
+        }
+      }
+    }
+    
     const drillingAndCompletionFluids = bulkActions.filter(action => 
       action && (action.isDrillingFluid || action.isCompletionFluid)
     );
