@@ -173,15 +173,41 @@ const KPICard: React.FC<KPICardProps> = ({
               )}
             </div>
             {trend !== null && trend !== undefined && showTrendIcon && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
-                {isPositive ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
-                ) : (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
-                )}
-                <span className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                  {Math.abs(trend).toFixed(1)}%
-                </span>
+              <div className="flex items-center gap-3">
+                {/* Small trend line */}
+                <div className="flex items-center">
+                  <svg width="40" height="20" className="mr-2">
+                    <defs>
+                      <linearGradient id={`gradient-${title.replace(/\s+/g, '-')}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style={{stopColor: isPositive ? '#10b981' : '#ef4444', stopOpacity: 0.2}} />
+                        <stop offset="100%" style={{stopColor: isPositive ? '#10b981' : '#ef4444', stopOpacity: 0.8}} />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d={isPositive ? "M2,18 Q10,12 20,8 T38,2" : "M2,2 Q10,8 20,12 T38,18"}
+                      stroke={isPositive ? '#10b981' : '#ef4444'}
+                      strokeWidth="2"
+                      fill="none"
+                      strokeLinecap="round"
+                    />
+                    <circle 
+                      cx="38" 
+                      cy={isPositive ? "2" : "18"} 
+                      r="2" 
+                      fill={isPositive ? '#10b981' : '#ef4444'}
+                    />
+                  </svg>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
+                  {isPositive ? (
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 text-red-500" />
+                  )}
+                  <span className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                    {isPositive ? '+' : ''}{trend.toFixed(1)}%
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -214,21 +240,40 @@ const KPICard: React.FC<KPICardProps> = ({
   if (variant === 'compact') {
     return (
       <div className={`relative rounded-lg border ${statusClasses[finalStatus]} p-4 hover:shadow-sm transition-all duration-200`}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {statusIcons[finalStatus]}
             <span className="text-sm font-medium text-gray-700">{title}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-gray-900">
-              {value}{unit && <span className="text-sm font-normal text-gray-500 ml-1">{unit}</span>}
-            </span>
-            {trend !== null && trend !== undefined && showTrendIcon && (
+          {trend !== null && trend !== undefined && showTrendIcon && (
+            <div className="flex items-center gap-1">
               <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                {isPositive ? '+' : ''}{trend.toFixed(1)}%
+                {isPositive ? '▲' : '▼'} {Math.abs(trend).toFixed(1)}%
               </span>
-            )}
-          </div>
+            </div>
+          )}
+        </div>
+        <div className="flex items-end justify-between">
+          <span className="text-2xl font-bold text-gray-900">
+            {value}{unit && <span className="text-sm font-normal text-gray-500 ml-1">{unit}</span>}
+          </span>
+          {trend !== null && trend !== undefined && showTrendIcon && (
+            <svg width="24" height="12" className="ml-2">
+              <path
+                d={isPositive ? "M2,10 Q6,6 12,4 T22,2" : "M2,2 Q6,6 12,8 T22,10"}
+                stroke={isPositive ? '#10b981' : '#ef4444'}
+                strokeWidth="1.5"
+                fill="none"
+                strokeLinecap="round"
+              />
+              <circle 
+                cx="22" 
+                cy={isPositive ? "2" : "10"} 
+                r="1.5" 
+                fill={isPositive ? '#10b981' : '#ef4444'}
+              />
+            </svg>
+          )}
         </div>
       </div>
     );
