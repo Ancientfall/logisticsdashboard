@@ -641,13 +641,18 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   // Combine all location fields for analysis
   const allLocationText = `${rigLocation} ${locationReference} ${rigReference} ${description}`.toLowerCase();
   
-  // Check for specific locations
+  // Check for specific locations (with typo handling)
   const isThunderHorse = allLocationText.includes('thunder horse') || 
                         allLocationText.includes('thunderhorse') ||
                         allLocationText.includes('thr');
   
   const isMadDog = allLocationText.includes('mad dog') || 
                    allLocationText.includes('maddog');
+  
+  const isStenarIceMax = allLocationText.includes('stena icemax') ||
+                        allLocationText.includes('steana icemax') || // Handle common typo
+                        allLocationText.includes('stena ice max') ||
+                        allLocationText.includes('steana ice max');
   
   // Production LC numbers for specific locations
   const thunderHorseProductionLCs = ['9360', '10099', '10081', '10074', '10052'];
@@ -656,9 +661,11 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   // Check for drilling activity - Enhanced logic:
   // 1. If it's Thunder Horse and NOT a production LC, it's drilling
   // 2. If it's Mad Dog and NOT a production LC, it's drilling  
-  // 3. If it contains drilling keywords, it's drilling
+  // 3. If it's Stena IceMAX, it's always drilling (dedicated drilling rig)
+  // 4. If it contains drilling keywords, it's drilling
   const isDrilling = (isThunderHorse && !thunderHorseProductionLCs.includes(lcNumber)) ||
                     (isMadDog && !madDogProductionLCs.includes(lcNumber)) ||
+                    isStenarIceMax || // Stena IceMAX is always drilling
                     allLocationText.includes('drilling') || 
                     allLocationText.includes('drill');
   
@@ -737,6 +744,10 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
       finalRigLocation = 'Mad Dog Drilling';
       console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Drilling (Not a Production LC)`);
     }
+  } else if (isStenarIceMax) {
+    // Stena IceMAX is always drilling (handle typo)
+    finalRigLocation = 'Stena IceMAX';
+    console.log(`   ✅ LC ${lcNumber} assigned to Stena IceMAX (Drilling Rig)`);
   } else if (!finalRigLocation && description) {
     // Try to extract location from description if no explicit location provided
     const extractedLocation = extractRigLocationFromDescription(description);

@@ -79,12 +79,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     selectedLocation: 'All Locations'
   }));
 
-  // Update default month when data loads
+  // Update default month when data loads (only on initial load)
+  const [hasInitialized, setHasInitialized] = React.useState(false);
   React.useEffect(() => {
-    if (getDefaultMonth !== 'All Months' && filters.selectedMonth === 'All Months') {
+    if (!hasInitialized && getDefaultMonth !== 'All Months' && filters.selectedMonth === 'All Months') {
       setFilters(prev => ({ ...prev, selectedMonth: getDefaultMonth }));
+      setHasInitialized(true);
     }
-  }, [getDefaultMonth, filters.selectedMonth]);
+  }, [getDefaultMonth, filters.selectedMonth, hasInitialized]);
   
   // Calculate parent event hours once for Kabal comparison
   const parentEventHours = useMemo(() => {
@@ -342,7 +344,13 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           filterMonth,
           filterYear,
           isYTD,
-          selectedLocation
+          selectedLocation,
+          selectedMonth: filters.selectedMonth,
+          willApplyTimeFiltering: {
+            isYTD: isYTD && filterYear !== undefined,
+            isSpecificMonth: filterMonth !== undefined && filterYear !== undefined,
+            noTimeFiltering: !isYTD && (filterMonth === undefined || filterYear === undefined)
+          }
         });
         
         // Filter for DRILLING ONLY allocations
@@ -383,6 +391,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             return true;
           });
         } else if (filterMonth !== undefined && filterYear !== undefined) {
+          const beforeSpecificMonthFilter = filteredAllocations.length;
           filteredAllocations = filteredAllocations.filter(allocation => {
             if (allocation.costAllocationDate) {
               return allocation.costAllocationDate.getMonth() === filterMonth && allocation.costAllocationDate.getFullYear() === filterYear;
@@ -391,7 +400,25 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             }
             return true;
           });
+          
+          console.log('🔍 SPECIFIC MONTH FILTERING APPLIED:', {
+            filterMonth, 
+            filterYear,
+            beforeFilter: beforeSpecificMonthFilter,
+            afterFilter: filteredAllocations.length,
+            recordsRemoved: beforeSpecificMonthFilter - filteredAllocations.length
+          });
         }
+        
+        console.log('🔍 FINAL TIME FILTERING RESULT:', {
+          selectedMonth: filters.selectedMonth,
+          finalCount: filteredAllocations.length,
+          timeFilteringApplied: {
+            ytd: isYTD && filterYear !== undefined,
+            specificMonth: filterMonth !== undefined && filterYear !== undefined,
+            allMonths: !isYTD && (filterMonth === undefined || filterYear === undefined)
+          }
+        });
         
         // Apply location filtering if specified
         if (selectedLocation && selectedLocation !== 'All Locations') {
@@ -429,7 +456,16 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           sampleFiltered: filteredAllocations.slice(0, 3),
           selectedLocation,
           uniqueLocationReferences: [...new Set(filteredAllocations.map(a => a.locationReference).filter(Boolean))],
-          uniqueRigLocations: [...new Set(filteredAllocations.map(a => a.rigLocation).filter(Boolean))]
+          uniqueRigLocations: [...new Set(filteredAllocations.map(a => a.rigLocation).filter(Boolean))],
+          sampleCostData: filteredAllocations.slice(0, 3).map(a => ({
+            lcNumber: a.lcNumber,
+            locationReference: a.locationReference,
+            totalCost: a.totalCost,
+            totalAllocatedDays: a.totalAllocatedDays,
+            isDrilling: a.isDrilling,
+            isThunderHorse: a.isThunderHorse,
+            isMadDog: a.isMadDog
+          }))
         });
         
         // Group by DRILLING RIG location only and calculate metrics
@@ -438,14 +474,46 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           
           // Clean up rig names and ensure they are drilling rigs
           const drillingLocations = getAllDrillingCapableLocations();
-          const matchedLocation = drillingLocations.find(loc => 
-            rigName.toLowerCase().includes(loc.displayName.toLowerCase()) ||
-            loc.displayName.toLowerCase().includes(rigName.toLowerCase())
-          );
+          const matchedLocation = drillingLocations.find(loc => {
+            const rigNameLower = rigName.toLowerCase();
+            const displayNameLower = loc.displayName.toLowerCase();
+            const locationNameLower = loc.locationName.toLowerCase();
+            const displayNameCore = displayNameLower.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
+            
+            // Multiple matching strategies + handle common typos
+            const matchesDirectly = rigNameLower.includes(displayNameLower) ||
+                   displayNameLower.includes(rigNameLower) ||
+                   rigNameLower.includes(locationNameLower) ||
+                   locationNameLower.includes(rigNameLower) ||
+                   rigNameLower.includes(displayNameCore) ||
+                   displayNameCore.includes(rigNameLower);
+            
+            // Handle common spelling variations
+            const matchesTypos = 
+              // "Steana IceMAX" should match "Stena IceMAX"
+              (rigNameLower.includes('steana icemax') && displayNameCore.includes('stena icemax')) ||
+              (rigNameLower.includes('stena icemax') && displayNameCore.includes('stena icemax')) ||
+              // Handle other potential variations
+              (rigNameLower.replace('steana', 'stena').includes(displayNameCore)) ||
+              (displayNameCore.includes(rigNameLower.replace('steana', 'stena')));
+            
+            return matchesDirectly || matchesTypos;
+          });
           
           if (matchedLocation) {
             rigName = matchedLocation.displayName; // Use standardized name
           } else {
+            // Debug logging for unmatched locations
+            if (rigName.toLowerCase().includes('thunder') || rigName.toLowerCase().includes('mad dog')) {
+              console.log('🚨 UNMATCHED DRILLING LOCATION:', {
+                originalRigName: rigName,
+                availableFacilities: drillingLocations.map(f => ({ 
+                  displayName: f.displayName, 
+                  locationName: f.locationName,
+                  displayNameCore: f.displayName.replace(/\s*\([^)]*\)/, '').trim()
+                }))
+              });
+            }
             // Skip if not a recognized drilling location
             return acc;
           }
@@ -496,7 +564,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         const totalDays = Object.values(rigMetrics).reduce((sum, rig) => sum + (rig as any).totalDays, 0);
         const totalAllocations = Object.values(rigMetrics).reduce((sum, rig) => sum + (rig as any).allocations, 0);
         
-        return {
+        const result = {
           rigs: sortedRigs,
           summary: {
             totalCost: totalCosts,
@@ -505,6 +573,16 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             totalAllocations: totalAllocations
           }
         };
+        
+        console.log('🔍 RIG COST ANALYSIS RESULT:', {
+          rigsCount: sortedRigs.length,
+          rigsFound: sortedRigs.map(r => ({ name: r.rigName, cost: r.totalCost, days: r.totalDays })),
+          summary: result.summary,
+          rawRigMetricsKeys: Object.keys(rigMetrics),
+          rawRigMetricsCount: Object.keys(rigMetrics).length
+        });
+        
+        return result;
       };
       
       // Quick diagnostic for LC Numbers and Transit events
@@ -648,36 +726,61 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         
         // Filter by location if specified and count drilling voyages
         if (filters.selectedLocation !== 'All Locations') {
-          // Enhanced location matching for drilling locations
-          drillingVoyages = filteredVoyages.filter(voyage => {
-            if (!voyage.locations) return false;
+          const selectedFacility = getAllDrillingCapableLocations().find(
+            f => f.displayName === filters.selectedLocation
+          );
+          
+          if (selectedFacility) {
+            // Enhanced location matching using facility definitions
+            drillingVoyages = filteredVoyages.filter(voyage => {
+              if (!voyage.locations) return false;
+              
+              const locations = voyage.locations.toLowerCase();
+              const facilityLocationName = selectedFacility.locationName.toLowerCase();
+              const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+              const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
+              
+              // Comprehensive location matching
+              return locations.includes(facilityLocationName) ||
+                     locations.includes(facilityNameCore) ||
+                     facilityLocationName.includes(locations) ||
+                     // Special handling for name variations
+                     (facilityNameCore.includes('thunder horse') && (
+                       locations.includes('thunder horse') || 
+                       locations.includes('thunderhorse') ||
+                       locations.includes('thr') ||
+                       locations.includes('thunder_horse')
+                     )) ||
+                     (facilityNameCore.includes('mad dog') && (
+                       locations.includes('mad dog') || 
+                       locations.includes('maddog') ||
+                       locations.includes('mad_dog')
+                     ));
+            }).length;
             
-            const locations = voyage.locations.toLowerCase();
-            const selectedLocation = filters.selectedLocation.toLowerCase();
-            
-            // Direct match first
-            if (locations.includes(selectedLocation)) {
-              return true;
-            }
-            
-            // Smart matching for drilling locations
-            if (selectedLocation.includes('thunder horse')) {
-              return locations.includes('thunder horse') || 
-                     locations.includes('thunderhorse') ||
-                     locations.includes('thr') ||
-                     locations.includes('thunder_horse');
-            }
-            
-            if (selectedLocation.includes('mad dog')) {
-              return locations.includes('mad dog') || 
-                     locations.includes('maddog') ||
-                     locations.includes('mad_dog');
-            }
-            
-            // For other drilling locations, try core facility name
-            const coreLocationName = selectedLocation.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
-            return locations.includes(coreLocationName);
-          }).length;
+            console.log('🔍 VOYAGE FILTERING DEBUG:', {
+              selectedLocation: filters.selectedLocation,
+              selectedFacility: selectedFacility.displayName,
+              facilityLocationName: selectedFacility.locationName,
+              totalFilteredVoyages: filteredVoyages.length,
+              drillingVoyagesFound: drillingVoyages,
+              sampleVoyageLocations: filteredVoyages.slice(0, 10).map(v => v.locations).filter(Boolean),
+              matchingVoyages: filteredVoyages.filter(voyage => {
+                if (!voyage.locations) return false;
+                const locations = voyage.locations.toLowerCase();
+                const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                return locations.includes(facilityLocationName) ||
+                       locations.includes(facilityNameCore) ||
+                       facilityLocationName.includes(locations);
+              }).slice(0, 5).map(v => ({ locations: v.locations, purpose: v.voyagePurpose }))
+            });
+          } else {
+            console.warn(`⚠️ No facility found for voyage filtering: ${filters.selectedLocation}`);
+            console.log('Available facilities:', getAllDrillingCapableLocations().map(f => f.displayName));
+            drillingVoyages = 0;
+          }
         } else {
           // Count all drilling-related voyages (now properly classified at source)
           drillingVoyages = filteredVoyages.filter(voyage => 
@@ -1179,10 +1282,31 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     }
     
     const filteredRecords = voyageEvents.filter(event => {
-      // Apply location filtering
-      if (filters.selectedLocation !== 'All Locations' && 
-          !event.location?.toLowerCase().includes(filters.selectedLocation.toLowerCase())) {
-        return false;
+      // Apply location filtering with proper facility mapping
+      if (filters.selectedLocation !== 'All Locations') {
+        const selectedFacility = getAllDrillingCapableLocations().find(
+          f => f.displayName === filters.selectedLocation
+        );
+        
+        if (selectedFacility) {
+          // Check multiple location fields and use facility mapping
+          const eventLocation = event.location?.toLowerCase().trim() || '';
+          const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+          const facilityLocationName = selectedFacility.locationName.toLowerCase();
+          const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+          
+          // Check if any location field matches or contains the facility name
+          const matchesLocation = 
+            eventLocation.includes(facilityLocationName) ||
+            mappedLocation.includes(facilityLocationName) ||
+            facilityLocationName.includes(eventLocation) ||
+            eventLocation.includes(facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim()) || // Remove parentheses
+            mappedLocation.includes(facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim());
+          
+          if (!matchesLocation) {
+            return false;
+          }
+        }
       }
       
       // Apply month/year filtering if specified
@@ -1272,9 +1396,16 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   // Specific month: exactly 4 weeks for cleaner calculation
                   weeks = 4;
                 } else {
-                  // All Months: use actual data span from available months
+                  // All Months: calculate actual weeks from data span
                   const availableMonths = filterOptions.months.length - 2; // Exclude 'All Months' and 'YTD'
-                  weeks = Math.max(availableMonths * 4, 52); // At least 52 weeks for full dataset
+                  weeks = Math.max(availableMonths * 4, 4); // Use actual months * 4 weeks, minimum 4 weeks
+                  
+                  console.log('🔍 WEEKS CALCULATION DEBUG:', {
+                    totalFilterOptions: filterOptions.months.length,
+                    availableMonths,
+                    calculatedWeeks: weeks,
+                    filterOptionsMonths: filterOptions.months
+                  });
                 }
                 
                 // For debug: calculate active drilling locations count
@@ -1333,10 +1464,36 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     return true; // For 'All Months'
                   });
                   
-                  // Extract unique drilling locations that had cost allocation in the period
+                  // Extract unique DRILLING locations that had cost allocation in the period (exclude production)
+                  const drillingLocationNames = getAllDrillingCapableLocations()
+                    .filter(loc => loc.facilityType === 'Drilling') // Only drilling rigs, not production
+                    .map(loc => loc.locationName.toLowerCase());
+                  
                   filteredCostAllocation.forEach(allocation => {
                     if (allocation.locationReference && allocation.locationReference.trim() !== '') {
-                      activeDrillingLocations.add(allocation.locationReference.trim());
+                      const locationRef = allocation.locationReference.trim().toLowerCase();
+                      
+                      // Check if this location matches a drilling rig (not production)
+                      const isDrillingLocation = drillingLocationNames.some(drillingLoc => 
+                        locationRef.includes(drillingLoc) || 
+                        drillingLoc.includes(locationRef)
+                      ) ||
+                      // Handle specific drilling locations by name pattern (exclude C-Constructor and Island Intervention)
+                      (locationRef.includes('drilling') && !locationRef.includes('prod')) ||
+                      locationRef.includes('stena icemax') ||
+                      locationRef.includes('steana icemax') ||
+                      locationRef.includes('ocean black') ||
+                      locationRef.includes('deepwater') ||
+                      locationRef.includes('island venture') ||
+                      locationRef.includes('auriga');
+                      
+                      // Explicitly exclude C-Constructor and Island Intervention
+                      const isExcluded = locationRef.includes('c-constructor') || 
+                                        locationRef.includes('island intervention');
+                      
+                      if (isDrillingLocation && !isExcluded) {
+                        activeDrillingLocations.add(allocation.locationReference.trim());
+                      }
                     }
                   });
                   
@@ -1437,7 +1594,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
           <KPICard 
             title="Fluid Movement" 
-            value={drillingMetrics.bulk.totalBulkVolume.toLocaleString()}
+            value={Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString()}
             variant="compact"
             unit="bbls"
             trend={previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
