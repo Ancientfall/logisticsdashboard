@@ -205,3 +205,74 @@ export function getCompletionFluidTypes(): string[] {
 export function getProductionFluidTypes(): string[] {
   return Object.values(ProductionFluidType);
 }
+
+/**
+ * Enhanced fluid classification with Load/Offload context
+ */
+export function classifyBulkFluidWithContext(
+  bulkType: string,
+  description: string | undefined,
+  action: string,
+  atPort: string,
+  destinationPort?: string
+): BulkFluidClassification & {
+  isLoad: boolean;
+  isOffload: boolean;
+  isDelivery: boolean;
+  movementType: 'Fourchon-to-Offshore' | 'Offshore-to-Offshore' | 'Vessel-to-Facility' | 'Other';
+} {
+  const baseClassification = classifyBulkFluid(bulkType, description);
+  
+  // Determine action type
+  const actionLower = action.toLowerCase();
+  const isLoad = actionLower.includes('load') && !actionLower.includes('offload');
+  const isOffload = actionLower.includes('offload') || actionLower.includes('discharge');
+  
+  // Determine movement type
+  const isFourchonOrigin = atPort.toLowerCase().includes('fourchon');
+  const isOffshoreDestination = destinationPort ? isOffshoreLocation(destinationPort) : false;
+  const isOffshoreOrigin = isOffshoreLocation(atPort);
+  
+  let movementType: 'Fourchon-to-Offshore' | 'Offshore-to-Offshore' | 'Vessel-to-Facility' | 'Other';
+  
+  if (atPort === destinationPort && atPort) {
+    movementType = 'Vessel-to-Facility';
+  } else if (isFourchonOrigin && isOffshoreDestination) {
+    movementType = 'Fourchon-to-Offshore';
+  } else if (isOffshoreOrigin && isOffshoreDestination) {
+    movementType = 'Offshore-to-Offshore';
+  } else {
+    movementType = 'Other';
+  }
+  
+  // Determine if this is a delivery operation
+  const isDelivery = isOffload && (movementType === 'Fourchon-to-Offshore' || movementType === 'Vessel-to-Facility');
+  
+  return {
+    ...baseClassification,
+    isLoad,
+    isOffload,
+    isDelivery,
+    movementType
+  };
+}
+
+/**
+ * Check if a location is an offshore location
+ */
+function isOffshoreLocation(location: string): boolean {
+  if (!location) return false;
+  
+  const offshoreKeywords = [
+    'deepwater', 'thunder horse', 'mad dog', 'atlantis', 'na kika',
+    'devil\'s tower', 'blind faith', 'great white', 'cascade',
+    'chinook', 'st. malo', 'pompano', 'villa', 'stena', 'icemax'
+  ];
+  
+  const normalizedLocation = location.toLowerCase();
+  return offshoreKeywords.some(keyword => normalizedLocation.includes(keyword));
+}
+
+export function getProductionFluidTypes(): string[] {
+  return Object.values(ProductionFluidType);
+}

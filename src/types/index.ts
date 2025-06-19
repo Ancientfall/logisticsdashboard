@@ -666,6 +666,39 @@ export interface FacilityClassificationRule {
   specialHandling?: string;
 }
 
+// ==================== VESSEL CODES TYPES ====================
+
+export interface VesselCode {
+  // Core Classification
+  l1ParentEvent: string;          // L1 Parent Event (primary classification)
+  l2Event: string;                // L2 Event (detailed classification)
+  
+  // Activity Classification
+  activityCategory: 'Productive' | 'Non-Productive' | 'Standby' | 'Transit' | 'Maintenance';
+  
+  // Operational Context
+  portTypeApplicable: 'rig' | 'base' | 'both' | 'any';
+  isWeatherRelated: boolean;
+  isCargoOperation: boolean;
+  isTransitOperation: boolean;
+  isMaintenanceOperation: boolean;
+  
+  // Additional Details
+  description?: string;
+  notes?: string;
+  isActive: boolean;
+}
+
+export interface VesselCodeClassification {
+  parentEvent: string;
+  event: string;
+  vesselCode: VesselCode | null;
+  activityCategory: 'Productive' | 'Non-Productive' | 'Standby' | 'Transit' | 'Maintenance' | 'Uncategorized';
+  confidence: 'High' | 'Medium' | 'Low';
+  source: 'VesselCodes' | 'Fallback' | 'Manual';
+  notes?: string;
+}
+
 // ==================== AUTHENTICATION AND API TYPES ====================
 
 export interface User {
