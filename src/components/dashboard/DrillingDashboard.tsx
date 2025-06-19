@@ -648,10 +648,36 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         
         // Filter by location if specified and count drilling voyages
         if (filters.selectedLocation !== 'All Locations') {
-          // Count voyages that visited the selected location
-          drillingVoyages = filteredVoyages.filter(voyage => 
-            voyage.locations && voyage.locations.toLowerCase().includes(filters.selectedLocation.toLowerCase())
-          ).length;
+          // Enhanced location matching for drilling locations
+          drillingVoyages = filteredVoyages.filter(voyage => {
+            if (!voyage.locations) return false;
+            
+            const locations = voyage.locations.toLowerCase();
+            const selectedLocation = filters.selectedLocation.toLowerCase();
+            
+            // Direct match first
+            if (locations.includes(selectedLocation)) {
+              return true;
+            }
+            
+            // Smart matching for drilling locations
+            if (selectedLocation.includes('thunder horse')) {
+              return locations.includes('thunder horse') || 
+                     locations.includes('thunderhorse') ||
+                     locations.includes('thr') ||
+                     locations.includes('thunder_horse');
+            }
+            
+            if (selectedLocation.includes('mad dog')) {
+              return locations.includes('mad dog') || 
+                     locations.includes('maddog') ||
+                     locations.includes('mad_dog');
+            }
+            
+            // For other drilling locations, try core facility name
+            const coreLocationName = selectedLocation.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
+            return locations.includes(coreLocationName);
+          }).length;
         } else {
           // Count all drilling-related voyages (now properly classified at source)
           drillingVoyages = filteredVoyages.filter(voyage => 
@@ -1994,6 +2020,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           </div>
 
         </div>
+
       </div>
     </div>
   );

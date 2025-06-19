@@ -549,6 +549,28 @@ export const processCostAllocation = (
     }
   }
   
+  // Location analysis summary
+  const locationAnalysis = processed.reduce((acc, record) => {
+    const location = record.rigLocation || 'Unknown';
+    if (!acc[location]) {
+      acc[location] = { total: 0, drilling: 0, production: 0 };
+    }
+    acc[location].total++;
+    if (record.isDrilling) {
+      acc[location].drilling++;
+    } else {
+      acc[location].production++;
+    }
+    return acc;
+  }, {} as Record<string, { total: number; drilling: number; production: number }>);
+  
+  console.log('\n🏭 LOCATION ANALYSIS:');
+  Object.entries(locationAnalysis)
+    .sort(([,a], [,b]) => b.total - a.total)
+    .forEach(([location, stats]) => {
+      console.log(`  ${location}: ${stats.total} total (${stats.drilling} drilling, ${stats.production} production)`);
+    });
+  
   console.log('\n========== COST ALLOCATION PROCESSING END ==========\n');
   
   return processed;
@@ -627,8 +649,17 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   const isMadDog = allLocationText.includes('mad dog') || 
                    allLocationText.includes('maddog');
   
-  // Check for drilling activity
-  const isDrilling = allLocationText.includes('drilling') || 
+  // Production LC numbers for specific locations
+  const thunderHorseProductionLCs = ['9360', '10099', '10081', '10074', '10052'];
+  const madDogProductionLCs = ['9358', '10097', '10084', '10072', '10067'];
+  
+  // Check for drilling activity - Enhanced logic:
+  // 1. If it's Thunder Horse and NOT a production LC, it's drilling
+  // 2. If it's Mad Dog and NOT a production LC, it's drilling  
+  // 3. If it contains drilling keywords, it's drilling
+  const isDrilling = (isThunderHorse && !thunderHorseProductionLCs.includes(lcNumber)) ||
+                    (isMadDog && !madDogProductionLCs.includes(lcNumber)) ||
+                    allLocationText.includes('drilling') || 
                     allLocationText.includes('drill');
   
   // Determine department - use multiple sources for better accuracy
@@ -677,10 +708,7 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   let finalRigLocation = rigLocation || rigReference || locationReference || '';
   
   // Debug logging for Thunder Horse and Mad Dog LC numbers
-  const thunderHorseLCs = ['9360', '10099', '10081', '10074', '10052'];
-  const madDogLCs = ['9358', '10097', '10084', '10072', '10067'];
-  
-  if (thunderHorseLCs.includes(lcNumber) || madDogLCs.includes(lcNumber)) {
+  if (thunderHorseProductionLCs.includes(lcNumber) || madDogProductionLCs.includes(lcNumber)) {
     console.log(`🔍 Processing LC ${lcNumber}:`);
     console.log(`   - Rig Location: "${rigLocation}"`);
     console.log(`   - Location Reference: "${locationReference}"`);
@@ -692,32 +720,22 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   }
   
   if (isThunderHorse) {
-    // Better logic for Thunder Horse location determination
-    if (isDrilling || allLocationText.includes('drilling') || description.toLowerCase().includes('drill')) {
-      finalRigLocation = 'Thunder Horse Drilling';
-    } else if (allLocationText.includes('prod')) {
+    // Use production LC list to determine if it's production or drilling
+    if (thunderHorseProductionLCs.includes(lcNumber)) {
       finalRigLocation = 'Thunder Horse Prod';
-    } else if (department === 'Production' || thunderHorseLCs.includes(lcNumber)) {
-      // If it's a Production LC, set it to Thunder Horse Prod
-      finalRigLocation = 'Thunder Horse Prod';
-      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod based on Production LC`);
+      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod (Production LC)`);
     } else {
-      // Default Thunder Horse to drilling if we can't determine
       finalRigLocation = 'Thunder Horse Drilling';
+      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Drilling (Not a Production LC)`);
     }
   } else if (isMadDog) {
-    // Better logic for Mad Dog location determination
-    if (isDrilling || allLocationText.includes('drilling') || description.toLowerCase().includes('drill')) {
-      finalRigLocation = 'Mad Dog Drilling';
-    } else if (allLocationText.includes('prod')) {
+    // Use production LC list to determine if it's production or drilling
+    if (madDogProductionLCs.includes(lcNumber)) {
       finalRigLocation = 'Mad Dog Prod';
-    } else if (department === 'Production' || madDogLCs.includes(lcNumber)) {
-      // If it's a Production LC, set it to Mad Dog Prod
-      finalRigLocation = 'Mad Dog Prod';
-      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod based on Production LC`);
+      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod (Production LC)`);
     } else {
-      // Default Mad Dog to drilling if we can't determine
       finalRigLocation = 'Mad Dog Drilling';
+      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Drilling (Not a Production LC)`);
     }
   } else if (!finalRigLocation && description) {
     // Try to extract location from description if no explicit location provided
@@ -729,12 +747,12 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   
   // Special handling for production LCs without explicit location
   if (!finalRigLocation || finalRigLocation === 'Unknown' || finalRigLocation === '') {
-    if (thunderHorseLCs.includes(lcNumber)) {
+    if (thunderHorseProductionLCs.includes(lcNumber)) {
       finalRigLocation = 'Thunder Horse Prod';
-      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod based on LC mapping`);
-    } else if (madDogLCs.includes(lcNumber)) {
+      console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod based on Production LC mapping`);
+    } else if (madDogProductionLCs.includes(lcNumber)) {
       finalRigLocation = 'Mad Dog Prod';
-      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod based on LC mapping`);
+      console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod based on Production LC mapping`);
     }
   }
   

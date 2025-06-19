@@ -374,27 +374,35 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
     });
     
     // Apply enhanced field calculations to cost allocation
+    // IMPORTANT: Preserve existing location flags from cost allocation processor if they exist
     let enhancedCostAllocation = costAllocationData.map(cost => {
       const rigLocation = cost.rigLocation || cost.locationReference || cost.description || '';
-      const isThunderHorse = rigLocation.toLowerCase().includes('thunder horse') || rigLocation.toLowerCase().includes('thunderhorse');
-      const isMadDog = rigLocation.toLowerCase().includes('mad dog') || rigLocation.toLowerCase().includes('maddog');
       
-      // Determine if this is drilling based on project type and LC number
-      let isDrilling = false;
-      if (cost.projectType === 'Drilling' || cost.department === 'Drilling') {
-        isDrilling = true;
-      } else if (cost.lcNumber) {
-        // Check against drilling LCs
-        const drillingFacilities = getAllDrillingCapableLocations();
-        const allDrillingLCs = new Set<string>();
-        drillingFacilities.forEach(facility => {
-          if (facility.drillingLCs) {
-            facility.drillingLCs.split(',').forEach(lc => {
-              allDrillingLCs.add(lc.trim());
-            });
-          }
-        });
-        isDrilling = allDrillingLCs.has(String(cost.lcNumber).trim());
+      // Only set flags if they don't already exist from the processor
+      // This preserves the sophisticated logic from costAllocationProcessor.ts
+      const isThunderHorse = cost.isThunderHorse !== undefined ? cost.isThunderHorse : 
+        (rigLocation.toLowerCase().includes('thunder horse') || rigLocation.toLowerCase().includes('thunderhorse'));
+      const isMadDog = cost.isMadDog !== undefined ? cost.isMadDog : 
+        (rigLocation.toLowerCase().includes('mad dog') || rigLocation.toLowerCase().includes('maddog'));
+      
+      // Determine if this is drilling - preserve processor result if available
+      let isDrilling = cost.isDrilling !== undefined ? cost.isDrilling : false;
+      if (!isDrilling) {
+        if (cost.projectType === 'Drilling' || cost.department === 'Drilling') {
+          isDrilling = true;
+        } else if (cost.lcNumber) {
+          // Check against drilling LCs
+          const drillingFacilities = getAllDrillingCapableLocations();
+          const allDrillingLCs = new Set<string>();
+          drillingFacilities.forEach(facility => {
+            if (facility.drillingLCs) {
+              facility.drillingLCs.split(',').forEach(lc => {
+                allDrillingLCs.add(lc.trim());
+              });
+            }
+          });
+          isDrilling = allDrillingLCs.has(String(cost.lcNumber).trim());
+        }
       }
       
       return {
@@ -403,6 +411,7 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
         locationReference: rigLocation,
         
         // Enhanced Location Information (PowerBI-inspired)
+        // Preserve processor results where available
         isDrilling,
         isThunderHorse,
         isMadDog,
@@ -635,10 +644,46 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
       });
       
       // Apply data enhancement with processors
+      // IMPORTANT: Apply cost allocation processor to ensure proper location classification
+      console.log('🔧 Applying cost allocation processor for proper location classification...');
+      const processedCostAllocation = costAllocationData.map((costAlloc: any) => {
+        // Import the cost allocation processor logic directly here
+        const rigLocation = costAlloc.rigLocation || costAlloc.locationReference || costAlloc.description || '';
+        const lcNumber = String(costAlloc.lcNumber || '').trim();
+        
+        // Thunder Horse Production LCs (known production LCs)
+        const thunderHorseProductionLCs = ['25001', '25002', '25003', '25004', '25005'];
+        const madDogProductionLCs = ['26001', '26002', '26003', '26004', '26005'];
+        
+        const allLocationText = `${rigLocation} ${costAlloc.locationReference} ${costAlloc.description}`.toLowerCase();
+        
+        const isThunderHorse = allLocationText.includes('thunder horse') || 
+                              allLocationText.includes('thunderhorse') ||
+                              allLocationText.includes('thr');
+        
+        const isMadDog = allLocationText.includes('mad dog') || 
+                         allLocationText.includes('maddog');
+        
+        // Proper drilling classification logic
+        const isDrilling = (isThunderHorse && !thunderHorseProductionLCs.includes(lcNumber)) ||
+                          (isMadDog && !madDogProductionLCs.includes(lcNumber)) ||
+                          allLocationText.includes('drilling') || 
+                          allLocationText.includes('drill') ||
+                          costAlloc.projectType === 'Drilling' ||
+                          costAlloc.department === 'Drilling';
+        
+        return {
+          ...costAlloc,
+          isDrilling,
+          isThunderHorse,
+          isMadDog
+        };
+      });
+      
       const enhancedData = enhanceDataWithProcessors(
         voyageEventsData,
         vesselManifestsData,
-        costAllocationData,
+        processedCostAllocation, // Use processed cost allocation
         voyageListData,
         bulkActionsData,
         masterFacilitiesData,
