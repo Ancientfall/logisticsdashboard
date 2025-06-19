@@ -32,6 +32,7 @@
     "browserslist": "^4.18.1",
     "camelcase": "^6.2.1",
     "case-sensitive-paths-webpack-plugin": "^2.4.0",
+    "cors": "^2.8.5",
     "css-loader": "^6.5.1",
     "css-minimizer-webpack-plugin": "^3.2.0",
     "date-fns": "^4.1.0",
@@ -52,6 +53,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.511.0",
     "mini-css-extract-plugin": "^2.4.5",
+    "multer": "^2.0.1",
     "postcss-flexbugs-fixes": "^5.0.2",
     "postcss-loader": "^6.2.1",
     "postcss-normalize": "^10.0.1",
@@ -85,7 +87,9 @@
   "scripts": {
     "start": "node scripts/start.js",
     "build": "node scripts/build.js",
-    "test": "node scripts/test.js"
+    "test": "node scripts/test.js",
+    "excel-server": "node simple-excel-server.js",
+    "dev": "concurrently \"npm run excel-server\" \"npm start\""
   },
   "eslintConfig": {
     "extends": [
@@ -164,6 +168,7 @@
   "devDependencies": {
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17"
   }

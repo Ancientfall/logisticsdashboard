@@ -1,6 +1,5 @@
 // src/utils/__tests__/lcAllocationManualTest.ts
-import { parseLCAllocationString, processLCAllocations } from '../lcAllocation';
-import { CostAllocation } from '../../types';
+import { parseLCAllocationString } from '../lcAllocation';
 import { getAllProductionLCs, getProductionFacilityByLC, mapCostAllocationLocation, getAllDrillingCapableLocations } from '../../data/masterFacilities';
 import { processCostAllocation } from '../processors/costAllocationProcessor';
 import { inferDepartmentFromLCNumber } from '../departmentInference';

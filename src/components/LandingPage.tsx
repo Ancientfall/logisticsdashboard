@@ -135,7 +135,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       setCurrentStat((prev) => (prev + 1) % stats.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [stats.length, hasData]);
+  }, [stats.length, hasData, checkServerFiles]);
 
   // Handle "View Analytics" button click
   const handleViewAnalytics = async () => {

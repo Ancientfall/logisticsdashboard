@@ -1,7 +1,6 @@
 import { CostAllocation } from '../../types';
 import { parseCostAllocationMonthYear } from '../dateUtils';
 import { getVesselDailyRate } from '../vesselCost';
-import { extractRigLocationFromDescription } from '../departmentInference';
 
 /**
  * Debug version of cost allocation processor with relaxed validation

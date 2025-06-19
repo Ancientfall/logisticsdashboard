@@ -22,7 +22,7 @@ import {
   Info
 } from 'lucide-react';
 import { CostAllocation } from '../../../../types';
-import { formatLargeCurrency, formatCurrencyWhole, formatDaysWhole, formatNumber } from '../../../../utils/formatters';
+import { formatLargeCurrency, formatCurrencyWhole, formatDaysWhole } from '../../../../utils/formatters';
 
 interface ComparisonTabProps {
   costAllocation: CostAllocation[];

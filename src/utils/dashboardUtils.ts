@@ -3,9 +3,7 @@ import {
     VoyageEvent, 
     VesselManifest, 
     MasterFacility,
-    KPIMetrics,
     LocationAnalytics,
-    CompanyPerformance,
     DashboardFilters
   } from '../types';
   

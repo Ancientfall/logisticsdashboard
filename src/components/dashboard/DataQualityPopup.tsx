@@ -28,7 +28,6 @@ const DataQualityPopup: React.FC<DataQualityPopupProps> = ({
 
   const errorCount = issues.filter(i => i.type === 'error').length;
   const warningCount = issues.filter(i => i.type === 'warning').length;
-  const infoCount = issues.filter(i => i.type === 'info').length;
 
   const getIssueIcon = (type: string) => {
     switch (type) {

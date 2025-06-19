@@ -19,8 +19,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     costAllocation,
     voyageList,
     bulkActions,
-    isDataReady,
-    debugDashboardData
+    isDataReady
   } = useData();
 
   // Filters state - matching PowerBI layout
@@ -2615,16 +2614,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     
                     // Apply location filter
                     if (filters.selectedLocation !== 'all' && filters.selectedLocation !== 'All Locations') {
-                      const normalizeLocationForComparison = (location: string): string => {
-                        return location
-                          .replace(/\s*\(Drilling\)\s*/i, '')
-                          .replace(/\s*\(Production\)\s*/i, '')
-                          .replace(/\s*Drilling\s*/i, '')
-                          .replace(/\s*Production\s*/i, '')
-                          .trim()
-                          .toLowerCase();
-                      };
-                      
                       const filterByLocation = (location: string) => {
                         if (filters.selectedLocation === 'all' || filters.selectedLocation === 'All Locations') return true;
                         

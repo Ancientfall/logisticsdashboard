@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Button, Card, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem, Switch } from '@nextui-org/react'
-import { Plus, Edit, Trash2, Database, Ship, Building, RefreshCw } from 'lucide-react'
+import { Plus, Edit, Trash2, Ship, Building, RefreshCw } from 'lucide-react'
 import { dataAPI } from '../../services/api'
 
 interface MasterFacility {

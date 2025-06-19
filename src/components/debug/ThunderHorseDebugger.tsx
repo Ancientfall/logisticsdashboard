@@ -3,7 +3,7 @@ import { useData } from '../../context/DataContext';
 import { getAllDrillingCapableLocations, mapCostAllocationLocation } from '../../data/masterFacilities';
 
 const ThunderHorseDebugger: React.FC = () => {
-  const { voyageEvents, vesselManifests, costAllocation, voyageList } = useData();
+  const { voyageEvents, vesselManifests, costAllocation } = useData();
 
   const debugInfo = useMemo(() => {
     const thunderHorseDrilling = getAllDrillingCapableLocations().find(

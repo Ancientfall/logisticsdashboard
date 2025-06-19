@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Grid3X3, Upload, Shield, Home } from 'lucide-react';
+import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock, ChevronRight, Package, Upload, Shield, Home } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';

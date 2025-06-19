@@ -812,9 +812,11 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
 
   // Data setters with auto-save
   const setVoyageEvents = useCallback((data: VoyageEvent[]) => {
+    console.log(`🎯 useDataOperations: setVoyageEvents called with ${data.length} records`);
     setVoyageEventsState(data);
     setLastUpdated(new Date());
     props?.onDataUpdate?.({ voyageEvents: data });
+    console.log(`🎯 useDataOperations: voyageEvents state updated successfully`);
   }, [props]);
 
   const setVesselManifests = useCallback((data: VesselManifest[]) => {
@@ -830,9 +832,11 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
   }, [props]);
 
   const setCostAllocation = useCallback((data: CostAllocation[]) => {
+    console.log(`🎯 useDataOperations: setCostAllocation called with ${data.length} records`);
     setCostAllocationState(data);
     setLastUpdated(new Date());
     props?.onDataUpdate?.({ costAllocation: data });
+    console.log(`🎯 useDataOperations: costAllocation state updated successfully`);
   }, [props]);
 
   const setVesselClassifications = useCallback((data: VesselClassification[]) => {
@@ -854,9 +858,11 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
   }, [props]);
 
   const setIsDataReady = useCallback((ready: boolean) => {
+    console.log(`🎯 useDataOperations: setIsDataReady called with ${ready}`);
     setIsDataReadyState(ready);
     // Save data when marked as ready, but with loop protection
     if (ready && !isSaving) {
+      console.log(`🎯 useDataOperations: Data marked as ready, triggering save...`);
       // Use a small delay to batch multiple state updates
       setTimeout(() => {
         saveAllData();

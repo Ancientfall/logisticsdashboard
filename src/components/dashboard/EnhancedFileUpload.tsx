@@ -17,6 +17,7 @@ import { ExcelValidator } from '../../utils/excel/excelValidator'
 import { useNotifications } from '../../context/NotificationContext'
 import { useData } from '../../context/DataContext'
 import { processExcelFiles } from '../../utils/dataProcessing'
+import '../../utils/debugHelpers' // Import debug helpers for browser console access
 
 interface FileUploadItem {
 	id: string
@@ -165,6 +166,50 @@ const EnhancedFileUpload: React.FC = () => {
 		}
 	}
 
+	const detectAndValidateFile = useCallback(async (fileItem: FileUploadItem) => {
+		setFiles(prev => prev.map(f => 
+			f.id === fileItem.id ? { ...f, status: 'validating', progress: 20 } : f
+		))
+		
+		try {
+			// Detect file type
+			const detectedType = await detectFileType(fileItem.file)
+			
+			if (!detectedType) {
+				// Don't throw error, just leave type as null and let user select manually
+				console.warn(`Could not auto-detect file type for ${fileItem.file.name}. User can select manually.`)
+			}
+			
+			// Get preview data
+			const preview = await ExcelValidator.getPreview(fileItem.file, 10)
+			
+			setFiles(prev => prev.map(f => 
+				f.id === fileItem.id ? { 
+					...f, 
+					type: detectedType,
+					status: 'pending',
+					progress: 100,
+					preview: {
+						rowCount: preview.rowCount,
+						columnCount: preview.headers.length,
+						sampleData: preview.data,
+						headers: preview.headers
+					}
+				} : f
+			))
+			
+		} catch (error) {
+			setFiles(prev => prev.map(f => 
+				f.id === fileItem.id ? { 
+					...f, 
+					status: 'error',
+					progress: 0,
+					error: error instanceof Error ? error.message : 'Validation failed'
+				} : f
+			))
+		}
+	}, [])
+
 	const handleFiles = useCallback(async (fileList: FileList) => {
 		const newFiles: FileUploadItem[] = []
 		
@@ -210,51 +255,7 @@ const EnhancedFileUpload: React.FC = () => {
 		for (const fileItem of newFiles) {
 			detectAndValidateFile(fileItem)
 		}
-	}, [addNotification])
-
-	const detectAndValidateFile = async (fileItem: FileUploadItem) => {
-		setFiles(prev => prev.map(f => 
-			f.id === fileItem.id ? { ...f, status: 'validating', progress: 20 } : f
-		))
-		
-		try {
-			// Detect file type
-			const detectedType = await detectFileType(fileItem.file)
-			
-			if (!detectedType) {
-				// Don't throw error, just leave type as null and let user select manually
-				console.warn(`Could not auto-detect file type for ${fileItem.file.name}. User can select manually.`)
-			}
-			
-			// Get preview data
-			const preview = await ExcelValidator.getPreview(fileItem.file, 10)
-			
-			setFiles(prev => prev.map(f => 
-				f.id === fileItem.id ? { 
-					...f, 
-					type: detectedType,
-					status: 'pending',
-					progress: 100,
-					preview: {
-						rowCount: preview.rowCount,
-						columnCount: preview.headers.length,
-						sampleData: preview.data,
-						headers: preview.headers
-					}
-				} : f
-			))
-			
-		} catch (error) {
-			setFiles(prev => prev.map(f => 
-				f.id === fileItem.id ? { 
-					...f, 
-					status: 'error',
-					progress: 0,
-					error: error instanceof Error ? error.message : 'Validation failed'
-				} : f
-			))
-		}
-	}
+	}, [addNotification, detectAndValidateFile])
 
 	const processFiles = async () => {
 		const validFiles = files.filter(f => f.status === 'pending' && f.type)
@@ -366,9 +367,19 @@ const EnhancedFileUpload: React.FC = () => {
 			}, 500)
 			
 			try {
+				// Enhanced debugging - log before processing
+				console.log('🚀 Starting Excel file processing with options:', processingOptions)
+				console.log('🚀 Valid files for processing:', validFiles.map(f => ({ name: f.file.name, type: f.type, size: f.file.size })))
+				
 				// Process ALL files together
 				const result = await processExcelFiles(processingOptions)
-				console.log('Processing result:', result)
+				console.log('✅ Processing completed successfully! Result:', result)
+				console.log('✅ Result breakdown:', {
+					voyageEventsCount: result.voyageEvents?.length || 0,
+					costAllocationCount: result.costAllocation?.length || 0,
+					voyageListCount: result.voyageList?.length || 0,
+					vesselManifestsCount: result.vesselManifests?.length || 0
+				})
 				
 				clearInterval(progressInterval)
 				
@@ -410,10 +421,23 @@ const EnhancedFileUpload: React.FC = () => {
 				})
 				
 				// Store all the processed data
-				if (result.voyageEvents) setVoyageEvents(result.voyageEvents)
-				if (result.costAllocation) setCostAllocation(result.costAllocation)
-				if (result.voyageList) setVoyageList(result.voyageList)
-				if (result.vesselManifests) setVesselManifests(result.vesselManifests)
+				console.log('💾 Storing processed data to context...')
+				if (result.voyageEvents) {
+					console.log(`💾 Setting ${result.voyageEvents.length} voyage events`)
+					setVoyageEvents(result.voyageEvents)
+				}
+				if (result.costAllocation) {
+					console.log(`💾 Setting ${result.costAllocation.length} cost allocation records`)
+					setCostAllocation(result.costAllocation)
+				}
+				if (result.voyageList) {
+					console.log(`💾 Setting ${result.voyageList.length} voyage list records`)
+					setVoyageList(result.voyageList)
+				}
+				if (result.vesselManifests) {
+					console.log(`💾 Setting ${result.vesselManifests.length} vessel manifest records`)
+					setVesselManifests(result.vesselManifests)
+				}
 				
 				// Update processing stats
 				const totalProcessed = 
@@ -429,6 +453,13 @@ const EnhancedFileUpload: React.FC = () => {
 				} : null)
 				
 			} catch (error) {
+				console.error('❌ Excel file processing failed:', error)
+				console.error('❌ Error details:', {
+					message: error instanceof Error ? error.message : String(error),
+					stack: error instanceof Error ? error.stack : 'No stack trace',
+					processingOptions
+				})
+				
 				clearInterval(progressInterval)
 				
 				// Mark all processing files as error
@@ -450,7 +481,9 @@ const EnhancedFileUpload: React.FC = () => {
 				totalRecords: processingStats?.totalRecords || 0,
 				duration: `${Math.round((Date.now() - processingStartTime.current) / 1000)}s`
 			})
+			console.log('🎯 Setting isDataReady to true')
 			setIsDataReady(true)
+			console.log('✅ Excel file processing workflow completed successfully!')
 			
 		} catch (error) {
 			addNotification('processing-complete', {

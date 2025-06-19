@@ -2,7 +2,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { NextUIProvider } from '@nextui-org/react'
-import { DataProvider } from './context/DataContext'
+import { DataProvider, useData } from './context/DataContext'
 import { NotificationProvider } from './context/NotificationContext'
 import { HttpsEnforcer } from './components/security/HttpsEnforcer'
 import LoadingBoundary from './components/layout/LoadingBoundary'
@@ -26,12 +26,16 @@ import './index.css'
 // Wrapper component to use navigation
 const LandingPageWrapper: React.FC = () => {
 	const navigate = useNavigate()
+	const { isDataReady, voyageEvents } = useData()
+	
+	// Check if we have actual data loaded
+	const hasData = isDataReady && voyageEvents.length > 0
 	
 	return (
 		<LandingPage 
-			onGetStarted={() => navigate('/dashboard')} 
+			onGetStarted={() => navigate('/upload')} 
 			onViewDashboard={() => navigate('/dashboard')} 
-			hasData={false} 
+			hasData={hasData} 
 		/>
 	)
 }

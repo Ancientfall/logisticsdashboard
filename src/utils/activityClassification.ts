@@ -86,6 +86,7 @@ export const inferCompanyFromVessel = (vesselName: string): string => {
   if (name.includes('chouest')) return 'Edison Chouest';
   if (name.includes('harvey')) return 'Harvey Gulf';
   if (name.includes('seacor')) return 'Seacor';
+  if (name.includes('jackson')) return 'Jackson Offshore';   
   return 'Unknown';
 };
 

@@ -36,7 +36,6 @@ const KPICard: React.FC<KPICardProps> = ({
   showTrendIcon = true
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -117,7 +116,6 @@ const KPICard: React.FC<KPICardProps> = ({
       
       // Determine tooltip position
       const position = spaceAbove >= 120 && spaceAbove > spaceBelow ? 'top' : 'bottom';
-      setTooltipPosition(position);
       
       // Calculate tooltip style
       const tooltipWidth = variant === 'hero' ? 350 : 300;
