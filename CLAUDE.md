@@ -422,3 +422,125 @@ The dashboard showcase embodies BP's commitment to operational excellence throug
 - **Accuracy**: Dashboard descriptions match actual functionality to set proper expectations
 
 The new dashboard showcase transforms the analytics discovery experience from functional navigation to an engaging, informative interface that guides users to the precise insights they need for offshore operations management.
+
+### Statistical Variance Analysis Implementation ⏺ ✅ Enterprise-Grade KPI Variance Analytics!
+
+🎉 What We've Accomplished:
+
+✅ **Comprehensive Statistical Variance Analysis Framework**
+- **New Utility Module**: `src/utils/statisticalVariance.ts` - Complete variance analysis engine
+- **Statistical Functions**: Mean, variance, standard deviation, coefficient of variation, quartiles, outliers
+- **Outlier Detection**: Both IQR (1.5x interquartile range) and Z-score (2σ threshold) methods
+- **Data Quality**: Comprehensive validation and type safety throughout analysis pipeline
+
+✅ **Business-Critical KPI Variance Focus**
+- **Lifts per Hour Variance**: Operational efficiency consistency across vessels and time periods
+- **Cost per Ton Variance**: Cost efficiency analysis with configurable rates ($150/ton drilling, $180/ton production)
+- **Average Visits per Week Variance**: Supply frequency consistency with intelligent time period calculation
+- **Replaced Previous Focus**: Moved from general cargo/utilization variance to actionable business KPIs
+
+✅ **Professional Visualization Components**
+- **New Components**: `src/components/dashboard/VarianceAnalysisComponents.tsx`
+- **Box Plots**: Statistical distribution visualization with quartiles, median, outliers, and summary statistics
+- **Control Charts**: Process control visualization with ±2σ control limits and out-of-control point detection
+- **Variance Stats Cards**: Consistency ratings (Excellent <10% CV, Good <20% CV, Fair <30% CV, High Variance >30% CV)
+- **Interactive SVG Charts**: Professional statistical visualizations with proper scaling and outlier highlighting
+
+✅ **Drilling Dashboard Variance Analytics**
+- **Component**: `DrillingOperationalVarianceDashboard` - BP green theme, 3-column layout
+- **Function**: `calculateDrillingOperationalVariance()` - Drilling-specific operational KPI analysis
+- **Integration**: Uses cost allocation LC filtering for drilling-only operations
+- **Metrics**: Lifts/hr efficiency, cost per ton analysis, visits per week frequency
+
+✅ **Production Dashboard Variance Analytics**
+- **Component**: `ProductionOperationalVarianceDashboard` - Purple theme, 3-column layout  
+- **Function**: `calculateProductionOperationalVariance()` - Production-specific operational KPI analysis
+- **Integration**: Filters for production operations excluding drilling/completion fluids
+- **Metrics**: Chemical transfer efficiency, production cost analysis, facility visit patterns
+
+🔧 **Technical Implementation Excellence**:
+
+**Statistical Engine Features**:
+- **Comprehensive Analysis**: Full statistical suite with professional-grade calculations
+- **Outlier Detection**: Dual-method approach for robust anomaly identification
+- **Time Period Intelligence**: Smart calculation (specific month: 4.33 weeks, YTD: calculated, all data: range-based)
+- **Cost Estimation**: Configurable cost-per-ton calculations based on operation type
+- **Visit Tracking**: Unique voyage/manifest counting with week normalization
+
+**Data Integration**:
+- **Cost Allocation Authority**: Uses CostAllocation.xlsx as master source for LC-based filtering
+- **Vessel Performance**: Tracks individual vessel metrics across all operational KPIs
+- **Time Filtering**: Supports monthly, YTD, and all-data analysis periods
+- **Location Filtering**: Facility-specific and platform-specific variance analysis
+
+**Visualization Architecture**:
+- **Modular Components**: Reusable variance dashboard components for drilling and production
+- **Consistent Design**: BP brand colors with operation-specific themes (green/purple)
+- **Statistical Rigor**: Professional box plots and control charts with proper statistical foundations
+- **Interactive Elements**: Hover effects, outlier highlighting, and detailed statistical summaries
+
+📊 **Business Value & Operational Insights**:
+
+**Operational Efficiency Identification**:
+- **Vessel Performance Outliers**: Identify vessels requiring training, maintenance, or operational review
+- **Cost Efficiency Opportunities**: Highlight cost-per-ton variance for budget optimization
+- **Schedule Optimization**: Visit frequency variance reveals logistics planning improvements
+
+**Management Reporting**:
+- **Consistent KPIs**: Same metrics across drilling and production for comparative analysis
+- **Statistical Confidence**: Professional variance analysis with confidence intervals and process control
+- **Actionable Intelligence**: Clear identification of outliers with significance metrics
+
+**Process Control**:
+- **Control Charts**: Real-time monitoring of operational KPIs with statistical control limits
+- **Trend Analysis**: Variance tracking over time periods with outlier alerts
+- **Performance Benchmarking**: Statistical baselines for operational excellence targets
+
+🎯 **Key Features Delivered**:
+
+**Professional Statistical Analysis**:
+- **Box Plots**: Distribution visualization with quartiles, outliers, and statistical summaries
+- **Control Charts**: Process control with ±2σ limits, mean lines, and out-of-control detection
+- **Variance Statistics**: Comprehensive CV analysis with consistency ratings and outlier counts
+
+**Enterprise-Grade Implementation**:
+- **Type Safety**: Full TypeScript integration with comprehensive interfaces
+- **Error Handling**: Graceful fallbacks and validation throughout variance calculations
+- **Performance Optimization**: Efficient Map-based calculations with O(1) lookups
+- **Responsive Design**: Professional visualizations that work across desktop and mobile
+
+**Operational Focus**:
+- **Drilling Operations**: Cost allocation-based filtering for accurate drilling-only variance analysis
+- **Production Operations**: Chemical/utility focus with fuel exclusion for precise production metrics
+- **Cost Allocation Integration**: Authoritative LC-based filtering using master cost allocation data
+- **Business Unit Consistency**: Same KPI framework across both drilling and production dashboards
+
+📈 **Technical Architecture**:
+
+**Files Created/Modified**:
+- `src/utils/statisticalVariance.ts`: Complete variance analysis engine with drilling/production functions
+- `src/components/dashboard/VarianceAnalysisComponents.tsx`: Professional visualization components
+- `src/components/dashboard/DrillingDashboard.tsx`: Integrated drilling operational variance dashboard
+- `src/components/dashboard/ProductionDashboard.tsx`: Integrated production operational variance dashboard
+
+**Statistical Functions**:
+- `calculateDrillingOperationalVariance()`: Drilling KPI variance analysis
+- `calculateProductionOperationalVariance()`: Production KPI variance analysis  
+- `calculateVarianceAnalysis()`: Core statistical analysis engine
+- Comprehensive outlier detection and statistical distribution analysis
+
+🎨 **User Experience**:
+
+**Dashboard Integration**:
+- **Seamless Addition**: Variance analysis appears at bottom of drilling and production dashboards
+- **Professional Presentation**: Enterprise-grade statistical visualizations with BP branding
+- **Actionable Insights**: Clear identification of operational improvement opportunities
+- **Consistent Navigation**: Same filtering and time period selection as existing dashboard features
+
+**Visual Excellence**:
+- **Statistical Rigor**: Professional box plots and control charts meeting industry standards
+- **Brand Consistency**: BP green for drilling, purple for production, with consistent design language
+- **Interactive Elements**: Hover effects, outlier detection, and comprehensive statistical summaries
+- **Mobile Responsive**: Professional visualizations that scale across device types
+
+The variance analysis implementation provides **enterprise-grade statistical intelligence** for operational excellence, delivering actionable insights into vessel performance consistency, cost efficiency patterns, and supply chain optimization opportunities across both drilling and production operations.

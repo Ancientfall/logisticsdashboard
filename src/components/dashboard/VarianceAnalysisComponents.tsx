@@ -1,0 +1,806 @@
+import React from 'react';
+import { BarChart3, TrendingUp, AlertTriangle, Target, Droplet, Clock, Ship } from 'lucide-react';
+import { VarianceAnalysis } from '../../utils/statisticalVariance';
+
+interface BoxPlotProps {
+  data: VarianceAnalysis;
+  title: string;
+  unit: string;
+  color?: string;
+}
+
+interface ControlChartProps {
+  data: Array<{
+    vesselName: string;
+    value: number;
+    date?: Date;
+  }>;
+  title: string;
+  unit: string;
+  mean: number;
+  upperControlLimit: number;
+  lowerControlLimit: number;
+  color?: string;
+}
+
+interface VarianceStatsCardProps {
+  title: string;
+  variance: VarianceAnalysis;
+  unit: string;
+  icon: React.ElementType;
+  color?: string;
+}
+
+/**
+ * Box Plot Component for Statistical Distribution
+ */
+export const BoxPlot: React.FC<BoxPlotProps> = ({ 
+  data, 
+  title, 
+  unit, 
+  color = 'bg-bp-green' 
+}) => {
+  const { min, max, quartile1, median, quartile3, outliers } = data;
+  
+  // Calculate plot dimensions
+  const plotWidth = 300;
+  const plotHeight = 80;
+  const range = max - min;
+  const scale = range > 0 ? plotWidth / range : 1;
+  
+  const getPosition = (value: number) => ((value - min) * scale);
+  
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <h3 className="text-sm font-semibold mb-4 text-gray-800">{title}</h3>
+      
+      <div className="relative">
+        {/* Box plot visualization */}
+        <div className="relative h-20 mb-4">
+          <svg width={plotWidth} height={plotHeight} className="border border-gray-300 rounded">
+            {/* Background grid */}
+            <defs>
+              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f0f0f0" strokeWidth="1"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+            
+            {/* Box plot elements */}
+            {/* Whiskers */}
+            <line 
+              x1={getPosition(min)} 
+              y1={40} 
+              x2={getPosition(quartile1)} 
+              y2={40}
+              stroke="#666" 
+              strokeWidth="2"
+            />
+            <line 
+              x1={getPosition(quartile3)} 
+              y1={40} 
+              x2={getPosition(max)} 
+              y2={40}
+              stroke="#666" 
+              strokeWidth="2"
+            />
+            
+            {/* Box */}
+            <rect
+              x={getPosition(quartile1)}
+              y={25}
+              width={getPosition(quartile3) - getPosition(quartile1)}
+              height={30}
+              fill="#00754F"
+              fillOpacity={0.3}
+              stroke="#00754F"
+              strokeWidth="2"
+            />
+            
+            {/* Median line */}
+            <line
+              x1={getPosition(median)}
+              y1={25}
+              x2={getPosition(median)}
+              y2={55}
+              stroke="#00754F"
+              strokeWidth="3"
+            />
+            
+            {/* Min/Max markers */}
+            <line x1={getPosition(min)} y1={35} x2={getPosition(min)} y2={45} stroke="#666" strokeWidth="2"/>
+            <line x1={getPosition(max)} y1={35} x2={getPosition(max)} y2={45} stroke="#666" strokeWidth="2"/>
+            
+            {/* Outliers */}
+            {outliers.map((outlier, index) => (
+              <circle
+                key={index}
+                cx={getPosition(outlier.value)}
+                cy={40}
+                r="3"
+                fill={outlier.isUpperOutlier ? "#ef4444" : "#f59e0b"}
+                stroke="#fff"
+                strokeWidth="1"
+              />
+            ))}
+          </svg>
+        </div>
+        
+        {/* Value labels */}
+        <div className="flex justify-between text-xs text-gray-600 mb-2">
+          <span>Min: {min.toFixed(1)}{unit}</span>
+          <span>Q1: {quartile1.toFixed(1)}{unit}</span>
+          <span>Median: {median.toFixed(1)}{unit}</span>
+          <span>Q3: {quartile3.toFixed(1)}{unit}</span>
+          <span>Max: {max.toFixed(1)}{unit}</span>
+        </div>
+        
+        {/* Summary statistics */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="text-gray-600">
+            <span className="font-medium">Mean:</span> {data.mean.toFixed(1)}{unit}
+          </div>
+          <div className="text-gray-600">
+            <span className="font-medium">Std Dev:</span> {data.standardDeviation.toFixed(1)}{unit}
+          </div>
+          <div className="text-gray-600">
+            <span className="font-medium">CV:</span> {data.coefficientOfVariation.toFixed(1)}%
+          </div>
+          <div className="text-gray-600">
+            <span className="font-medium">Outliers:</span> {outliers.length}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Control Chart Component for Process Control
+ */
+export const ControlChart: React.FC<ControlChartProps> = ({
+  data,
+  title,
+  unit,
+  mean,
+  upperControlLimit,
+  lowerControlLimit,
+  color = '#00754F'
+}) => {
+  const chartHeight = 200;
+  const chartWidth = 400;
+  const maxValue = Math.max(...data.map(d => d.value), upperControlLimit);
+  const minValue = Math.min(...data.map(d => d.value), lowerControlLimit);
+  const range = maxValue - minValue;
+  const padding = 20;
+  
+  const getY = (value: number) => chartHeight - padding - ((value - minValue) / range) * (chartHeight - 2 * padding);
+  const getX = (index: number) => padding + (index / (data.length - 1)) * (chartWidth - 2 * padding);
+  
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <h3 className="text-sm font-semibold mb-4 text-gray-800">{title}</h3>
+      
+      <div className="relative">
+        <svg width={chartWidth} height={chartHeight} className="border border-gray-300 rounded">
+          {/* Control limits */}
+          <line
+            x1={padding}
+            y1={getY(upperControlLimit)}
+            x2={chartWidth - padding}
+            y2={getY(upperControlLimit)}
+            stroke="#ef4444"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+          />
+          <line
+            x1={padding}
+            y1={getY(lowerControlLimit)}
+            x2={chartWidth - padding}
+            y2={getY(lowerControlLimit)}
+            stroke="#ef4444"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+          />
+          
+          {/* Mean line */}
+          <line
+            x1={padding}
+            y1={getY(mean)}
+            x2={chartWidth - padding}
+            y2={getY(mean)}
+            stroke={color}
+            strokeWidth="2"
+          />
+          
+          {/* Data points and line */}
+          {data.length > 1 && (
+            <polyline
+              points={data.map((d, i) => `${getX(i)},${getY(d.value)}`).join(' ')}
+              fill="none"
+              stroke={color}
+              strokeWidth="2"
+              opacity={0.7}
+            />
+          )}
+          
+          {/* Data points */}
+          {data.map((d, index) => {
+            const isOutOfControl = d.value > upperControlLimit || d.value < lowerControlLimit;
+            return (
+              <circle
+                key={index}
+                cx={getX(index)}
+                cy={getY(d.value)}
+                r="4"
+                fill={isOutOfControl ? "#ef4444" : color}
+                stroke="#fff"
+                strokeWidth="2"
+              />
+            );
+          })}
+          
+          {/* Labels */}
+          <text x={chartWidth - padding - 50} y={getY(upperControlLimit) - 5} fontSize="10" fill="#ef4444">
+            UCL: {upperControlLimit.toFixed(1)}
+          </text>
+          <text x={chartWidth - padding - 50} y={getY(mean) - 5} fontSize="10" fill={color}>
+            Mean: {mean.toFixed(1)}
+          </text>
+          <text x={chartWidth - padding - 50} y={getY(lowerControlLimit) + 15} fontSize="10" fill="#ef4444">
+            LCL: {lowerControlLimit.toFixed(1)}
+          </text>
+        </svg>
+        
+        {/* Legend */}
+        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          {data.slice(0, 5).map((d, index) => (
+            <span key={index} className="text-gray-600">
+              {d.vesselName}: {d.value.toFixed(1)}{unit}
+            </span>
+          ))}
+          {data.length > 5 && <span className="text-gray-500">+{data.length - 5} more</span>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Variance Statistics Card Component
+ */
+export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
+  title,
+  variance,
+  unit,
+  icon: Icon,
+  color = 'bg-bp-green'
+}) => {
+  const getVarianceStatus = () => {
+    const cv = variance.coefficientOfVariation;
+    if (cv < 10) return { status: 'Excellent', color: 'text-green-600', bgColor: 'bg-green-50' };
+    if (cv < 20) return { status: 'Good', color: 'text-blue-600', bgColor: 'bg-blue-50' };
+    if (cv < 30) return { status: 'Fair', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
+    return { status: 'High Variance', color: 'text-red-600', bgColor: 'bg-red-50' };
+  };
+
+  const status = getVarianceStatus();
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+        <Icon className="h-5 w-5 text-bp-green" />
+      </div>
+      
+      <div className="space-y-3">
+        {/* Main metrics */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-gray-500">Mean</p>
+            <p className="text-lg font-bold text-gray-900">
+              {variance.mean.toFixed(1)}<span className="text-sm font-normal">{unit}</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Std Dev</p>
+            <p className="text-lg font-bold text-gray-900">
+              {variance.standardDeviation.toFixed(1)}<span className="text-sm font-normal">{unit}</span>
+            </p>
+          </div>
+        </div>
+        
+        {/* Variance status */}
+        <div className={`rounded-lg p-2 ${status.bgColor}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium">Consistency</span>
+            <span className={`text-xs font-semibold ${status.color}`}>{status.status}</span>
+          </div>
+          <div className="mt-1">
+            <span className="text-xs text-gray-600">CV: {variance.coefficientOfVariation.toFixed(1)}%</span>
+          </div>
+        </div>
+        
+        {/* Outliers alert */}
+        {variance.outliers.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded p-2">
+            <AlertTriangle className="h-4 w-4" />
+            <span>{variance.outliers.length} outlier{variance.outliers.length > 1 ? 's' : ''} detected</span>
+          </div>
+        )}
+        
+        {/* Range */}
+        <div className="text-xs text-gray-600">
+          <span className="font-medium">Range:</span> {variance.min.toFixed(1)} - {variance.max.toFixed(1)}{unit}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Operational KPI Variance Dashboard Component for Drilling Operations
+ */
+interface DrillingOperationalVarianceDashboardProps {
+  liftsPerHourVariance: VarianceAnalysis;
+  costPerTonVariance: VarianceAnalysis;
+  visitsPerWeekVariance: VarianceAnalysis;
+  vesselOperationalData: Array<{
+    vesselName: string;
+    liftsPerHour: number;
+    costPerTon: number;
+    visitsPerWeek: number;
+    totalLifts: number;
+    totalCost: number;
+    totalTonnage: number;
+    totalVisits: number;
+    cargoOpsHours: number;
+    weeksActive: number;
+  }>;
+}
+
+export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalVarianceDashboardProps> = ({
+  liftsPerHourVariance,
+  costPerTonVariance,
+  visitsPerWeekVariance,
+  vesselOperationalData
+}) => {
+  // Prepare control chart data
+  const liftsControlData = vesselOperationalData
+    .filter(v => v.liftsPerHour > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.liftsPerHour
+    }));
+
+  const costControlData = vesselOperationalData
+    .filter(v => v.costPerTon > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.costPerTon
+    }));
+
+  const visitsControlData = vesselOperationalData
+    .filter(v => v.visitsPerWeek > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.visitsPerWeek
+    }));
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-bp-green to-emerald-600 text-white rounded-lg p-4">
+        <h2 className="text-lg font-bold mb-1">Drilling Operations KPI Variance Analysis</h2>
+        <p className="text-sm opacity-90">Statistical analysis of lifts/hr, cost per ton, and visits per week</p>
+      </div>
+      
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <VarianceStatsCard
+          title="Lifts per Hour Variance"
+          variance={liftsPerHourVariance}
+          unit=" lifts/hr"
+          icon={BarChart3}
+        />
+        <VarianceStatsCard
+          title="Cost per Ton Variance"
+          variance={costPerTonVariance}
+          unit=" $/ton"
+          icon={TrendingUp}
+        />
+        <VarianceStatsCard
+          title="Visits per Week Variance"
+          variance={visitsPerWeekVariance}
+          unit=" visits/week"
+          icon={Ship}
+        />
+      </div>
+      
+      {/* Box Plots */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <BoxPlot
+          data={liftsPerHourVariance}
+          title="Lifts per Hour Distribution"
+          unit=" lifts/hr"
+        />
+        <BoxPlot
+          data={costPerTonVariance}
+          title="Cost per Ton Distribution"
+          unit=" $/ton"
+        />
+        <BoxPlot
+          data={visitsPerWeekVariance}
+          title="Visits per Week Distribution"
+          unit=" visits/week"
+        />
+      </div>
+      
+      {/* Control Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ControlChart
+          data={liftsControlData}
+          title="Lifts per Hour Control Chart"
+          unit=" lifts/hr"
+          mean={liftsPerHourVariance.mean}
+          upperControlLimit={liftsPerHourVariance.mean + 2 * liftsPerHourVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, liftsPerHourVariance.mean - 2 * liftsPerHourVariance.standardDeviation)}
+        />
+        <ControlChart
+          data={costControlData}
+          title="Cost per Ton Control Chart"
+          unit=" $/ton"
+          mean={costPerTonVariance.mean}
+          upperControlLimit={costPerTonVariance.mean + 2 * costPerTonVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, costPerTonVariance.mean - 2 * costPerTonVariance.standardDeviation)}
+        />
+        <ControlChart
+          data={visitsControlData}
+          title="Visits per Week Control Chart"
+          unit=" visits/week"
+          mean={visitsPerWeekVariance.mean}
+          upperControlLimit={visitsPerWeekVariance.mean + 2 * visitsPerWeekVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
+        />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Vessel Utilization Variance Dashboard Component
+ */
+interface VesselUtilizationVarianceDashboardProps {
+  utilizationVariance: VarianceAnalysis;
+  productiveHoursVariance: VarianceAnalysis;
+  vesselUtilizationData: Array<{
+    vesselName: string;
+    utilizationPercentage: number;
+    productiveHours: number;
+    totalOffshoreHours: number;
+    waitingHours: number;
+    transitHours: number;
+  }>;
+}
+
+export const VesselUtilizationVarianceDashboard: React.FC<VesselUtilizationVarianceDashboardProps> = ({
+  utilizationVariance,
+  productiveHoursVariance,
+  vesselUtilizationData
+}) => {
+  // Prepare control chart data
+  const utilizationControlData = vesselUtilizationData
+    .filter(v => v.utilizationPercentage > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.utilizationPercentage
+    }));
+
+  const productiveHoursControlData = vesselUtilizationData
+    .filter(v => v.productiveHours > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.productiveHours
+    }));
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg p-4">
+        <h2 className="text-lg font-bold mb-1">Vessel Utilization Variance Analysis</h2>
+        <p className="text-sm opacity-90">Statistical analysis of drilling vessel utilization efficiency</p>
+      </div>
+      
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <VarianceStatsCard
+          title="Utilization % Variance"
+          variance={utilizationVariance}
+          unit="%"
+          icon={Target}
+        />
+        <VarianceStatsCard
+          title="Productive Hours Variance"
+          variance={productiveHoursVariance}
+          unit=" hrs"
+          icon={TrendingUp}
+        />
+      </div>
+      
+      {/* Box Plots */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BoxPlot
+          data={utilizationVariance}
+          title="Utilization Percentage Distribution"
+          unit="%"
+          color="bg-blue-600"
+        />
+        <BoxPlot
+          data={productiveHoursVariance}
+          title="Productive Hours Distribution"
+          unit=" hrs"
+          color="bg-blue-600"
+        />
+      </div>
+      
+      {/* Control Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ControlChart
+          data={utilizationControlData}
+          title="Utilization % Control Chart"
+          unit="%"
+          mean={utilizationVariance.mean}
+          upperControlLimit={Math.min(100, utilizationVariance.mean + 2 * utilizationVariance.standardDeviation)}
+          lowerControlLimit={Math.max(0, utilizationVariance.mean - 2 * utilizationVariance.standardDeviation)}
+          color="#2563eb"
+        />
+        <ControlChart
+          data={productiveHoursControlData}
+          title="Productive Hours Control Chart"
+          unit=" hrs"
+          mean={productiveHoursVariance.mean}
+          upperControlLimit={productiveHoursVariance.mean + 2 * productiveHoursVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, productiveHoursVariance.mean - 2 * productiveHoursVariance.standardDeviation)}
+          color="#2563eb"
+        />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Operational KPI Variance Dashboard Component for Production Operations
+ */
+interface ProductionOperationalVarianceDashboardProps {
+  liftsPerHourVariance: VarianceAnalysis;
+  costPerTonVariance: VarianceAnalysis;
+  visitsPerWeekVariance: VarianceAnalysis;
+  vesselOperationalData: Array<{
+    vesselName: string;
+    liftsPerHour: number;
+    costPerTon: number;
+    visitsPerWeek: number;
+    totalLifts: number;
+    totalCost: number;
+    totalTonnage: number;
+    totalVisits: number;
+    cargoOpsHours: number;
+    weeksActive: number;
+  }>;
+}
+
+export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperationalVarianceDashboardProps> = ({
+  liftsPerHourVariance,
+  costPerTonVariance,
+  visitsPerWeekVariance,
+  vesselOperationalData
+}) => {
+  // Prepare control chart data
+  const liftsControlData = vesselOperationalData
+    .filter(v => v.liftsPerHour > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.liftsPerHour
+    }));
+
+  const costControlData = vesselOperationalData
+    .filter(v => v.costPerTon > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.costPerTon
+    }));
+
+  const visitsControlData = vesselOperationalData
+    .filter(v => v.visitsPerWeek > 0)
+    .map(v => ({
+      vesselName: v.vesselName,
+      value: v.visitsPerWeek
+    }));
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg p-4">
+        <h2 className="text-lg font-bold mb-1">Production Operations KPI Variance Analysis</h2>
+        <p className="text-sm opacity-90">Statistical analysis of lifts/hr, cost per ton, and visits per week</p>
+      </div>
+      
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <VarianceStatsCard
+          title="Lifts per Hour Variance"
+          variance={liftsPerHourVariance}
+          unit=" lifts/hr"
+          icon={BarChart3}
+        />
+        <VarianceStatsCard
+          title="Cost per Ton Variance"
+          variance={costPerTonVariance}
+          unit=" $/ton"
+          icon={TrendingUp}
+        />
+        <VarianceStatsCard
+          title="Visits per Week Variance"
+          variance={visitsPerWeekVariance}
+          unit=" visits/week"
+          icon={Ship}
+        />
+      </div>
+      
+      {/* Box Plots */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <BoxPlot
+          data={liftsPerHourVariance}
+          title="Lifts per Hour Distribution"
+          unit=" lifts/hr"
+          color="bg-purple-600"
+        />
+        <BoxPlot
+          data={costPerTonVariance}
+          title="Cost per Ton Distribution"
+          unit=" $/ton"
+          color="bg-purple-600"
+        />
+        <BoxPlot
+          data={visitsPerWeekVariance}
+          title="Visits per Week Distribution"
+          unit=" visits/week"
+          color="bg-purple-600"
+        />
+      </div>
+      
+      {/* Control Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ControlChart
+          data={liftsControlData}
+          title="Lifts per Hour Control Chart"
+          unit=" lifts/hr"
+          mean={liftsPerHourVariance.mean}
+          upperControlLimit={liftsPerHourVariance.mean + 2 * liftsPerHourVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, liftsPerHourVariance.mean - 2 * liftsPerHourVariance.standardDeviation)}
+          color="#7c3aed"
+        />
+        <ControlChart
+          data={costControlData}
+          title="Cost per Ton Control Chart"
+          unit=" $/ton"
+          mean={costPerTonVariance.mean}
+          upperControlLimit={costPerTonVariance.mean + 2 * costPerTonVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, costPerTonVariance.mean - 2 * costPerTonVariance.standardDeviation)}
+          color="#7c3aed"
+        />
+        <ControlChart
+          data={visitsControlData}
+          title="Visits per Week Control Chart"
+          unit=" visits/week"
+          mean={visitsPerWeekVariance.mean}
+          upperControlLimit={visitsPerWeekVariance.mean + 2 * visitsPerWeekVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
+          color="#7c3aed"
+        />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Production Support Variance Dashboard Component
+ */
+interface ProductionSupportVarianceDashboardProps {
+  cycleTimeVariance: VarianceAnalysis;
+  responseTimeVariance: VarianceAnalysis;
+  facilityEfficiencyData: Array<{
+    facilityName: string;
+    averageCycleTime: number;
+    averageResponseTime: number;
+    totalSupplyRuns: number;
+    totalSupportHours: number;
+    utilityTransfers: number;
+    chemicalTransfers: number;
+  }>;
+}
+
+export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVarianceDashboardProps> = ({
+  cycleTimeVariance,
+  responseTimeVariance,
+  facilityEfficiencyData
+}) => {
+  // Prepare control chart data
+  const cycleTimeControlData = facilityEfficiencyData
+    .filter(f => f.averageCycleTime > 0)
+    .map(f => ({
+      vesselName: f.facilityName,
+      value: f.averageCycleTime
+    }));
+
+  const responseTimeControlData = facilityEfficiencyData
+    .filter(f => f.averageResponseTime > 0)
+    .map(f => ({
+      vesselName: f.facilityName,
+      value: f.averageResponseTime
+    }));
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg p-4">
+        <h2 className="text-lg font-bold mb-1">Production Support Variance Analysis</h2>
+        <p className="text-sm opacity-90">Statistical analysis of production facility support cycle times</p>
+      </div>
+      
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <VarianceStatsCard
+          title="Cycle Time Variance"
+          variance={cycleTimeVariance}
+          unit=" hrs"
+          icon={Clock}
+        />
+        <VarianceStatsCard
+          title="Response Time Variance"
+          variance={responseTimeVariance}
+          unit=" hrs"
+          icon={Ship}
+        />
+      </div>
+      
+      {/* Box Plots */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BoxPlot
+          data={cycleTimeVariance}
+          title="Cycle Time Distribution"
+          unit=" hrs"
+          color="bg-emerald-600"
+        />
+        <BoxPlot
+          data={responseTimeVariance}
+          title="Response Time Distribution"
+          unit=" hrs"
+          color="bg-emerald-600"
+        />
+      </div>
+      
+      {/* Control Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ControlChart
+          data={cycleTimeControlData}
+          title="Cycle Time Control Chart"
+          unit=" hrs"
+          mean={cycleTimeVariance.mean}
+          upperControlLimit={cycleTimeVariance.mean + 2 * cycleTimeVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, cycleTimeVariance.mean - 2 * cycleTimeVariance.standardDeviation)}
+          color="#059669"
+        />
+        <ControlChart
+          data={responseTimeControlData}
+          title="Response Time Control Chart"
+          unit=" hrs"
+          mean={responseTimeVariance.mean}
+          upperControlLimit={responseTimeVariance.mean + 2 * responseTimeVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, responseTimeVariance.mean - 2 * responseTimeVariance.standardDeviation)}
+          color="#059669"
+        />
+      </div>
+    </div>
+  );
+};

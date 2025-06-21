@@ -13,6 +13,14 @@ import {
 } from '../../utils/metricsCalculation';
 import { validateDataIntegrity } from '../../utils/dataIntegrityValidator';
 import { deduplicateBulkActions, getDrillingFluidMovements } from '../../utils/bulkFluidDeduplicationEngine';
+import { 
+  calculateDrillingOperationalVariance, 
+  calculateVesselUtilizationVariance 
+} from '../../utils/statisticalVariance';
+import { 
+  DrillingOperationalVarianceDashboard, 
+  VesselUtilizationVarianceDashboard 
+} from './VarianceAnalysisComponents';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -1519,6 +1527,136 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       };
     }
   }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions, filters, isDataReady]);
+
+  // Calculate variance analysis data
+  const varianceAnalysis = useMemo(() => {
+    if (!isDataReady || !voyageEvents.length || !vesselManifests.length || !costAllocation.length) {
+      return {
+        operationalVariance: {
+          liftsPerHourVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          costPerTonVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          visitsPerWeekVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          vesselOperationalData: []
+        },
+        vesselUtilization: {
+          utilizationVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          productiveHoursVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          vesselUtilizationData: []
+        }
+      };
+    }
+
+    // Determine time filtering parameters
+    let filterMonth: number | undefined;
+    let filterYear: number | undefined;
+    
+    if (filters.selectedMonth === 'YTD') {
+      const now = new Date();
+      filterYear = now.getFullYear();
+    } else if (filters.selectedMonth !== 'All Months') {
+      const [monthName, year] = filters.selectedMonth.split(' ');
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      filterMonth = monthNames.indexOf(monthName);
+      filterYear = parseInt(year);
+    }
+
+    try {
+      // Calculate drilling operational variance (lifts/hr, cost/ton, visits/week)
+      const operationalVariance = calculateDrillingOperationalVariance(
+        voyageEvents,
+        vesselManifests,
+        costAllocation,
+        filterMonth,
+        filterYear,
+        filters.selectedLocation !== 'All Locations' ? filters.selectedLocation : undefined
+      );
+
+      // Calculate vessel utilization variance
+      const vesselUtilization = calculateVesselUtilizationVariance(
+        voyageEvents,
+        costAllocation,
+        filterMonth,
+        filterYear,
+        filters.selectedLocation !== 'All Locations' ? filters.selectedLocation : undefined
+      );
+
+      console.log('📊 Drilling KPI Variance Analysis Complete:', {
+        operationalDataPoints: operationalVariance.vesselOperationalData.length,
+        vesselUtilizationDataPoints: vesselUtilization.vesselUtilizationData.length,
+        liftsPerHourCV: operationalVariance.liftsPerHourVariance.coefficientOfVariation.toFixed(1) + '%',
+        costPerTonCV: operationalVariance.costPerTonVariance.coefficientOfVariation.toFixed(1) + '%',
+        visitsPerWeekCV: operationalVariance.visitsPerWeekVariance.coefficientOfVariation.toFixed(1) + '%',
+        utilizationCV: vesselUtilization.utilizationVariance.coefficientOfVariation.toFixed(1) + '%',
+        outliers: {
+          liftsPerHour: operationalVariance.liftsPerHourVariance.outliers.length,
+          costPerTon: operationalVariance.costPerTonVariance.outliers.length,
+          visitsPerWeek: operationalVariance.visitsPerWeekVariance.outliers.length,
+          vesselUtilization: vesselUtilization.utilizationVariance.outliers.length
+        }
+      });
+
+      return {
+        operationalVariance,
+        vesselUtilization
+      };
+    } catch (error) {
+      console.error('❌ Error calculating drilling variance analysis:', error);
+      return {
+        operationalVariance: {
+          liftsPerHourVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          costPerTonVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          visitsPerWeekVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          vesselOperationalData: []
+        },
+        vesselUtilization: {
+          utilizationVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          productiveHoursVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          vesselUtilizationData: []
+        }
+      };
+    }
+  }, [voyageEvents, vesselManifests, costAllocation, filters, isDataReady]);
 
   // Get filter options
   const filterOptions = useMemo(() => {
@@ -3138,6 +3276,24 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             </div>
           </div>
 
+        </div>
+
+        {/* Statistical Variance Analysis Section */}
+        <div className="space-y-6">
+          {/* Drilling Operational KPI Variance Analysis */}
+          <DrillingOperationalVarianceDashboard
+            liftsPerHourVariance={varianceAnalysis.operationalVariance.liftsPerHourVariance}
+            costPerTonVariance={varianceAnalysis.operationalVariance.costPerTonVariance}
+            visitsPerWeekVariance={varianceAnalysis.operationalVariance.visitsPerWeekVariance}
+            vesselOperationalData={varianceAnalysis.operationalVariance.vesselOperationalData}
+          />
+
+          {/* Vessel Utilization Variance Analysis */}
+          <VesselUtilizationVarianceDashboard
+            utilizationVariance={varianceAnalysis.vesselUtilization.utilizationVariance}
+            productiveHoursVariance={varianceAnalysis.vesselUtilization.productiveHoursVariance}
+            vesselUtilizationData={varianceAnalysis.vesselUtilization.vesselUtilizationData}
+          />
         </div>
 
       </div>

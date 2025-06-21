@@ -13,6 +13,14 @@ import {
 } from '../../utils/metricsCalculation';
 import { validateDataIntegrity } from '../../utils/dataIntegrityValidator';
 import { deduplicateBulkActions, getProductionFluidMovements } from '../../utils/bulkFluidDeduplicationEngine';
+import { 
+  calculateProductionOperationalVariance, 
+  calculateProductionSupportVariance 
+} from '../../utils/statisticalVariance';
+import { 
+  ProductionOperationalVarianceDashboard, 
+  ProductionSupportVarianceDashboard 
+} from './VarianceAnalysisComponents';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -566,6 +574,138 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       };
     }
   }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions, filters, isDataReady]);
+
+  // Calculate variance analysis data for production operations
+  const varianceAnalysis = useMemo(() => {
+    if (!isDataReady || !voyageEvents.length || !vesselManifests.length || !costAllocation.length || !bulkActions.length) {
+      return {
+        operationalVariance: {
+          liftsPerHourVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          costPerTonVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          visitsPerWeekVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          vesselOperationalData: []
+        },
+        productionSupport: {
+          cycleTimeVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          responseTimeVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          facilityEfficiencyData: []
+        }
+      };
+    }
+
+    // Determine time filtering parameters
+    let filterMonth: number | undefined;
+    let filterYear: number | undefined;
+    
+    if (filters.selectedMonth === 'YTD') {
+      const now = new Date();
+      filterYear = now.getFullYear();
+    } else if (filters.selectedMonth !== 'All Months') {
+      const [monthName, year] = filters.selectedMonth.split(' ');
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      filterMonth = monthNames.indexOf(monthName);
+      filterYear = parseInt(year);
+    }
+
+    try {
+      // Calculate production operational variance (lifts/hr, cost/ton, visits/week)
+      const operationalVariance = calculateProductionOperationalVariance(
+        bulkActions,
+        voyageEvents,
+        vesselManifests,
+        costAllocation,
+        filterMonth,
+        filterYear,
+        filters.selectedLocation !== 'All Locations' ? filters.selectedLocation : undefined
+      );
+
+      // Calculate production support variance
+      const productionSupport = calculateProductionSupportVariance(
+        voyageEvents,
+        vesselManifests,
+        costAllocation,
+        filterMonth,
+        filterYear,
+        filters.selectedLocation !== 'All Locations' ? filters.selectedLocation : undefined
+      );
+
+      console.log('📊 Production KPI Variance Analysis Complete:', {
+        operationalDataPoints: operationalVariance.vesselOperationalData.length,
+        productionSupportDataPoints: productionSupport.facilityEfficiencyData.length,
+        liftsPerHourCV: operationalVariance.liftsPerHourVariance.coefficientOfVariation.toFixed(1) + '%',
+        costPerTonCV: operationalVariance.costPerTonVariance.coefficientOfVariation.toFixed(1) + '%',
+        visitsPerWeekCV: operationalVariance.visitsPerWeekVariance.coefficientOfVariation.toFixed(1) + '%',
+        cycleTimeCV: productionSupport.cycleTimeVariance.coefficientOfVariation.toFixed(1) + '%',
+        outliers: {
+          liftsPerHour: operationalVariance.liftsPerHourVariance.outliers.length,
+          costPerTon: operationalVariance.costPerTonVariance.outliers.length,
+          visitsPerWeek: operationalVariance.visitsPerWeekVariance.outliers.length,
+          productionSupport: productionSupport.cycleTimeVariance.outliers.length
+        }
+      });
+
+      return {
+        operationalVariance,
+        productionSupport
+      };
+    } catch (error) {
+      console.error('❌ Error calculating production variance analysis:', error);
+      return {
+        operationalVariance: {
+          liftsPerHourVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          costPerTonVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          visitsPerWeekVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          vesselOperationalData: []
+        },
+        productionSupport: {
+          cycleTimeVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          responseTimeVariance: {
+            mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
+            median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
+            outliers: [], min: 0, max: 0, count: 0
+          },
+          facilityEfficiencyData: []
+        }
+      };
+    }
+  }, [voyageEvents, vesselManifests, costAllocation, bulkActions, filters, isDataReady]);
 
   // Get filter options for SmartFilterBar
   const filterOptions = useMemo(() => {
@@ -1922,6 +2062,25 @@ Note: Excludes drilling/completion fluids`;
             </div>
           </div>
         </div>
+
+        {/* Statistical Variance Analysis Section */}
+        <div className="space-y-6">
+          {/* Production Operational KPI Variance Analysis */}
+          <ProductionOperationalVarianceDashboard
+            liftsPerHourVariance={varianceAnalysis.operationalVariance.liftsPerHourVariance}
+            costPerTonVariance={varianceAnalysis.operationalVariance.costPerTonVariance}
+            visitsPerWeekVariance={varianceAnalysis.operationalVariance.visitsPerWeekVariance}
+            vesselOperationalData={varianceAnalysis.operationalVariance.vesselOperationalData}
+          />
+
+          {/* Production Support Variance Analysis */}
+          <ProductionSupportVarianceDashboard
+            cycleTimeVariance={varianceAnalysis.productionSupport.cycleTimeVariance}
+            responseTimeVariance={varianceAnalysis.productionSupport.responseTimeVariance}
+            facilityEfficiencyData={varianceAnalysis.productionSupport.facilityEfficiencyData}
+          />
+        </div>
+
       </div>
     </div>
   );
