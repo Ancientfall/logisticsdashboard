@@ -9,7 +9,8 @@ import LoadingBoundary from './components/layout/LoadingBoundary'
 
 // Dashboard components
 import DashboardLayout from './components/layout/DashboardLayout'
-import FileUploadPageWithDB from './components/dashboard/FileUploadPageWithDB'
+import EnhancedFileUploadWithServer from './components/EnhancedFileUploadWithServer'
+import DashboardShowcase from './components/DashboardShowcase'
 import MainDashboard from './components/dashboard/MainDashboard'
 import DrillingDashboard from './components/dashboard/DrillingDashboard'
 import VoyageAnalyticsDashboard from './components/dashboard/VoyageAnalyticsDashboard'
@@ -34,7 +35,7 @@ const LandingPageWrapper: React.FC = () => {
 	return (
 		<LandingPage 
 			onGetStarted={() => navigate('/upload')} 
-			onViewDashboard={() => navigate('/dashboard')} 
+			onViewDashboard={() => navigate('/dashboards')} 
 			hasData={hasData} 
 		/>
 	)
@@ -55,9 +56,11 @@ function App() {
 								{/* Dashboard routes - no authentication required */}
 								<Route path="/upload" element={
 									<DashboardLayout>
-										<FileUploadPageWithDB />
+										<EnhancedFileUploadWithServer />
 									</DashboardLayout>
 								} />
+								
+								<Route path="/dashboards" element={<DashboardShowcase />} />
 								
 								<Route path="/dashboard" element={
 									<DashboardLayout>

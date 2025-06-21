@@ -1,5 +1,6 @@
 // src/components/EnhancedFileUploadWithServer.tsx
 import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { processExcelFiles } from '../utils/dataProcessing';
 import LoadingScreen from './ui/LoadingScreen';
@@ -33,6 +34,7 @@ const SERVER_FILE_MAPPING = {
 } as const;
 
 const EnhancedFileUploadWithServer: React.FC = () => {
+  const navigate = useNavigate();
   const { 
     setVoyageEvents,
     setVesselManifests,
@@ -89,24 +91,50 @@ const EnhancedFileUploadWithServer: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [loadingMethod, setLoadingMethod] = useState<'server' | 'local' | null>(null);
 
-  // Check for server files on component mount
+  // Check for server files on component mount - ONLY ONCE
   useEffect(() => {
-    checkServerFiles();
+    let mounted = true;
+    
+    const checkOnce = async () => {
+      if (mounted) {
+        await checkServerFiles();
+      }
+    };
+    
+    checkOnce();
+    
+    return () => {
+      mounted = false;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Empty dependency array ensures this runs only once
+
+  // Get API base URL for local development vs production
+  const getApiBaseUrl = () => {
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://localhost:5001';
+    }
+    return window.location.origin;
+  };
 
   // Check server files availability
   const checkServerFiles = async () => {
     try {
       setCheckingServer(true);
       
-      // Try to fetch server files
-      const response = await fetch('/api/excel-files', {
+      // Try to fetch server files with proper base URL and timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${getApiBaseUrl()}/api/excel-files`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
         const data: ServerFilesResponse = await response.json();
@@ -116,17 +144,13 @@ const EnhancedFileUploadWithServer: React.FC = () => {
           setServerMetadata(data.metadata);
           setServerAvailable(true);
           
-          // Check if we have all required files
-          const requiredFiles = Object.keys(SERVER_FILE_MAPPING);
-          const availableFiles = data.files.map(f => f.name);
-          const allRequired = requiredFiles.every(file => availableFiles.includes(file));
+          // Check if we have all required files (for future use if needed)
+          // const requiredFiles = Object.keys(SERVER_FILE_MAPPING);
+          // const availableFiles = data.files.map(f => f.name);
+          // const allRequired = requiredFiles.every(file => availableFiles.includes(file));
           
-          if (allRequired) {
-            // Auto-load server files if all required files are available
-            setTimeout(() => {
-              loadFromServer();
-            }, 1000);
-          }
+          // Note: Auto-loading removed to prevent polling loops
+          // User must manually click "Load Data from Server" button
         } else {
           setServerAvailable(false);
         }
@@ -134,7 +158,12 @@ const EnhancedFileUploadWithServer: React.FC = () => {
         setServerAvailable(false);
       }
     } catch (error) {
-      console.log('Server files not available, using local upload mode');
+      // Only log once to avoid console spam
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Server check timed out - server may not be running');
+      } else {
+        console.log('Server files not available, using local upload mode');
+      }
       setServerAvailable(false);
     } finally {
       setCheckingServer(false);
@@ -165,7 +194,7 @@ const EnhancedFileUploadWithServer: React.FC = () => {
         
         if (fileType) {
           try {
-            const response = await fetch(`/api/excel-files/${encodeURIComponent(serverFile.name)}`);
+            const response = await fetch(`${getApiBaseUrl()}/api/excel-files/${encodeURIComponent(serverFile.name)}`);
             
             if (response.ok) {
               const blob = await response.blob();
@@ -211,6 +240,11 @@ const EnhancedFileUploadWithServer: React.FC = () => {
       
       setIsDataReady(true);
       setProcessingStatus('success');
+      
+      // Navigate to dashboard after successful loading
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
       
     } catch (error) {
       console.error('Error loading from server:', error);
@@ -297,6 +331,11 @@ const EnhancedFileUploadWithServer: React.FC = () => {
       
       setIsDataReady(true);
       setProcessingStatus('success');
+      
+      // Navigate to dashboard after successful loading
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
     } catch (error) {
       console.error('Error processing local files:', error);
       setErrorMessage(`Error processing files: ${error instanceof Error ? error.message : String(error)}`);
@@ -465,7 +504,24 @@ const EnhancedFileUploadWithServer: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Load Excel Data</h2>
+      <div className="text-center mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => navigate('/')}
+            className="text-gray-600 hover:text-gray-800 flex items-center gap-2 transition-colors"
+          >
+            ← Back to Home
+          </button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="text-blue-600 hover:text-blue-800 flex items-center gap-2 transition-colors"
+          >
+            Skip to Dashboard →
+          </button>
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">BP Logistics Data Center</h1>
+        <p className="text-lg text-gray-600">Load Excel data to power your analytics dashboards</p>
+      </div>
       
       {errorMessage && (
         <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">

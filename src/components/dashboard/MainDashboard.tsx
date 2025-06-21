@@ -6,6 +6,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import { uploadAPI } from '../../services/api';
 import { Database, FileText, AlertTriangle, CheckCircle, Users, TrendingUp, Download, RefreshCw, Settings, Package, Bell } from 'lucide-react';
 import { getVesselTypeFromName, getVesselCompanyFromName, getVesselStatistics } from '../../data/vesselClassification';
+import { detectDuplicates, generateDuplicateReport } from '../../utils/duplicateDetection';
 
 interface MainDashboardProps {
   onNavigateToUpload?: () => void;
@@ -20,14 +21,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     voyageList,
     bulkActions,
     isDataReady,
-    forceRefreshFromStorage,
-    loadDataFromPostgreSQL
+    forceRefreshFromStorage
   } = useData();
   
   const { addNotification } = useNotifications();
   const [isClearing, setIsClearing] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
-  const [isPostgreSQLLoading, setIsPostgreSQLLoading] = useState(false);
   // const [isRollback, setIsRollback] = useState(false); // Unused for now
   
   const handleNavigateToUpload = () => {
@@ -38,37 +37,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
     }
   };
 
-  const handleForceLoadPostgreSQL = async () => {
-    setIsPostgreSQLLoading(true);
-    try {
-      addNotification('system-update', {
-        title: 'Loading Data',
-        message: 'Force loading data from PostgreSQL database...'
-      });
-      
-      const success = await loadDataFromPostgreSQL();
-      
-      if (success) {
-        addNotification('system-update', {
-          title: 'Success',
-          message: 'Data successfully loaded from PostgreSQL database!'
-        });
-      } else {
-        addNotification('system-update', {
-          title: 'No Data',
-          message: 'No data found in PostgreSQL database. Upload some Excel files first.'
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load PostgreSQL data:', error);
-      addNotification('system-update', {
-        title: 'Error',
-        message: 'Failed to load data from PostgreSQL database.'
-      });
-    } finally {
-      setIsPostgreSQLLoading(false);
-    }
-  };
   
   const [activeTab, setActiveTab] = useState<'overview' | 'quality' | 'vessels' | 'timeline'>('overview');
 
@@ -268,53 +236,29 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       voyageEventsWithMissingLocation: voyageEvents.filter(e => !e.location || e.location.trim() === '').length,
       manifestsWithMissingTransporter: vesselManifests.filter(m => !m.transporter || m.transporter.trim() === '').length,
       eventsWithZeroHours: voyageEvents.filter(e => (e.finalHours || e.hours || 0) === 0).length,
-      // Fixed: Check for duplicate business logic records with better handling of null values
+      // Advanced duplicate detection using dedicated utility
       duplicateEventIds: (() => {
-        const signatures = new Set();
-        const signatureDetails = new Map(); // For debugging
-        let duplicates = 0;
+        const duplicateResult = detectDuplicates(voyageEvents);
         
-        voyageEvents.forEach((e, index) => {
-          // Handle null/undefined values properly
-          const mission = e.mission || '';
-          const vessel = e.vessel || '';
-          const voyageNumber = e.voyageNumber || '';
-          const event = e.event || '';
-          const from = e.from || '';
-          const to = e.to || '';
-          const hours = e.hours || 0;
-          
-          const sig = `${mission}-${vessel}-${voyageNumber}-${event}-${from}-${to}-${hours}`;
-          
-          if (signatures.has(sig)) {
-            duplicates++;
-            // Log some examples for debugging (only first 5)
-            if (duplicates <= 5) {
-              console.log(`🔍 Duplicate found #${duplicates}:`, {
-                signature: sig,
-                record: { mission, vessel, voyageNumber, event, from, to, hours },
-                originalIndex: signatureDetails.get(sig),
-                currentIndex: index
-              });
-            }
-          } else {
-            signatures.add(sig);
-            signatureDetails.set(sig, index);
-          }
-        });
+        // Log comprehensive analysis
+        console.log(generateDuplicateReport(duplicateResult));
         
-        if (duplicates > 0) {
-          console.log(`📊 Total duplicates found: ${duplicates} out of ${voyageEvents.length} records`);
+        // Log high-priority duplicate groups for immediate attention
+        const highSeverityGroups = duplicateResult.duplicateGroups.filter(g => g.severityLevel === 'High');
+        if (highSeverityGroups.length > 0) {
+          console.log(`🚨 HIGH PRIORITY DUPLICATES (${highSeverityGroups.length} groups):`);
+          highSeverityGroups.slice(0, 3).forEach((group, index) => {
+            console.log(`   Group ${index + 1}: ${group.count} identical records`);
+            console.log(`   Example: ${group.records[0].vessel} - ${group.records[0].event} - ${group.records[0].location}`);
+            console.log(`   Recommendation: ${group.explanation}`);
+          });
         }
         
-        return duplicates;
+        return duplicateResult.totalDuplicates;
       })(),
-      // Fixed: Check the correct field for bulk actions destination (uses atPort field)
-      bulkActionsWithMissingDestination: bulkActions.filter(b => {
-        const dest = (b as any).atPort || (b as any).destinationPort || (b as any).to;
-        return !dest || dest.trim() === '';
-      }).length,
-      bulkActionsWithZeroVolume: bulkActions.filter(b => ((b as any).volume || (b as any).quantity || 0) === 0).length
+      // Using correct field names from BulkAction interface  
+      bulkActionsWithMissingDestination: bulkActions.filter(b => !b.atPort || b.atPort.trim() === '').length,
+      bulkActionsWithZeroVolume: bulkActions.filter(b => (b.qty || 0) === 0).length
     };
     
     // Monthly breakdown - Fixed to use actual database field names
@@ -340,13 +284,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
       return acc;
     }, {} as Record<string, { key: string; label: string; events: number; hours: number }>);
     
-    // Bulk Actions analysis - Fixed to use actual database field names from BulkAction interface
+    // Bulk Actions analysis - Using correct field names from BulkAction interface
     const bulkActionsAnalysis = {
       totalTransfers: bulkActions.length,
-      totalVolumeBbls: bulkActions.reduce((sum, action) => sum + ((action as any).volumeBbls || (action as any).qty || 0), 0),
-      uniqueBulkTypes: new Set(bulkActions.map(b => (b as any).bulkType || (b as any).cargoType)).size,
-      shorebaseToRig: bulkActions.filter(b => ((b as any).portType || '').toLowerCase() === 'base' && (b as any).atPort).length,
-      rigToShorebase: bulkActions.filter(b => ((b as any).portType || '').toLowerCase() === 'rig').length
+      totalVolumeBbls: bulkActions.reduce((sum, action) => sum + (action.qty || 0), 0),
+      uniqueBulkTypes: new Set(bulkActions.map(b => b.bulkType).filter(Boolean)).size,
+      shorebaseToRig: bulkActions.filter(b => b.portType === 'base' && b.atPort).length,
+      rigToShorebase: bulkActions.filter(b => b.portType === 'rig').length
     };
     
     return {
@@ -451,14 +395,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToUpload }) => 
             >
               <RefreshCw size={16} />
               Refresh Cache
-            </button>
-            <button
-              onClick={handleForceLoadPostgreSQL}
-              disabled={isPostgreSQLLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Database size={16} className={isPostgreSQLLoading ? 'animate-pulse' : ''} />
-              {isPostgreSQLLoading ? 'Loading...' : 'Load from PostgreSQL'}
             </button>
             <button
               onClick={handleNavigateToUpload}

@@ -51,6 +51,10 @@ export const processVoyageEvents = (
 
   console.log(`📊 Processing ALL ${rawEvents.length} voyage events (ignoring "Is active?" column)`);
   
+  // Track voyage number statistics
+  let eventsWithVoyageNumbers = 0;
+  let eventsWithoutVoyageNumbers = 0;
+  
   for (const event of rawEvents) {
     try {
       // Parse dates
@@ -98,11 +102,41 @@ export const processVoyageEvents = (
         // Calculate vessel costs for this event
         const vesselCostInfo = calculateVesselCost(eventDate, finalHours);
 
+        // Enhanced voyage number handling with tracking
+        const rawVoyageNumber = event["Voyage #"];
+        const processedVoyageNumber = rawVoyageNumber !== null && rawVoyageNumber !== undefined ? 
+          String(rawVoyageNumber).trim() : '';
+        
+        // Track voyage number statistics
+        if (processedVoyageNumber) {
+          eventsWithVoyageNumbers++;
+        } else {
+          eventsWithoutVoyageNumbers++;
+          
+          // Log first 3 examples of events without voyage numbers for debugging
+          if (eventsWithoutVoyageNumbers <= 3) {
+            console.log(`🔍 Event without voyage number #${eventsWithoutVoyageNumbers}:`, {
+              vessel: event.Vessel,
+              mission: event.Mission,
+              parentEvent: event["Parent Event"],
+              event: event.Event,
+              location: event.Location,
+              from: event.From,
+              rawVoyageNumber: rawVoyageNumber
+            });
+          }
+        }
+        
+        // Create a unique ID that handles missing voyage numbers gracefully
+        const eventId = processedVoyageNumber ? 
+          `${event.Vessel}-${processedVoyageNumber}-${processedEvents.length}` :
+          `${event.Vessel}-NOVOYAGE-${processedEvents.length}`;
+
         processedEvents.push({
-          id: `${event.Vessel}-${event["Voyage #"]}-${processedEvents.length}`,
+          id: eventId,
           mission: event.Mission,
           vessel: event.Vessel,
-          voyageNumber: String(event["Voyage #"]),
+          voyageNumber: processedVoyageNumber,
           event: event.Event || undefined, // Convert null to undefined
           parentEvent: event["Parent Event"],
           location: event.Location,
@@ -139,7 +173,7 @@ export const processVoyageEvents = (
           ins500m: event["Ins. 500m"],
           year: event.Year,
           company: inferCompanyFromVessel(event.Vessel),
-          standardizedVoyageNumber: String(event["Voyage #"]).trim(),
+          standardizedVoyageNumber: processedVoyageNumber || 'NO_VOYAGE',
           
           // Vessel Cost Information
           vesselCostTotal: vesselCostInfo.totalCost,
@@ -160,6 +194,14 @@ export const processVoyageEvents = (
   console.log(`   🚢 Logistics: ${departmentStats.Logistics} events (${(departmentStats.Logistics / departmentStats.totalEvents * 100).toFixed(1)}%)`);
   console.log(`   ❓ Unknown: ${departmentStats.Unknown} events (${(departmentStats.Unknown / departmentStats.totalEvents * 100).toFixed(1)}%)`);
   console.log(`   📊 Total: ${departmentStats.totalEvents} events processed`);
+
+  // Log voyage number analysis
+  console.log(`🧭 VOYAGE NUMBER ANALYSIS:`);
+  console.log(`   ✅ Events with voyage numbers: ${eventsWithVoyageNumbers} (${(eventsWithVoyageNumbers / rawEvents.length * 100).toFixed(1)}%)`);
+  console.log(`   ❌ Events without voyage numbers: ${eventsWithoutVoyageNumbers} (${(eventsWithoutVoyageNumbers / rawEvents.length * 100).toFixed(1)}%)`);
+  if (eventsWithoutVoyageNumbers > 0) {
+    console.log(`   💡 Note: Events without voyage numbers are often maintenance, port activities, or off-hire periods`);
+  }
 
   console.log(`✅ Successfully processed ${processedEvents.length} voyage events from ${rawEvents.length} raw events`);
   return processedEvents;
