@@ -599,26 +599,66 @@ export const calculateEnhancedKPIMetrics = (
     ? manifestMetrics.totalLifts / voyageEventMetrics.cargoOpsHours 
     : 0;
 
-  // Use existing cost calculation logic with proper month/year filtering
-  const monthFilteredEvents = (currentMonth !== undefined && currentYear !== undefined)
-    ? voyageEvents.filter(event => 
-        event.eventDate.getMonth() === currentMonth && 
-        event.eventDate.getFullYear() === currentYear
-      )
-    : voyageEvents; // Use all events if no month/year filter
+  // Use existing cost calculation logic with proper month/year and location filtering
+  let filteredEvents = voyageEvents;
+  
+  // Apply time filtering
+  if (currentMonth !== undefined && currentYear !== undefined) {
+    filteredEvents = filteredEvents.filter(event => 
+      event.eventDate.getMonth() === currentMonth && 
+      event.eventDate.getFullYear() === currentYear
+    );
+  }
+  
+  // Apply location filtering
+  if (locationFilter && locationFilter !== 'All Locations') {
+    const beforeLocationFilter = filteredEvents.length;
     
-  const vesselCostMetrics = calculateVesselCostMetrics(monthFilteredEvents);
+    // Get cost allocation data for location-based LC filtering
+    const locationCostAllocations = costAllocation.filter(ca => {
+      if (locationFilter === 'Thunder Horse (Drilling)') {
+        return (ca.isThunderHorse && ca.isDrilling) || ca.description?.toLowerCase().includes('thunder horse');
+      } else if (locationFilter === 'Mad Dog (Drilling)') {
+        return (ca.isMadDog && ca.isDrilling) || ca.description?.toLowerCase().includes('mad dog');
+      } else if (locationFilter === 'Thunder Horse (Production)') {
+        return (ca.isThunderHorse && !ca.isDrilling) || ca.description?.toLowerCase().includes('thunder horse');
+      } else if (locationFilter === 'Mad Dog (Production)') {
+        return (ca.isMadDog && !ca.isDrilling) || ca.description?.toLowerCase().includes('mad dog');
+      }
+      
+      // Generic location filtering
+      return (
+        ca.locationReference?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        ca.description?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+        ca.rigLocation?.toLowerCase().includes(locationFilter.toLowerCase())
+      );
+    });
+    
+    const locationLCs = new Set(locationCostAllocations.map(ca => ca.lcNumber).filter(Boolean));
+    
+    // Filter events by location-specific LCs and direct location matching
+    filteredEvents = filteredEvents.filter(event => 
+      (event.lcNumber && locationLCs.has(event.lcNumber)) ||
+      event.location?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+      event.mappedLocation?.toLowerCase().includes(locationFilter.toLowerCase())
+    );
+    
+    console.log(`📍 Vessel cost location filter "${locationFilter}": Found ${locationCostAllocations.length} cost allocations, ${locationLCs.size} unique LCs, ${filteredEvents.length}/${beforeLocationFilter} events match`);
+  }
+    
+  const vesselCostMetrics = calculateVesselCostMetrics(filteredEvents);
   
   // Enhanced cost logging with detailed breakdown
   console.log(`💰 VESSEL COST CALCULATION for ${department}:`, {
-    monthFilteredEventsCount: monthFilteredEvents.length,
+    filteredEventsCount: filteredEvents.length,
+    locationFilter: locationFilter || 'All Locations',
     totalVesselCost: vesselCostMetrics.totalVesselCost,
     averageVesselCostPerHour: vesselCostMetrics.averageVesselCostPerHour,
     vesselCostByDepartment: vesselCostMetrics.vesselCostByDepartment
   });
   
-  if (vesselCostMetrics.totalVesselCost === 0 && monthFilteredEvents.length > 0) {
-    console.warn(`⚠️ No vessel cost calculated for ${department} - check cost allocation data`);
+  if (vesselCostMetrics.totalVesselCost === 0 && filteredEvents.length > 0) {
+    console.warn(`⚠️ No vessel cost calculated for ${department} with ${filteredEvents.length} filtered events - check cost allocation data`);
   }
 
   // Build enhanced KPI metrics response
