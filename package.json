@@ -85,10 +85,10 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "node scripts/start.js",
-    "build": "node scripts/build.js",
-    "test": "node scripts/test.js",
-    "excel-server": "node simple-excel-server.js",
+    "start": "NODE_NO_WARNINGS=1 node scripts/start.js",
+    "build": "NODE_NO_WARNINGS=1 node scripts/build.js",
+    "test": "NODE_NO_WARNINGS=1 node scripts/test.js",
+    "excel-server": "NODE_NO_WARNINGS=1 node simple-excel-server.js",
     "dev": "concurrently \"npm run excel-server\" \"npm start\""
   },
   "eslintConfig": {
