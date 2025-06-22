@@ -296,9 +296,46 @@ export const calculateEnhancedVoyageEventMetrics = (
       return sum + (event.finalHours * percentage);
     }, 0);
 
-  // Vessel utilization
+  // Vessel utilization - cap at 100% to prevent unrealistic values
   const totalHours = productiveHours + nonProductiveHours;
-  const vesselUtilization = totalOffshoreTime > 0 ? (productiveHours / totalOffshoreTime) * 100 : 0;
+  const rawUtilization = totalOffshoreTime > 0 ? (productiveHours / totalOffshoreTime) * 100 : 0;
+  // Determine final utilization value with aggressive capping for extreme values
+  let vesselUtilization: number;
+  
+  // FORCE ALERT if we see 5713.6% to identify the source
+  if (rawUtilization > 5000) {
+    console.error(`🚨 EXTREME UTILIZATION DETECTED: ${rawUtilization.toFixed(1)}% - FORCE CAPPING TO 100%`, {
+      productiveHours,
+      totalOffshoreTime,
+      department,
+      calculation: `${productiveHours} / ${totalOffshoreTime} * 100`,
+      forceCappedTo: 100,
+      stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n')
+    });
+    vesselUtilization = 100; // Force cap for extreme values
+  } else {
+    vesselUtilization = Math.min(rawUtilization, 100); // Normal cap at 100%
+  }
+  
+  // Debug excessive utilization values
+  if (rawUtilization > 100) {
+    console.warn(`⚠️ UTILIZATION DEBUG: Raw utilization ${rawUtilization.toFixed(1)}% (capped to ${vesselUtilization.toFixed(1)}%)`, {
+      productiveHours: productiveHours.toFixed(1),
+      totalOffshoreTime: totalOffshoreTime.toFixed(1),
+      nonProductiveHours: nonProductiveHours.toFixed(1),
+      calculation: `${productiveHours.toFixed(1)} / ${totalOffshoreTime.toFixed(1)} * 100 = ${rawUtilization.toFixed(1)}%`,
+      cappedValue: vesselUtilization,
+      note: 'UTILIZATION CAPPED TO PREVENT UNREALISTIC VALUES'
+    });
+  }
+  
+  // Always log utilization for debugging the 5713.6% issue
+  console.log(`🔧 VESSEL UTILIZATION CALCULATION: ${vesselUtilization.toFixed(1)}% (raw: ${rawUtilization.toFixed(1)}%)`, {
+    productiveHours: productiveHours.toFixed(1),
+    totalOffshoreTime: totalOffshoreTime.toFixed(1),
+    department,
+    finalValue: vesselUtilization
+  });
   
   // Waiting time percentage
   const waitingTimePercentage = totalOffshoreTime > 0 ? (waitingTimeOffshore / totalOffshoreTime) * 100 : 0;
@@ -1103,9 +1140,21 @@ export const calculateMetrics = (
   const totalRTTons = manifestMetrics.totalRTTons;
   const cargoTonnagePerVisit = manifestMetrics.cargoTonnagePerVisit;
 
-  // Vessel Utilization Rate (Productive Hours / Total Hours)
+  // Vessel Utilization Rate (Productive Hours / Total Hours) - cap at 100%
   const totalHours = totalOffshoreTime + totalOnshoreTime;
-  const vesselUtilizationRate = totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
+  const rawUtilizationRate = totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
+  const vesselUtilizationRate = Math.min(rawUtilizationRate, 100); // Cap at 100%
+  
+  // Debug excessive utilization values
+  if (rawUtilizationRate > 100) {
+    console.warn(`⚠️ UTILIZATION RATE DEBUG: Raw rate ${rawUtilizationRate.toFixed(1)}% (capped to 100%)`, {
+      productiveHours: productiveHours.toFixed(1),
+      totalOffshoreTime: totalOffshoreTime.toFixed(1),
+      totalOnshoreTime: totalOnshoreTime.toFixed(1),
+      totalHours: totalHours.toFixed(1),
+      calculation: `${productiveHours.toFixed(1)} / ${totalHours.toFixed(1)} * 100 = ${rawUtilizationRate.toFixed(1)}%`
+    });
+  }
 
   // Average Trip Duration
   const averageTripDuration = calculateAverageTripDuration(currentMonthEvents);

@@ -22,36 +22,67 @@ interface BulkActionsDashboardProps {
 
 const BulkActionsDashboard: React.FC<BulkActionsDashboardProps> = ({ onNavigateToUpload }) => {
   const { bulkActions } = useData();
-  // Simplified filters for SmartFilterBar
+  // Enhanced filters including time period for SmartFilterBar
   const [filters, setFilters] = useState({
     selectedVessel: 'All Vessels',
-    selectedBulkType: 'All Types'
+    selectedBulkType: 'All Types',
+    selectedTimePeriod: 'All Months'
   });
   const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 20;
 
-  // Filter bulk actions
+  // Filter bulk actions with time period support
   const filteredBulkActions = useMemo(() => {
     return bulkActions.filter(action => {
       const vesselMatch = filters.selectedVessel === 'All Vessels' || action.vesselName === filters.selectedVessel;
       const bulkTypeMatch = filters.selectedBulkType === 'All Types' || action.bulkType === filters.selectedBulkType;
+      
+      // Time period filtering
+      let timeMatch = true;
+      if (filters.selectedTimePeriod !== 'All Months' && action.startDate) {
+        const actionDate = new Date(action.startDate);
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        
+        if (filters.selectedTimePeriod === 'YTD') {
+          // Year to Date: January 1, 2025 to current date in 2025
+          timeMatch = actionDate.getFullYear() === currentYear;
+        } else if (filters.selectedTimePeriod !== 'All Months') {
+          // Specific month filter
+          const dateString = `${actionDate.toLocaleString('en-US', { month: 'long' })} ${actionDate.getFullYear()}`;
+          timeMatch = dateString === filters.selectedTimePeriod;
+        }
+      }
 
-      return vesselMatch && bulkTypeMatch;
+      return vesselMatch && bulkTypeMatch && timeMatch;
     });
   }, [bulkActions, filters]);
 
   // Reset to page 1 if filters change
   useEffect(() => { setCurrentPage(1); }, [filteredBulkActions]);
 
-  // Get filter options for SmartFilterBar
+  // Get filter options for SmartFilterBar including time periods
   const filterOptions = useMemo(() => {
     const vessels = Array.from(new Set(bulkActions.map(a => a.vesselName))).sort();
     const bulkTypes = Array.from(new Set(bulkActions.map(a => a.bulkType))).sort();
     
+    // Get unique months from bulk actions
+    const uniqueMonths = [...new Set(bulkActions
+      .filter(action => action.startDate && action.startDate instanceof Date && !isNaN(action.startDate.getTime()))
+      .map(action => {
+        const date = action.startDate!;
+        return `${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`;
+      }))].sort((a, b) => {
+        const dateA = new Date(a);
+        const dateB = new Date(b);
+        return dateB.getTime() - dateA.getTime();
+      });
+    
     return {
       vessels: ['All Vessels', ...vessels],
-      bulkTypes: ['All Types', ...bulkTypes]
+      bulkTypes: ['All Types', ...bulkTypes],
+      timePeriods: ['All Months', 'YTD', ...uniqueMonths]
     };
   }, [bulkActions]);
 
@@ -196,18 +227,43 @@ const BulkActionsDashboard: React.FC<BulkActionsDashboardProps> = ({ onNavigateT
         </div>
       </div>
 
-      {/* Smart Filter Bar */}
+      {/* Enhanced Smart Filter Bar with Time Period Support */}
       <SmartFilterBar
-        timeFilter={filters.selectedVessel}
+        timeFilter={filters.selectedTimePeriod}
         locationFilter={filters.selectedBulkType}
-        onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedVessel: value }))}
+        onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedTimePeriod: value }))}
         onLocationChange={(value) => setFilters(prev => ({ ...prev, selectedBulkType: value }))}
-        timeOptions={filterOptions.vessels.map(vessel => ({ value: vessel, label: vessel }))}
+        timeOptions={filterOptions.timePeriods.map(period => ({ value: period, label: period }))}
         locationOptions={filterOptions.bulkTypes.map(type => ({ value: type, label: type }))}
         totalRecords={bulkActions.length}
         filteredRecords={filteredBulkActions.length}
         showPresets={true}
       />
+
+      {/* Additional Vessel Filter */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <MapPin className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-1">
+              Vessel Filter
+            </label>
+            <select 
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00754F] focus:border-[#00754F] hover:border-gray-300 transition-all duration-200"
+              value={filters.selectedVessel}
+              onChange={(e) => setFilters(prev => ({ ...prev, selectedVessel: e.target.value }))}
+            >
+              {filterOptions.vessels.map(vessel => (
+                <option key={vessel} value={vessel}>
+                  {vessel}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Core Transfer KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">

@@ -1514,7 +1514,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         hours: {
           totalOSVHours: voyageMetrics.totalHours,
           totalProductiveHours: voyageMetrics.productiveHours,
-          productiveHoursPercentage: voyageMetrics.totalHours > 0 ? (voyageMetrics.productiveHours / voyageMetrics.totalHours) * 100 : 0,
+          productiveHoursPercentage: voyageMetrics.totalHours > 0 ? Math.min((voyageMetrics.productiveHours / voyageMetrics.totalHours) * 100, 100) : 0,
           averageTripDuration: 0 // Will be calculated from voyage duration if needed
         },
         
@@ -1527,7 +1527,12 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         
         // Utilization metrics from enhanced calculations
         utilization: {
-          vesselUtilization: voyageMetrics.vesselUtilization,
+          vesselUtilization: (() => {
+            const rawValue = voyageMetrics.vesselUtilization || 0;
+            const cappedValue = Math.min(rawValue, 100);
+            console.log(`🎯 DRILLING DASHBOARD: Vessel utilization ${rawValue.toFixed(1)}% -> ${cappedValue.toFixed(1)}%`);
+            return cappedValue;
+          })(),
           transitTimeHours: voyageMetrics.transitTime || 0,
           atLocationHours: voyageMetrics.totalOffshoreTime || 0
         },
@@ -1594,6 +1599,18 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           kpiFiltering: 'Event-based filtering (LC numbers + location matching)',
           rigAnalysisFiltering: 'Rig location mapping + drilling facility recognition'
         }
+      });
+      
+      // FORCE LOG ALL UTILIZATION VALUES BEING RETURNED TO IDENTIFY 5713.6% SOURCE
+      console.error('🚨 FINAL DRILLING METRICS UTILIZATION VALUES:', {
+        vesselUtilization: metrics.utilization.vesselUtilization,
+        rawVoyageMetricsUtilization: voyageMetrics.vesselUtilization,
+        utilizationSource: 'metrics.utilization.vesselUtilization',
+        allUtilizationValues: {
+          metricsUtilization: metrics.utilization,
+          voyageMetricsUtilization: voyageMetrics.vesselUtilization
+        },
+        timestamp: new Date().toISOString()
       });
 
       return metrics;

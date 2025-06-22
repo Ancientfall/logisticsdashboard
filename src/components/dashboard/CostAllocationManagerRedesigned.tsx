@@ -34,27 +34,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     isDataReady
   } = useData();
 
-  // Debug logging
-  console.log('🔍 CostAllocationDashboard Debug:', {
-    isDataReady,
-    costAllocationCount: costAllocation?.length || 0,
-    costAllocationSample: costAllocation?.slice(0, 3),
-    voyageEventsCount: voyageEvents?.length || 0,
-    vesselManifestsCount: vesselManifests?.length || 0,
-    voyageListCount: voyageList?.length || 0
-  });
 
-  // Debug cost allocation dates
-  if (costAllocation && costAllocation.length > 0) {
-    console.log('📅 Cost Allocation Date Check:', {
-      firstRecord: costAllocation[0],
-      hasDate: costAllocation[0].costAllocationDate instanceof Date,
-      dateValue: costAllocation[0].costAllocationDate,
-      monthYear: costAllocation[0].monthYear,
-      totalCost: costAllocation[0].totalCost,
-      budgetedVesselCost: costAllocation[0].budgetedVesselCost
-    });
-  }
 
   // Filters state - matching DrillingDashboard style
   const [filters, setFilters] = useState({
@@ -98,7 +78,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
       .filter(Boolean))].sort();
 
     return {
-      months: ['All Months', ...uniqueMonths],
+      months: ['All Months', 'YTD', ...uniqueMonths],
       locations: ['All Locations', ...uniqueLocations],
       projectTypes: ['All Types', ...uniqueProjectTypes]
     };
@@ -112,13 +92,7 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     filters.selectedProjectType
   );
 
-  // Debug filtered data
-  console.log('🔍 Filtered CostAllocation:', {
-    originalCount: costAllocation?.length || 0,
-    filteredCount: filteredCostAllocation?.length || 0,
-    filters,
-    filteredSample: filteredCostAllocation?.slice(0, 3)
-  });
+
 
   // Calculate cost metrics
   const costMetrics = useCostAnalysisRedesigned(
@@ -128,27 +102,11 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
     voyageList
   );
 
-  // Debug metrics
-  console.log('📊 Cost Metrics:', {
-    totalAllocatedCost: costMetrics.totalAllocatedCost,
-    totalBudget: costMetrics.totalBudget,
-    departmentBreakdown: costMetrics.departmentBreakdown,
-    projectTypeBreakdown: costMetrics.projectTypeBreakdown,
-    locationBreakdown: costMetrics.locationBreakdown,
-    hasData: costMetrics.totalAllocatedCost > 0 || costMetrics.totalBudget > 0
-  });
 
-  // Loading state - temporarily modified to show data status
+  // Loading state
   if (!isDataReady || !costAllocation || costAllocation.length === 0) {
-    console.log('⚠️ Loading state triggered:', {
-      isDataReady,
-      hasCostAllocation: !!costAllocation,
-      costAllocationLength: costAllocation?.length || 0
-    });
-    
-    // Temporarily bypass if we have data but isDataReady is false
+    // Bypass if we have data but isDataReady is false
     if (costAllocation && costAllocation.length > 0 && !isDataReady) {
-      console.warn('⚠️ Data exists but isDataReady is false - showing dashboard anyway');
       // Continue to render dashboard
     } else {
       return (
@@ -205,8 +163,15 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
         <SmartFilterBar
           timeFilter={filters.selectedMonth}
           locationFilter={filters.selectedLocation}
-          onTimeChange={(value) => setFilters(prev => ({ ...prev, selectedMonth: value }))}
-          onLocationChange={(value) => setFilters(prev => ({ ...prev, selectedLocation: value }))}
+          onTimeChange={(value) => {
+            console.log('🔄 CostAllocation: Time filter changed to:', value);
+            console.log('🔄 Available time options:', filterOptions.months);
+            setFilters(prev => ({ ...prev, selectedMonth: value }));
+          }}
+          onLocationChange={(value) => {
+            console.log('🔄 CostAllocation: Location filter changed to:', value);
+            setFilters(prev => ({ ...prev, selectedLocation: value }));
+          }}
           timeOptions={filterOptions.months.map(month => ({ value: month, label: month }))}
           locationOptions={filterOptions.locations.map(location => ({ value: location, label: location }))}
           totalRecords={costAllocation.length}
@@ -215,24 +180,34 @@ const CostAllocationManagerRedesigned: React.FC<CostAllocationManagerRedesignedP
         />
 
         {/* Dashboard Content */}
-            {/* Debug Info - Temporary */}
-            {costMetrics.totalAllocatedCost === 0 && costMetrics.totalBudget === 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-yellow-800 font-semibold mb-2">Debug Info:</p>
-                <p className="text-sm text-yellow-700">
-                  Original Records: {costAllocation.length} | 
-                  Filtered Records: {filteredCostAllocation.length} | 
-                  Has Metrics: {(costMetrics.totalAllocatedCost > 0 || costMetrics.totalBudget > 0) ? 'Yes' : 'No'}
-                </p>
-                {filteredCostAllocation.length > 0 && (
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Sample: LC {filteredCostAllocation[0]?.lcNumber}, 
-                    Cost: ${filteredCostAllocation[0]?.totalCost || 0}, 
-                    Budget: ${filteredCostAllocation[0]?.budgetedVesselCost || 0}
-                  </p>
-                )}
+            {/* Enhanced Debug Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-800 font-semibold mb-2">Filter Debug Info:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-700">
+                <div>
+                  <p><strong>Current Filters:</strong></p>
+                  <p>• Month: {filters.selectedMonth}</p>
+                  <p>• Location: {filters.selectedLocation}</p>
+                  <p>• Project Type: {filters.selectedProjectType}</p>
+                </div>
+                <div>
+                  <p><strong>Data Status:</strong></p>
+                  <p>• Original Records: {costAllocation.length}</p>
+                  <p>• Filtered Records: {filteredCostAllocation.length}</p>
+                  <p>• YTD Available: {filterOptions.months.includes('YTD') ? 'Yes' : 'No'}</p>
+                  <p>• Has Metrics: {(costMetrics.totalAllocatedCost > 0 || costMetrics.totalBudget > 0) ? 'Yes' : 'No'}</p>
+                </div>
               </div>
-            )}
+              {filteredCostAllocation.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-blue-300">
+                  <p className="text-sm text-blue-700">
+                    <strong>Sample Filtered Record:</strong> LC {filteredCostAllocation[0]?.lcNumber}, 
+                    Cost: ${filteredCostAllocation[0]?.totalCost || filteredCostAllocation[0]?.budgetedVesselCost || 0}, 
+                    Date: {filteredCostAllocation[0]?.costAllocationDate?.toISOString().split('T')[0] || 'No Date'}
+                  </p>
+                </div>
+              )}
+            </div>
             {/* Core Financial KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KPICard 

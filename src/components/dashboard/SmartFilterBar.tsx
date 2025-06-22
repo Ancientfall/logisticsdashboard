@@ -45,18 +45,49 @@ const SmartFilterBar: React.FC<SmartFilterBarProps> = ({
         const availableMonths = timeOptions.filter(opt => opt.value !== 'All Months');
         const targetMonth = availableMonths.find(opt => opt.value === recentMonth);
         
+
         if (targetMonth) {
           onTimeChange(recentMonth);
         } else if (availableMonths.length > 0) {
           // Use the latest available month
-          onTimeChange(availableMonths[availableMonths.length - 1].value);
+          const latestMonth = availableMonths[availableMonths.length - 1].value;
+          onTimeChange(latestMonth);
         } else {
           onTimeChange('All Months');
         }
         break;
       case 'ytd':
-        // Year to Date - use special YTD filter
-        onTimeChange('YTD');
+        // Smart Year to Date - check what years have data and use YTD accordingly
+        const availableYtdMonths = timeOptions.filter(opt => 
+          opt.value !== 'All Months' && opt.value !== 'YTD'
+        );
+        
+        // Check if we have 2025 data
+        const has2025Data = availableYtdMonths.some(opt => opt.value.includes('2025'));
+        
+        // Check if we have 2024 data
+        const has2024Data = availableYtdMonths.some(opt => opt.value.includes('2024'));
+        
+        
+        if (has2025Data) {
+          // We have 2025 data, use proper YTD
+          onTimeChange('YTD');
+        } else if (has2024Data) {
+          // No 2025 data, but we have 2024 - use latest 2024 months as "YTD equivalent"
+          const latest2024Months = availableYtdMonths
+            .filter(opt => opt.value.includes('2024'))
+            .slice(-5); // Last 5 months of 2024 as YTD equivalent
+          
+          if (latest2024Months.length > 0) {
+            const latestMonth = latest2024Months[latest2024Months.length - 1].value;
+            onTimeChange(latestMonth);
+          } else {
+            onTimeChange('All Months');
+          }
+        } else {
+          // Fallback to all months
+          onTimeChange('All Months');
+        }
         break;
       case 'reset':
         onTimeChange('All Months');

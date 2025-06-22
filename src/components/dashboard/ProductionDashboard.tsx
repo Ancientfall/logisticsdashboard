@@ -1381,15 +1381,27 @@ Note: Excludes drilling/completion fluids`;
                   // Production chemical filtering: must be production chemical or utility fluid (not drilling/completion)
                   const isProductionFluid = !action.isDrillingFluid && !action.isCompletionFluid;
                   
-                  // Exclude drilling chemicals: diesel and drillwater are not production chemicals
-                  const bulkType = (action.bulkType || '').toLowerCase();
-                  const fluidType = (action.fluidSpecificType || '').toLowerCase();
+                  // Exclude non-production fluids: drilling chemicals, fuel, water, waste fluids, and byproducts
+                  const bulkType = (action.bulkType || '').toLowerCase().trim();
+                  const fluidType = (action.fluidSpecificType || '').toLowerCase().trim();
                   const isDrillingChemical = bulkType.includes('diesel') || 
-                                             bulkType.includes('drillwater') ||
-                                             bulkType.includes('fuel') ||
+                                             bulkType.includes('drillwater') || // (water)
+                                             bulkType.includes('fuel') || // (fuel)
+                                             bulkType.includes('brine') || // drilling byproduct
+                                             bulkType.includes('light slops') || // waste fluid
+                                             bulkType.includes('lightslops') || // waste fluid (no space)
+                                             bulkType.includes('trash fluid') || // waste fluid
+                                             bulkType.includes('trashfluid') || // waste fluid (no space)
+                                             bulkType.includes('trash') || // catch any trash variants
                                              fluidType.includes('diesel') ||
-                                             fluidType.includes('drillwater') ||
-                                             fluidType.includes('fuel');
+                                             fluidType.includes('drillwater') || // (water)
+                                             fluidType.includes('fuel') || // (fuel)
+                                             fluidType.includes('brine') || // drilling byproduct
+                                             fluidType.includes('light slops') || // waste fluid
+                                             fluidType.includes('lightslops') || // waste fluid (no space)
+                                             fluidType.includes('trash fluid') || // waste fluid
+                                             fluidType.includes('trashfluid') || // waste fluid (no space)
+                                             fluidType.includes('trash'); // catch any trash variants
                   
                   // Only include OFFLOAD operations to avoid double-counting
                   const isRelevantOperation = action.action === 'offload';
@@ -2060,14 +2072,12 @@ Note: Excludes drilling/completion fluids`;
           <ProductionOperationalVarianceDashboard
             liftsPerHourVariance={varianceAnalysis.operationalVariance.liftsPerHourVariance}
             costPerTonVariance={varianceAnalysis.operationalVariance.costPerTonVariance}
-            visitsPerWeekVariance={varianceAnalysis.operationalVariance.visitsPerWeekVariance}
             vesselOperationalData={varianceAnalysis.operationalVariance.vesselOperationalData}
           />
 
           {/* Production Support Variance Analysis */}
           <ProductionSupportVarianceDashboard
             monthlyCostVariance={varianceAnalysis.productionSupport.monthlyCostVariance}
-            visitsPerWeekVariance={varianceAnalysis.productionSupport.visitsPerWeekVariance}
             facilityEfficiencyData={varianceAnalysis.productionSupport.facilityEfficiencyData}
           />
         </div>

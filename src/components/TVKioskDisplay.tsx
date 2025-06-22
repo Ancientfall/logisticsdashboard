@@ -8,6 +8,8 @@ import {
 import { deduplicateBulkActions, getDrillingFluidMovements, getProductionFluidMovements } from '../utils/bulkFluidDeduplicationEngine';
 import { formatSmartCurrency } from '../utils/formatters';
 import { TrendingUp, TrendingDown, Clock, Ship, BarChart3, Droplet, Fuel, Target, Gauge, MapPin, Users, DollarSign } from 'lucide-react';
+import { useCostAnalysisRedesigned } from './dashboard/cost-allocation/hooks/useCostAnalysis';
+import { useFilteredCostAllocation } from './dashboard/cost-allocation/hooks/useFilteredCostAllocation';
 
 interface TVKPICard {
   id: string;
@@ -64,28 +66,47 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isPaused]);
 
+  // Filter data to YTD first (outside of useMemo to avoid hook usage issues)
+  const now = new Date();
+  const currentMonth = undefined;  // YTD = all months in current year
+  const currentYear = now.getFullYear();
+
+  // Filter ALL data sources to YTD
+  const ytdVoyageEvents = useMemo(() => 
+    voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear), 
+    [voyageEvents, currentYear]
+  );
+  
+  const ytdVesselManifests = useMemo(() => 
+    vesselManifests.filter(m => m.manifestDate && m.manifestDate.getFullYear() === currentYear), 
+    [vesselManifests, currentYear]
+  );
+  
+  const ytdBulkActions = useMemo(() => 
+    bulkActions.filter(b => b.startDate && b.startDate.getFullYear() === currentYear), 
+    [bulkActions, currentYear]
+  );
+  
+  const ytdVoyageList = useMemo(() => 
+    voyageList.filter(v => v.voyageDate && v.voyageDate.getFullYear() === currentYear), 
+    [voyageList, currentYear]
+  );
+
+  const ytdCostAllocation = useFilteredCostAllocation(costAllocation, 'YTD', 'All Locations', 'All Types');
+  const authoritativeCostMetrics = useCostAnalysisRedesigned(ytdCostAllocation, ytdVoyageEvents, ytdVesselManifests, ytdVoyageList);
+
+  // Extract departmental costs from authoritative source (outside useMemo for global access)
+  const drillingCost = authoritativeCostMetrics.departmentBreakdown.find(d => d.department === 'Drilling')?.cost || 0;
+  const productionCost = authoritativeCostMetrics.departmentBreakdown.find(d => d.department === 'Production')?.cost || 0;
+  const logisticsCost = authoritativeCostMetrics.departmentBreakdown.find(d => d.department === 'Logistics')?.cost || 0;
+  const totalCost = authoritativeCostMetrics.totalAllocatedCost;
+
   // Calculate comprehensive metrics for all categories
   const allMetrics = useMemo(() => {
-    // Reduced logging frequency
-
     if (!isDataReady) {
       console.log('⚠️ TV DISPLAY: Data not ready, returning empty metrics');
       return { drilling: {}, production: {}, voyage: {}, cost: {}, fluids: {} };
     }
-
-    // Use YTD data for TV display
-    const now = new Date();
-    const currentMonth = undefined;  // YTD = all months in current year
-    const currentYear = now.getFullYear();
-
-    // Filter ALL data sources to YTD
-    const ytdVoyageEvents = voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear);
-    const ytdVesselManifests = vesselManifests.filter(m => m.manifestDate && m.manifestDate.getFullYear() === currentYear);
-    const ytdBulkActions = bulkActions.filter(b => {
-      // Use startDate from BulkAction interface
-      return b.startDate && b.startDate.getFullYear() === currentYear;
-    });
-    const ytdVoyageList = voyageList.filter(v => v.voyageDate && v.voyageDate.getFullYear() === currentYear);
 
     // YTD filtering applied
     const drillingKPIs = calculateEnhancedKPIMetrics(
@@ -118,9 +139,9 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       production: { ...productionKPIs, ...productionManifests },
       voyage: { ...voyageKPIs },
       cost: {
-        totalCost: formatSmartCurrency((drillingKPIs.totalVesselCost || 0) + (productionKPIs.totalVesselCost || 0)),
-        drillingCost: formatSmartCurrency(drillingKPIs.totalVesselCost || 0),
-        productionCost: formatSmartCurrency(productionKPIs.totalVesselCost || 0)
+        totalCost: formatSmartCurrency(totalCost),
+        drillingCost: formatSmartCurrency(drillingCost),
+        productionCost: formatSmartCurrency(productionCost)
       },
       fluids: {
         drilling: drillingFluids.length,
@@ -146,33 +167,49 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       cost: calculatedMetrics.cost
     });
 
-    console.log('💰 TV DISPLAY: Cost Analysis Debug:', {
-      rawDrillingCost: drillingKPIs.totalVesselCost,
-      rawProductionCost: productionKPIs.totalVesselCost,
-      formattedDrillingCost: formatSmartCurrency(drillingKPIs.totalVesselCost || 0),
-      formattedProductionCost: formatSmartCurrency(productionKPIs.totalVesselCost || 0),
-      totalRawCost: (drillingKPIs.totalVesselCost || 0) + (productionKPIs.totalVesselCost || 0),
-      isDrillingCostValid: !!(drillingKPIs.totalVesselCost),
-      isProductionCostValid: !!(productionKPIs.totalVesselCost),
-      costRatio: {
-        drilling: drillingKPIs.totalVesselCost || 0,
-        production: productionKPIs.totalVesselCost || 0,
-        ratio: (drillingKPIs.totalVesselCost || 0) / ((productionKPIs.totalVesselCost || 0) + 0.01)
-      }
+    console.log('💰 TV DISPLAY: Authoritative Cost Analysis (matches Cost Allocation Dashboard):', {
+      authoritativeCosts: {
+        totalCost: formatSmartCurrency(totalCost),
+        drillingCost: formatSmartCurrency(drillingCost),
+        productionCost: formatSmartCurrency(productionCost),
+        logisticsCost: formatSmartCurrency(logisticsCost)
+      },
+      rawValues: {
+        totalCost: totalCost,
+        drillingCost: drillingCost,
+        productionCost: productionCost,
+        logisticsCost: logisticsCost
+      },
+      departmentBreakdown: authoritativeCostMetrics.departmentBreakdown,
+      costAllocationSource: 'useCostAnalysisRedesigned (same as Cost Allocation Dashboard)',
+      ytdFilterApplied: 'Jan 1, 2025 - May 31, 2025'
+    });
+
+    console.log('🎯 TV DISPLAY: Authoritative KPI Values for Dashboard Alignment:', {
+      drilling: {
+        cargoTons: (calculatedMetrics.drilling as any)?.totalDeckTons || (calculatedMetrics.drilling as any)?.totalCargoTons || 0,
+        lifts: (calculatedMetrics.drilling as any)?.totalCargoLifts || (calculatedMetrics.drilling as any)?.totalLifts || 0,
+        vesselUtilization: (calculatedMetrics.drilling as any)?.vesselUtilizationRate || 0,
+        productiveHours: (calculatedMetrics.drilling as any)?.productiveHours || 0
+      },
+      production: {
+        cargoTons: (calculatedMetrics.production as any)?.totalDeckTons || (calculatedMetrics.production as any)?.totalCargoTons || 0,
+        vesselUtilization: (calculatedMetrics.production as any)?.vesselUtilizationRate || 0,
+        chemicalVolume: (calculatedMetrics.fluids as any)?.totalVolume || 0
+      },
+      voyage: {
+        totalOffshoreHours: (calculatedMetrics.voyage as any)?.totalOffshoreTime || 0,
+        averageTripDuration: (calculatedMetrics.voyage as any)?.averageTripDuration || 0,
+        vesselUtilization: (calculatedMetrics.voyage as any)?.vesselUtilizationRate || 0
+      },
+      calculationSource: 'Same functions as individual dashboards (calculateEnhancedKPIMetrics, etc.)'
     });
 
     return calculatedMetrics;
-  }, [voyageEvents, vesselManifests, costAllocation, voyageList, bulkActions, isDataReady]);
+  }, [ytdVoyageEvents, ytdVesselManifests, ytdCostAllocation, ytdVoyageList, ytdBulkActions, authoritativeCostMetrics, isDataReady, currentMonth, currentYear, drillingCost, productionCost, totalCost, logisticsCost]);
 
   // Calculate rotating location highlights (YTD only)
   const topLocations = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    // Filter voyage events to YTD only
-    const ytdVoyageEvents = voyageEvents.filter(event => 
-      event.eventDate && event.eventDate.getFullYear() === currentYear
-    );
-
     console.log('🗺️ TV DISPLAY: Calculating top locations from YTD data...', {
       currentYear,
       ytdVoyageEventsCount: ytdVoyageEvents.length,
@@ -192,18 +229,11 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       .sort(([,a], [,b]) => b - a)
       .slice(0, 5)
       .map(([location, count]) => ({ location, count }));
-  }, [voyageEvents]);
+  }, [ytdVoyageEvents, currentYear, voyageEvents]);
 
   // Define KPI slides for TV display with multiple cards per slide
   const kpiSlides: TVKPISlide[] = useMemo(() => {
     const slides: TVKPISlide[] = [];
-    const now = new Date();
-    const currentYear = now.getFullYear();
-
-    // Filter data to YTD for consistent calculations
-    const ytdVoyageEvents = voyageEvents.filter(event => 
-      event.eventDate && event.eventDate.getFullYear() === currentYear
-    );
 
     // Helper function to safely get metric value
     const getMetricValue = (obj: any, path: string, defaultValue: number = 0): number => {
@@ -342,10 +372,22 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     });
 
     if (showCategories.includes('drilling')) {
-      const cargoTons = getMetricValue(allMetrics.drilling, 'totalCargoTons') || 
-                       getMetricValue(allMetrics.drilling, 'totalDeckTons') || 0;
-      const totalLifts = getMetricValue(allMetrics.drilling, 'totalLifts');
-      const productiveHours = getMetricValue(allMetrics.drilling, 'productiveHours');
+      // Use the authoritative metrics from dashboard calculations
+      const cargoTons = (allMetrics.drilling as any)?.totalDeckTons || (allMetrics.drilling as any)?.totalCargoTons || 0;
+      const totalLifts = (allMetrics.drilling as any)?.totalCargoLifts || (allMetrics.drilling as any)?.totalLifts || 0;
+      const productiveHours = (allMetrics.drilling as any)?.productiveHours || 0;
+      const vesselUtilization = (allMetrics.drilling as any)?.vesselUtilizationRate || 0;
+      
+      // DEBUG: Log TV Display utilization calculation to identify 5713.6% source
+      console.error('🚨 TV DISPLAY UTILIZATION DEBUG:', {
+        rawVesselUtilizationRate: (allMetrics.drilling as any)?.vesselUtilizationRate,
+        cappedVesselUtilization: Math.min(vesselUtilization, 100),
+        allDrillingMetrics: allMetrics.drilling,
+        utilizationKeys: Object.keys(allMetrics.drilling || {}).filter(key => key.includes('utilization') || key.includes('Utilization')),
+        timestamp: new Date().toISOString()
+      });
+      
+      const liftsPerHour = totalLifts && productiveHours ? totalLifts / productiveHours : 0;
       
       console.log('🎯 TV DISPLAY: Drilling voyages details:', {
         currentYear,
@@ -362,7 +404,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         costAllocationDrillingLCs: costAllocation.filter(ca => ca.isDrilling).map(ca => ca.lcNumber).slice(0, 5)
       });
       
-      const drillingCost = getStringValue(allMetrics, 'cost.drillingCost', '$0');
+      const drillingCostFormatted = formatSmartCurrency(drillingCost);
       
       slides.push({
         id: 'drilling-operations',
@@ -383,8 +425,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
           {
             id: 'drilling-efficiency',
             title: 'Lifts per Hour',
-            value: (totalLifts && productiveHours ? 
-                     (totalLifts / productiveHours).toFixed(1) : '0'),
+            value: liftsPerHour.toFixed(1),
             unit: 'lifts/hr',
             trend: 5.4,
             isPositive: true,
@@ -407,20 +448,11 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
             id: 'drilling-utilization',
             title: 'Drilling Utilization',
             value: (() => {
-              // Calculate drilling-specific utilization from YTD events
-              const ytdEvents = voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear);
-              const drillingEvents = ytdEvents.filter(event => 
-                costAllocation.some(ca => ca.lcNumber === event.lcNumber && ca.isDrilling)
-              );
-              const drillingProductiveHours = drillingEvents
-                .filter(event => event.activityCategory === 'Productive')
-                .reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
-              const drillingTotalHours = drillingEvents
-                .reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
-              const utilization = drillingTotalHours > 0 
-                ? Math.min(100, (drillingProductiveHours / drillingTotalHours) * 100)
-                : 0;
-              return utilization.toFixed(1);
+              // Smart percentage handling: if vesselUtilization is already >1, it's likely already a percentage
+              const rawValue = vesselUtilization > 1 ? vesselUtilization : vesselUtilization * 100;
+              const cappedValue = Math.min(rawValue, 100);
+              console.log(`🎯 TV DISPLAY: Drilling utilization raw=${vesselUtilization}, converted=${rawValue}, capped=${cappedValue}`);
+              return cappedValue.toFixed(1);
             })(),
             unit: '%',
             trend: -3.2,
@@ -434,10 +466,20 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     }
 
     if (showCategories.includes('production')) {
-      const fluidVolume = getMetricValue(allMetrics, 'fluids.totalVolume');
+      // Use the authoritative metrics from dashboard calculations
+      const fluidVolume = (allMetrics.fluids as any)?.totalVolume || 0;
       const fluidVolumeGals = fluidVolume * 42; // Convert bbls to gallons (1 bbl = 42 gals)
-      const productionCargoTons = getMetricValue(allMetrics.production, 'totalCargoTons') || 
-                                 getMetricValue(allMetrics.production, 'totalDeckTons') || 0;
+      const productionCargoTons = (allMetrics.production as any)?.totalDeckTons || (allMetrics.production as any)?.totalCargoTons || 0;
+      const productionUtilization = (allMetrics.production as any)?.vesselUtilizationRate || 0;
+      
+      // DEBUG: Log TV Display production utilization calculation 
+      console.error('🚨 TV DISPLAY PRODUCTION UTILIZATION DEBUG:', {
+        rawProductionUtilizationRate: (allMetrics.production as any)?.vesselUtilizationRate,
+        cappedProductionUtilization: Math.min(productionUtilization, 100),
+        allProductionMetrics: allMetrics.production,
+        utilizationKeys: Object.keys(allMetrics.production || {}).filter(key => key.includes('utilization') || key.includes('Utilization')),
+        timestamp: new Date().toISOString()
+      });
       
       console.log('🏭 TV DISPLAY: Production voyages details:', {
         currentYear,
@@ -454,7 +496,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         costAllocationProductionLCs: costAllocation.filter(ca => !ca.isDrilling).map(ca => ca.lcNumber).slice(0, 5)
       });
       
-      const productionCost = getStringValue(allMetrics, 'cost.productionCost', '$0');
+      const productionCostFormatted = formatSmartCurrency(productionCost);
       
       slides.push({
         id: 'production-operations',
@@ -498,20 +540,11 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
             id: 'production-utilization',
             title: 'Production Utilization',
             value: (() => {
-              // Calculate production-specific utilization from YTD events
-              const ytdEvents = voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear);
-              const productionEvents = ytdEvents.filter(event => 
-                costAllocation.some(ca => ca.lcNumber === event.lcNumber && !ca.isDrilling)
-              );
-              const productionProductiveHours = productionEvents
-                .filter(event => event.activityCategory === 'Productive')
-                .reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
-              const productionTotalHours = productionEvents
-                .reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
-              const utilization = productionTotalHours > 0 
-                ? Math.min(100, (productionProductiveHours / productionTotalHours) * 100)
-                : 0;
-              return utilization.toFixed(1);
+              // Smart percentage handling: if productionUtilization is already >1, it's likely already a percentage
+              const rawValue = productionUtilization > 1 ? productionUtilization : productionUtilization * 100;
+              const cappedValue = Math.min(rawValue, 100);
+              console.log(`🎯 TV DISPLAY: Production utilization raw=${productionUtilization}, converted=${rawValue}, capped=${cappedValue}`);
+              return cappedValue.toFixed(1);
             })(),
             unit: '%',
             trend: -2.8,
@@ -593,9 +626,9 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       const ytdVoyageList = voyageList.filter(v => v.voyageDate && v.voyageDate.getFullYear() === currentYear);
       const recentVoyages = ytdVoyageList.length; // Actual YTD voyages from VoyageList
       
-      const totalOffshoreHours = getMetricValue(allMetrics.voyage, 'totalOffshoreTime') ||
-                        getMetricValue(allMetrics.voyage, 'productiveHours') || 
-                        getMetricValue(allMetrics.voyage, 'totalProductiveHours') || 0;
+      // Use authoritative metrics from voyage calculations
+      const totalOffshoreHours = (allMetrics.voyage as any)?.totalOffshoreTime || 
+                                 (allMetrics.voyage as any)?.productiveHours || 0;
       
       // Calculate average trip duration using actual voyage durations (YTD only) and convert to days
       const voyageDurations = ytdVoyageList
@@ -604,7 +637,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       
       const averageTripHours = voyageDurations.length > 0 
         ? voyageDurations.reduce((sum, duration) => sum + duration, 0) / voyageDurations.length
-        : getMetricValue(allMetrics.voyage, 'averageTripDuration') || 0;
+        : 0;
       
       // Convert hours to days for more realistic monitoring
       const averageTrip = averageTripHours / 24;
@@ -710,10 +743,11 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         })
         .reduce((sum, event) => sum + (event.vesselCostTotal || 0), 0);
 
-      const totalCost = formatSmartCurrency(directDrillingCost + directProductionCost);
-      const drillingCost = formatSmartCurrency(directDrillingCost);
-      const productionCost = formatSmartCurrency(directProductionCost);
-      const avgDailyCost = getMetricValue(allMetrics.voyage, 'averageVesselCostPerDay') || 0;
+      // Use authoritative cost allocation data (same as Cost Allocation Dashboard)
+      const authoritativeTotalCost = formatSmartCurrency(totalCost);
+      const authoritativeDrillingCost = formatSmartCurrency(drillingCost);
+      const authoritativeProductionCost = formatSmartCurrency(productionCost);
+      const avgDailyCost = authoritativeCostMetrics.avgCostPerDay || 0;
 
       // Enhanced debugging to understand cost allocation patterns
       const drillingEvents = ytdVoyageEvents.filter(event => 
@@ -773,7 +807,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
           {
             id: 'total-cost',
             title: 'Total Cost',
-            value: totalCost,
+            value: authoritativeTotalCost,
             trend: -5.2,
             isPositive: false,
             icon: Fuel,
@@ -783,7 +817,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
           {
             id: 'drilling-cost-detail',
             title: 'Drilling Cost',
-            value: drillingCost,
+            value: authoritativeDrillingCost,
             trend: -3.2,
             isPositive: false,
             icon: Target,
@@ -793,7 +827,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
           {
             id: 'production-cost-detail',
             title: 'Production Cost',
-            value: productionCost,
+            value: authoritativeProductionCost,
             trend: -2.8,
             isPositive: false,
             icon: Droplet,
@@ -1103,7 +1137,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
 
     console.log('📊 TV DISPLAY: Created slides:', slides.map(s => ({ id: s.id, category: s.category, cardCount: s.cards.length })));
     return slides;
-  }, [allMetrics, showCategories, voyageEvents, voyageList]);
+  }, [allMetrics, showCategories, voyageEvents, voyageList, authoritativeCostMetrics, drillingCost, productionCost, totalCost, currentYear]);
 
   // Auto-rotation effect for slides
   useEffect(() => {

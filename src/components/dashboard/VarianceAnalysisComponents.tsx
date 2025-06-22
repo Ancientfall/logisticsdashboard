@@ -848,7 +848,7 @@ export const VesselUtilizationVarianceDashboard: React.FC<VesselUtilizationVaria
 interface ProductionOperationalVarianceDashboardProps {
   liftsPerHourVariance: VarianceAnalysis;
   costPerTonVariance: VarianceAnalysis;
-  visitsPerWeekVariance: VarianceAnalysis;
+  visitsPerWeekVariance?: VarianceAnalysis;
   vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
@@ -920,6 +920,7 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           icon={TrendingUp}
           tooltipContent="Analyzes production support cost efficiency per ton. Low variance indicates predictable chemical transportation costs. High variance suggests optimization opportunities in production logistics."
         />
+{visitsPerWeekVariance && (
         <VarianceStatsCard
           title="Visits per Week Variance"
           variance={visitsPerWeekVariance}
@@ -927,10 +928,11 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           icon={Ship}
           tooltipContent="Evaluates production facility support consistency. Low variance indicates steady chemical supply operations. High variance suggests irregular production support or demand fluctuations."
         />
+        )}
       </div>
       
       {/* Box Plots */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
         <BoxPlot
           data={liftsPerHourVariance}
           title="Lifts per Hour Distribution"
@@ -943,16 +945,18 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           unit=" $/ton"
           color="bg-purple-600"
         />
+        {visitsPerWeekVariance && (
         <BoxPlot
           data={visitsPerWeekVariance}
           title="Visits per Week Distribution"
           unit=" visits/week"
           color="bg-purple-600"
         />
+        )}
       </div>
       
       {/* Control Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
         <ControlChart
           data={liftsControlData}
           title="Lifts per Hour Control Chart"
@@ -971,6 +975,7 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           lowerControlLimit={Math.max(0, costPerTonVariance.mean - 2 * costPerTonVariance.standardDeviation)}
           color="#7c3aed"
         />
+        {visitsPerWeekVariance && (
         <ControlChart
           data={visitsControlData}
           title="Visits per Week Control Chart"
@@ -980,6 +985,7 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
           color="#7c3aed"
         />
+        )}
       </div>
     </div>
   );
@@ -990,7 +996,7 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
  */
 interface ProductionSupportVarianceDashboardProps {
   monthlyCostVariance: VarianceAnalysis;
-  visitsPerWeekVariance: VarianceAnalysis;
+  visitsPerWeekVariance?: VarianceAnalysis;
   facilityEfficiencyData: Array<{
     facilityName: string;
     averageMonthlyCost: number;
@@ -1031,7 +1037,7 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
       </div>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-2' : 'lg:grid-cols-1'} gap-4`}>
         <VarianceStatsCard
           title="Monthly Cost Variance"
           variance={monthlyCostVariance}
@@ -1039,6 +1045,7 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
           icon={DollarSign}
           tooltipContent="Monthly vessel cost variance measures consistency in production facility support costs. Lower variance indicates more predictable operational expenses."
         />
+        {visitsPerWeekVariance && (
         <VarianceStatsCard
           title="Visits per Week Variance"
           variance={visitsPerWeekVariance}
@@ -1046,26 +1053,29 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
           icon={Calendar}
           tooltipContent="Visits per week variance measures consistency in production facility support frequency. Lower variance indicates more predictable supply schedules."
         />
+        )}
       </div>
       
       {/* Box Plots */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-2' : 'lg:grid-cols-1'} gap-4`}>
         <BoxPlot
           data={monthlyCostVariance}
           title="Monthly Cost Distribution"
           unit="$"
           color="bg-emerald-600"
         />
+        {visitsPerWeekVariance && (
         <BoxPlot
           data={visitsPerWeekVariance}
           title="Visits per Week Distribution"
           unit=" visits/week"
           color="bg-emerald-600"
         />
+        )}
       </div>
       
       {/* Control Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-2' : 'lg:grid-cols-1'} gap-4`}>
         <ControlChart
           data={monthlyCostControlData}
           title="Monthly Cost Control Chart"
@@ -1075,6 +1085,7 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
           lowerControlLimit={Math.max(0, monthlyCostVariance.mean - 2 * monthlyCostVariance.standardDeviation)}
           color="#059669"
         />
+        {visitsPerWeekVariance && (
         <ControlChart
           data={visitsControlData}
           title="Visits per Week Control Chart"
@@ -1084,6 +1095,7 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
           lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
           color="#059669"
         />
+        )}
       </div>
     </div>
   );

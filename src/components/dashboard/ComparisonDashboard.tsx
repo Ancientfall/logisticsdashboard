@@ -125,7 +125,8 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
 
       const totalCost = filteredData.reduce((sum, cost) => sum + (cost.budgetedVesselCost || cost.totalCost || 0), 0);
       const vesselDays = filteredData.reduce((sum, cost) => sum + (cost.totalAllocatedDays || 0), 0);
-      const utilization = filteredData.length > 0 ? (vesselDays / (filteredData.length * 30)) * 100 : 0;
+      const rawUtilization = filteredData.length > 0 ? (vesselDays / (filteredData.length * 30)) * 100 : 0;
+      const utilization = Math.min(rawUtilization, 100); // Cap at 100%
 
       // Calculate drilling and production days from cost allocation
       const drillingDays = filteredData
