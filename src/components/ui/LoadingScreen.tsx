@@ -17,13 +17,13 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
             <div className="w-24 h-24 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center shadow-xl animate-pulse">
               <span className="text-white font-bold text-3xl">bp</span>
             </div>
-            {/* Rotating ring */}
-            <div className="absolute inset-0 -m-2">
-              <svg className="w-32 h-32 animate-spin-slow" viewBox="0 0 128 128">
+            {/* Rotating ring - properly centered */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg className="w-28 h-28 animate-spin-slow" viewBox="0 0 112 112">
                 <circle
-                  cx="64"
-                  cy="64"
-                  r="60"
+                  cx="56"
+                  cy="56"
+                  r="52"
                   fill="none"
                   stroke="url(#gradient)"
                   strokeWidth="2"
