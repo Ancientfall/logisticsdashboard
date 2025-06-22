@@ -88,6 +88,7 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
   color = 'bg-bp-green' 
 }) => {
   const { min, max, quartile1, median, quartile3, outliers } = data;
+  const [hoveredOutlier, setHoveredOutlier] = useState<number | null>(null);
   
   // Calculate plot dimensions
   const plotWidth = 300;
@@ -164,17 +165,58 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
             <line x1={getPosition(max)} y1={35} x2={getPosition(max)} y2={45} stroke="#666" strokeWidth="2"/>
             
             {/* Outliers */}
-            {outliers.map((outlier, index) => (
-              <circle
-                key={index}
-                cx={getPosition(outlier.value)}
-                cy={40}
-                r="3"
-                fill={outlier.isUpperOutlier ? "#ef4444" : "#f59e0b"}
-                stroke="#fff"
-                strokeWidth="1"
-              />
-            ))}
+            {outliers.map((outlier, index) => {
+              const isHovered = hoveredOutlier === index;
+              return (
+                <g key={index}>
+                  <circle
+                    cx={getPosition(outlier.value)}
+                    cy={40}
+                    r={isHovered ? "5" : "3"}
+                    fill={outlier.isUpperOutlier ? "#ef4444" : "#f59e0b"}
+                    stroke="#fff"
+                    strokeWidth="1"
+                    style={{ cursor: 'pointer', transition: 'r 0.2s ease' }}
+                    onMouseEnter={() => setHoveredOutlier(index)}
+                    onMouseLeave={() => setHoveredOutlier(null)}
+                  />
+                  {isHovered && outlier.vesselName && (
+                    <g>
+                      {/* Tooltip background */}
+                      <rect
+                        x={getPosition(outlier.value) - 35}
+                        y={15}
+                        width="70"
+                        height="20"
+                        fill="rgba(0, 0, 0, 0.8)"
+                        rx="3"
+                        ry="3"
+                      />
+                      {/* Tooltip text */}
+                      <text
+                        x={getPosition(outlier.value)}
+                        y={23}
+                        fill="white"
+                        fontSize="8"
+                        textAnchor="middle"
+                        fontWeight="bold"
+                      >
+                        {outlier.vesselName}
+                      </text>
+                      <text
+                        x={getPosition(outlier.value)}
+                        y={31}
+                        fill="white"
+                        fontSize="7"
+                        textAnchor="middle"
+                      >
+                        {outlier.value.toFixed(1)}{unit}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
           </svg>
         </div>
         
@@ -227,6 +269,7 @@ export const ControlChart: React.FC<ControlChartProps> = ({
   lowerControlLimit,
   color = '#00754F'
 }) => {
+  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
   const chartHeight = 200;
   const chartWidth = 400;
   const maxValue = Math.max(...data.map(d => d.value), upperControlLimit);
@@ -292,16 +335,55 @@ export const ControlChart: React.FC<ControlChartProps> = ({
           {/* Data points */}
           {data.map((d, index) => {
             const isOutOfControl = d.value > upperControlLimit || d.value < lowerControlLimit;
+            const isHovered = hoveredPoint === index;
             return (
-              <circle
-                key={index}
-                cx={getX(index)}
-                cy={getY(d.value)}
-                r="4"
-                fill={isOutOfControl ? "#ef4444" : color}
-                stroke="#fff"
-                strokeWidth="2"
-              />
+              <g key={index}>
+                <circle
+                  cx={getX(index)}
+                  cy={getY(d.value)}
+                  r={isHovered ? "6" : "4"}
+                  fill={isOutOfControl ? "#ef4444" : color}
+                  stroke="#fff"
+                  strokeWidth="2"
+                  style={{ cursor: 'pointer', transition: 'r 0.2s ease' }}
+                  onMouseEnter={() => setHoveredPoint(index)}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                />
+                {isHovered && (
+                  <g>
+                    {/* Tooltip background */}
+                    <rect
+                      x={getX(index) - 40}
+                      y={getY(d.value) - 35}
+                      width="80"
+                      height="30"
+                      fill="rgba(0, 0, 0, 0.8)"
+                      rx="4"
+                      ry="4"
+                    />
+                    {/* Tooltip text */}
+                    <text
+                      x={getX(index)}
+                      y={getY(d.value) - 25}
+                      fill="white"
+                      fontSize="10"
+                      textAnchor="middle"
+                      fontWeight="bold"
+                    >
+                      {d.vesselName}
+                    </text>
+                    <text
+                      x={getX(index)}
+                      y={getY(d.value) - 15}
+                      fill="white"
+                      fontSize="9"
+                      textAnchor="middle"
+                    >
+                      {d.value.toFixed(1)}{unit}
+                    </text>
+                  </g>
+                )}
+              </g>
             );
           })}
           
@@ -389,7 +471,7 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
         <Tooltip content={`Consistency rating based on Coefficient of Variation (CV). ${status.status} means ${status.status === 'Excellent' ? 'very consistent operations (CV < 10%)' : status.status === 'Good' ? 'acceptable consistency (CV < 20%)' : status.status === 'Fair' ? 'some operational variation (CV < 30%)' : 'high operational inconsistency (CV > 30%)'}.`}>
           <div className={`rounded-lg p-2 ${status.bgColor} cursor-help`}>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium">Consistency</span>
+              <span className="text-xs font-medium">Consistency:</span>
               <span className={`text-xs font-semibold ${status.color}`}>{status.status}</span>
             </div>
             <div className="mt-1">
