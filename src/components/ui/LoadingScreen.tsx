@@ -14,8 +14,8 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
         <div className="flex flex-col items-center">
           {/* BP Logo */}
           <div className="relative mb-8">
-            <div className="w-24 h-24 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center shadow-xl animate-pulse">
-              <span className="text-white font-bold text-3xl">bp</span>
+            <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center shadow-xl animate-pulse">
+              <span className="text-white font-bold text-lg">bp</span>
             </div>
             {/* Rotating ring - properly centered */}
             <div className="absolute inset-0 flex items-center justify-center">
@@ -26,15 +26,15 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
                   r="52"
                   fill="none"
                   stroke="url(#gradient)"
-                  strokeWidth="2"
+                  strokeWidth="3"
                   strokeDasharray="180 100"
                   strokeLinecap="round"
                 />
                 <defs>
                   <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#059669" />
-                    <stop offset="50%" stopColor="#10b981" />
-                    <stop offset="100%" stopColor="#059669" />
+                    <stop offset="0%" stopColor="#0ea5e9" />
+                    <stop offset="50%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#6366f1" />
                   </linearGradient>
                 </defs>
               </svg>

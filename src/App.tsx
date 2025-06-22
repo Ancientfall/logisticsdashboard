@@ -21,6 +21,7 @@ import BulkActionsDashboard from './components/dashboard/BulkActionsDashboard'
 import LandingPage from './components/LandingPage'
 import AdminDashboard from './components/admin/AdminDashboard'
 import ReferenceDataManager from './components/admin/ReferenceDataManager'
+import TVKioskDisplay from './components/TVKioskDisplay'
 
 import './index.css'
 
@@ -115,6 +116,9 @@ function App() {
 										<ReferenceDataManager />
 									</DashboardLayout>
 								} />
+								
+								{/* TV Kiosk Display - fullscreen mode for large displays */}
+								<Route path="/tv-display" element={<TVKioskDisplay />} />
 								
 								{/* Catch all - redirect to home */}
 								<Route path="*" element={<Navigate to="/" replace />} />

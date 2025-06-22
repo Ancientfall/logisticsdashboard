@@ -22,6 +22,7 @@ import {
   ProductionSupportVarianceDashboard 
 } from './VarianceAnalysisComponents';
 import { formatSmartCurrency } from '../../utils/formatters';
+import MonthlyVesselCostChart from './MonthlyVesselCostChart';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -348,24 +349,26 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           // Must be production chemical or utility fluid (not drilling/completion)
           const isProductionFluid = !action.isDrillingFluid && !action.isCompletionFluid;
           
-          // Exclude fuel/diesel - these are not production chemicals
+          // Exclude fuel/diesel/drillwater - these are not production chemicals
           const bulkType = (action.bulkType || '').toLowerCase();
           const fluidType = (action.fluidSpecificType || '').toLowerCase();
-          const isFuel = bulkType.includes('diesel') || 
-                        bulkType.includes('fuel') ||
-                        bulkType.includes('gas oil') ||
-                        bulkType.includes('marine gas oil') ||
-                        bulkType.includes('mgo') ||
-                        fluidType.includes('diesel') ||
-                        fluidType.includes('fuel') ||
-                        fluidType.includes('gas oil');
+          const isDrillingFluid = bulkType.includes('diesel') || 
+                                 bulkType.includes('drillwater') ||
+                                 bulkType.includes('fuel') ||
+                                 bulkType.includes('gas oil') ||
+                                 bulkType.includes('marine gas oil') ||
+                                 bulkType.includes('mgo') ||
+                                 fluidType.includes('diesel') ||
+                                 fluidType.includes('drillwater') ||
+                                 fluidType.includes('fuel') ||
+                                 fluidType.includes('gas oil');
           
           // Only include OFFLOAD operations to avoid double-counting
           const isRelevantOperation = action.action === 'offload';
           // Must be to a production platform/rig (offshore locations)
           const isPlatformDestination = action.portType === 'rig';
           
-          return isProductionFluid && !isFuel && isRelevantOperation && isPlatformDestination;
+          return isProductionFluid && !isDrillingFluid && isRelevantOperation && isPlatformDestination;
         });
         
         console.log('🔍 AFTER PRODUCTION FILTERING (excluding fuel):', filteredBulkActions.length);
@@ -599,12 +602,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           vesselOperationalData: []
         },
         productionSupport: {
-          cycleTimeVariance: {
+          monthlyCostVariance: {
             mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
           },
-          responseTimeVariance: {
+          visitsPerWeekVariance: {
             mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
@@ -657,12 +660,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         liftsPerHourCV: operationalVariance.liftsPerHourVariance.coefficientOfVariation.toFixed(1) + '%',
         costPerTonCV: operationalVariance.costPerTonVariance.coefficientOfVariation.toFixed(1) + '%',
         visitsPerWeekCV: operationalVariance.visitsPerWeekVariance.coefficientOfVariation.toFixed(1) + '%',
-        cycleTimeCV: productionSupport.cycleTimeVariance.coefficientOfVariation.toFixed(1) + '%',
+        monthlyCostCV: productionSupport.monthlyCostVariance.coefficientOfVariation.toFixed(1) + '%',
         outliers: {
           liftsPerHour: operationalVariance.liftsPerHourVariance.outliers.length,
           costPerTon: operationalVariance.costPerTonVariance.outliers.length,
           visitsPerWeek: operationalVariance.visitsPerWeekVariance.outliers.length,
-          productionSupport: productionSupport.cycleTimeVariance.outliers.length
+          productionSupport: productionSupport.monthlyCostVariance.outliers.length
         }
       });
 
@@ -692,12 +695,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           vesselOperationalData: []
         },
         productionSupport: {
-          cycleTimeVariance: {
+          monthlyCostVariance: {
             mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
           },
-          responseTimeVariance: {
+          visitsPerWeekVariance: {
             mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
@@ -1377,12 +1380,23 @@ Note: Excludes drilling/completion fluids`;
                   
                   // Production chemical filtering: must be production chemical or utility fluid (not drilling/completion)
                   const isProductionFluid = !action.isDrillingFluid && !action.isCompletionFluid;
+                  
+                  // Exclude drilling chemicals: diesel and drillwater are not production chemicals
+                  const bulkType = (action.bulkType || '').toLowerCase();
+                  const fluidType = (action.fluidSpecificType || '').toLowerCase();
+                  const isDrillingChemical = bulkType.includes('diesel') || 
+                                             bulkType.includes('drillwater') ||
+                                             bulkType.includes('fuel') ||
+                                             fluidType.includes('diesel') ||
+                                             fluidType.includes('drillwater') ||
+                                             fluidType.includes('fuel');
+                  
                   // Only include OFFLOAD operations to avoid double-counting
                   const isRelevantOperation = action.action === 'offload';
                   // Must be to a production platform/rig (offshore locations)
                   const isPlatformDestination = action.portType === 'rig';
                   
-                  return isProductionFluid && isRelevantOperation && isPlatformDestination;
+                  return isProductionFluid && !isDrillingChemical && isRelevantOperation && isPlatformDestination;
                 });
 
                 // Group chemicals by type for detailed analytics
@@ -1454,7 +1468,7 @@ Note: Excludes drilling/completion fluids`;
                     </div>
 
                     {/* Summary Statistics */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
                         <div className="text-2xl font-bold text-blue-700">{Math.round(productionMetrics.bulk.productionChemicalVolume * 42).toLocaleString()}</div>
                         <div className="text-sm text-gray-600">Total Volume</div>
@@ -1470,38 +1484,8 @@ Note: Excludes drilling/completion fluids`;
                         <div className="text-sm text-gray-600">Chemical Types</div>
                         <div className="text-xs text-purple-600 mt-1">Unique products</div>
                       </div>
-                      <div className="text-center p-4 bg-violet-50 rounded-lg border border-violet-200">
-                        <div className="text-2xl font-bold text-violet-700">{Math.round(productionMetrics.integrityScore)}%</div>
-                        <div className="text-sm text-gray-600">Data Integrity</div>
-                        <div className="text-xs text-violet-600 mt-1">Quality score</div>
-                      </div>
                     </div>
 
-                    {/* Data Quality Indicators */}
-                    <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h5 className="text-sm font-semibold text-gray-800">Data Quality Validation</h5>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Enhanced validation with deduplication engine
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-orange-600">{productionMetrics.validationSummary.criticalIssues}</div>
-                            <div className="text-xs text-gray-600">Critical Issues</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-yellow-600">{productionMetrics.validationSummary.warnings}</div>
-                            <div className="text-xs text-gray-600">Warnings</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-green-600">{productionMetrics.validationSummary.recommendations.length}</div>
-                            <div className="text-xs text-gray-600">Recommendations</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 );
               })()}
@@ -1646,7 +1630,7 @@ Note: Excludes drilling/completion fluids`;
                             </div>
                             <div className="text-lg font-bold text-gray-900">${(platform.totalCost / 1000000).toFixed(1)}M</div>
                             <div className="text-xs text-gray-600 mt-1">
-                              {platform.allocatedDays} days • {platform.allocations} allocations • {platform.lcCount} LCs
+                              {Math.round(platform.allocatedDays)} days • {platform.allocations} allocations • {platform.lcCount} LCs
                             </div>
                             <div className="text-xs text-blue-600 mt-1">
                               Avg: ${Math.round(platform.avgDayRate).toLocaleString()}/day
@@ -1674,7 +1658,7 @@ Note: Excludes drilling/completion fluids`;
                         <div className="text-xs text-green-600 mt-1">Allocated days × day rates</div>
                       </div>
                       <div className="text-center p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                        <div className="text-2xl font-bold text-emerald-700">{sortedPlatforms.reduce((sum, p) => sum + p.allocatedDays, 0)}</div>
+                        <div className="text-2xl font-bold text-emerald-700">{Math.round(sortedPlatforms.reduce((sum, p) => sum + p.allocatedDays, 0))}</div>
                         <div className="text-sm text-gray-600">Total Allocated Days</div>
                         <div className="text-xs text-emerald-600 mt-1">Production platforms</div>
                       </div>
@@ -1720,6 +1704,12 @@ Note: Excludes drilling/completion fluids`;
               })()}
             </div>
           </div>
+
+          {/* Monthly Vessel Cost Trend Chart */}
+          <MonthlyVesselCostChart
+            costAllocation={costAllocation}
+            selectedLocation={filters.selectedLocation}
+          />
 
           {/* Advanced Production Vessel Fleet Performance */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -2076,8 +2066,8 @@ Note: Excludes drilling/completion fluids`;
 
           {/* Production Support Variance Analysis */}
           <ProductionSupportVarianceDashboard
-            cycleTimeVariance={varianceAnalysis.productionSupport.cycleTimeVariance}
-            responseTimeVariance={varianceAnalysis.productionSupport.responseTimeVariance}
+            monthlyCostVariance={varianceAnalysis.productionSupport.monthlyCostVariance}
+            visitsPerWeekVariance={varianceAnalysis.productionSupport.visitsPerWeekVariance}
             facilityEfficiencyData={varianceAnalysis.productionSupport.facilityEfficiencyData}
           />
         </div>

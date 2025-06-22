@@ -548,10 +548,37 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             };
           }
           
-          const cost = allocation.totalCost || allocation.budgetedVesselCost || 0;
           const days = allocation.totalAllocatedDays || 0;
           
-          acc[rigName].totalCost += cost;
+          // Calculate cost using proper daily rate based on time period
+          // Time period logic: Jan 1, 2024 - Mar 31, 2025 = $33,000/day
+          // Apr 1, 2025 onwards = $37,800/day
+          let dailyRate = 33000; // Default rate for Jan 2024 - Mar 2025
+          
+          // Determine appropriate rate based on allocation date
+          if (allocation.costAllocationDate) {
+            const allocDate = new Date(allocation.costAllocationDate);
+            if (allocDate >= new Date('2025-04-01')) {
+              dailyRate = 37800;
+            }
+          } else if (allocation.year && allocation.month) {
+            // Use year/month if costAllocationDate not available
+            const allocDate = new Date(allocation.year, allocation.month - 1, 1);
+            if (allocDate >= new Date('2025-04-01')) {
+              dailyRate = 37800;
+            }
+          } else {
+            // If no date info, use filter period to determine rate
+            if (filterYear && filterYear >= 2025) {
+              if (!filterMonth || filterMonth >= 3) { // April or later (filterMonth is 0-based)
+                dailyRate = 37800;
+              }
+            }
+          }
+          
+          const calculatedCost = days * dailyRate;
+          
+          acc[rigName].totalCost += calculatedCost;
           acc[rigName].totalDays += days;
           acc[rigName].allocations += 1;
           
@@ -1463,6 +1490,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         console.log(`🐕 MAD DOG FINAL RESULTS: ${finalMadDogCount} actions, ${finalMadDogOperations} operations, ${finalMadDogVolume.toFixed(1)} bbls`);
       }
 
+      // Calculate rig location cost analysis first (needed for costs calculation)
+      const rigLocationCostAnalysis = calculateRigLocationCosts(costAllocation, filterMonth, filterYear, isYTD, filters.selectedLocation);
+
       // Build comprehensive metrics object
       const metrics = {
         // Core cargo metrics from enhanced manifests
@@ -1488,11 +1518,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           averageTripDuration: 0 // Will be calculated from voyage duration if needed
         },
         
-        // Cost metrics from enhanced cost allocation
+        // Cost metrics from LC-based cost allocation calculation
         costs: {
-          totalVesselCost: enhancedKPIs.totalVesselCost,
-          costPerTon: manifestMetrics.totalCargoTons > 0 ? enhancedKPIs.totalVesselCost / manifestMetrics.totalCargoTons : 0,
-          costPerHour: voyageMetrics.totalHours > 0 ? enhancedKPIs.totalVesselCost / voyageMetrics.totalHours : 0
+          totalVesselCost: Number(rigLocationCostAnalysis?.summary?.totalCost || 0),
+          costPerTon: manifestMetrics.totalCargoTons > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / manifestMetrics.totalCargoTons : 0,
+          costPerHour: voyageMetrics.totalHours > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / voyageMetrics.totalHours : 0
         },
         
         // Utilization metrics from enhanced calculations
@@ -1513,7 +1543,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         fluidIntelligence,
         
         // Calculate rig location cost analysis
-        rigLocationCostAnalysis: calculateRigLocationCosts(costAllocation, filterMonth, filterYear, isYTD, filters.selectedLocation),
+        rigLocationCostAnalysis,
         
         // Data quality metrics
         integrityScore: integrityReport.overallScore,
@@ -3114,12 +3144,18 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             <div className="p-6">
               {/* Summary Statistics Row - Enhanced with Hover Effects */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="text-center group cursor-pointer p-4 rounded-lg hover:bg-blue-50 transition-all duration-200 hover:shadow-sm">
+                <div className="text-center group cursor-pointer p-4 rounded-lg hover:bg-blue-50 transition-all duration-200 hover:shadow-sm relative">
                   <div className="text-4xl font-bold text-blue-600 group-hover:scale-110 transition-transform duration-200">
                     ${Math.round(((drillingMetrics as any).rigLocationCostAnalysis?.summary?.totalCost || 0) / 1000000)}M
                   </div>
                   <div className="text-sm text-gray-600 mt-1 group-hover:text-blue-700 transition-colors">Total Rig Costs</div>
                   <div className="w-12 h-1 bg-blue-200 mx-auto mt-2 group-hover:bg-blue-400 transition-colors"></div>
+                  
+                  {/* Tooltip for Total Rig Costs */}
+                  <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap z-50">
+                    ${((drillingMetrics as any).rigLocationCostAnalysis?.summary?.totalCost || 0).toLocaleString()}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                  </div>
                 </div>
                 <div className="text-center group cursor-pointer p-4 rounded-lg hover:bg-green-50 transition-all duration-200 hover:shadow-sm">
                   <div className="text-4xl font-bold text-green-600 group-hover:scale-110 transition-transform duration-200">
@@ -3157,7 +3193,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   return (
                     <div 
                       key={rig.rigName} 
-                      className={`${colorSet.bg} border ${colorSet.border} rounded-lg p-4 transition-all duration-200 ${colorSet.hover} hover:shadow-md hover:border-opacity-80 hover:scale-[1.02] cursor-pointer`}
+                      className={`${colorSet.bg} border ${colorSet.border} rounded-lg p-4 transition-all duration-200 ${colorSet.hover} hover:shadow-md hover:border-opacity-80 hover:scale-[1.02] cursor-pointer relative group`}
                     >
                       <div className="mb-3">
                         <div className="flex items-center gap-2 mb-1">
@@ -3166,10 +3202,16 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <div className="flex justify-between items-center group">
+                        <div className="flex justify-between items-center relative">
                           <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">Total Cost</span>
-                          <span className={`text-sm font-semibold ${colorSet.accent} group-hover:scale-105 transition-transform`}>
+                          <span className={`text-sm font-semibold ${colorSet.accent} group-hover:scale-105 transition-transform relative`}>
                             ${Math.round(rig.totalCost / 1000000)}M
+                            
+                            {/* Tooltip for individual rig total cost */}
+                            <div className="absolute -top-10 right-0 bg-gray-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap z-50">
+                              ${rig.totalCost.toLocaleString()}
+                              <div className="absolute top-full right-2 border-2 border-transparent border-t-gray-900"></div>
+                            </div>
                           </span>
                         </div>
                         <div className="flex justify-between items-center group">

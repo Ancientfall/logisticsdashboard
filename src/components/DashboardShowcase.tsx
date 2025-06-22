@@ -11,7 +11,8 @@ import {
   Target,
   Settings,
   Database,
-  Zap
+  Zap,
+  Monitor
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
@@ -90,6 +91,16 @@ const DashboardShowcase: React.FC = () => {
       gradient: 'from-cyan-500 to-blue-600',
       features: ['Transfer Tracking', 'Fluid Type Analysis', 'Route Performance', 'Volume Analytics'],
       stats: { transfers: '234', volume: '67K', routes: '18' }
+    },
+    {
+      id: 'tv-display',
+      title: 'TV Kiosk Display',
+      description: 'Large-screen rotating KPI display optimized for 110" TVs and operational monitoring centers',
+      icon: Monitor,
+      route: '/tv-display',
+      gradient: 'from-slate-600 to-gray-700',
+      features: ['Auto-Rotating KPIs', 'Large Screen Optimized', 'Real-time Metrics', 'Professional Display'],
+      stats: { rotation: '10s', metrics: '8', screens: 'TV Ready' }
     },
     {
       id: 'dashboard',
