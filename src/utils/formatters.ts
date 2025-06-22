@@ -298,4 +298,30 @@ export const formatDaysWhole = (days: number | undefined | null): string => {
 export const formatPercentageWhole = (value: number | undefined | null): string => {
   if (value === undefined || value === null || isNaN(value)) return '0%';
   return `${Math.round(value)}%`;
+};
+
+/**
+ * Smart currency formatting for KPI cards - shows appropriate scale (M/K) with proper decimal places
+ * For millions: shows 1 decimal place (e.g., $14.5M)
+ * For hundreds of thousands: shows whole numbers (e.g., $485K) 
+ * For smaller amounts: shows normal currency format
+ */
+export const formatSmartCurrency = (amount: number | undefined | null): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '$0';
+  
+  const absAmount = Math.abs(amount);
+  
+  if (absAmount >= 1000000) {
+    // For millions, show 1 decimal place
+    return `$${(amount / 1000000).toFixed(1)}M`;
+  } else if (absAmount >= 100000) {
+    // For hundreds of thousands, show whole numbers
+    return `$${Math.round(amount / 1000)}K`;
+  } else if (absAmount >= 1000) {
+    // For smaller thousands, show 1 decimal place
+    return `$${(amount / 1000).toFixed(1)}K`;
+  }
+  
+  // For amounts under $1,000, show normal currency format
+  return formatCurrency(amount);
 }; 

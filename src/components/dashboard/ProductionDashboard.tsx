@@ -21,6 +21,7 @@ import {
   ProductionOperationalVarianceDashboard, 
   ProductionSupportVarianceDashboard 
 } from './VarianceAnalysisComponents';
+import { formatSmartCurrency } from '../../utils/formatters';
 
 interface ProductionDashboardProps {
   onNavigateToUpload?: () => void;
@@ -938,7 +939,7 @@ Note: Validated against cost allocation LCs`;
             },
             {
               title: "Logistics Cost",
-              value: `$${((() => {
+              value: formatSmartCurrency((() => {
                 // Calculate production-only logistics cost - only include vessel costs for production assets
                 const productionLCNumbers = ['9999','9779','10027','10039','10070','10082','10106','9361','10103','10096','10071','10115','9359','9364','9367','10098','10080','10051','10021','10017','9360','10099','10081','10074','10052','9358','10097','10084','10072','10067'];
                 
@@ -994,7 +995,7 @@ Note: Validated against cost allocation LCs`;
                 }, 0);
 
                 return Math.min(productionVesselCost, 4000000); // Cap at $4M for production assets only
-              })() / 1000000).toFixed(1)}M`,
+              })()),
               unit: "",
               target: filters.selectedLocation === 'All Locations' ? 3.0 : 1.2, // Production assets logistics cost targets in millions
               trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 

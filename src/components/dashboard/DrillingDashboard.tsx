@@ -21,6 +21,7 @@ import {
   DrillingOperationalVarianceDashboard, 
   VesselUtilizationVarianceDashboard 
 } from './VarianceAnalysisComponents';
+import { formatSmartCurrency } from '../../utils/formatters';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -2083,7 +2084,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             },
             {
               title: "Logistics Cost",
-              value: `$${Math.round(drillingMetrics.costs.totalVesselCost / 1000).toLocaleString()}K`,
+              value: formatSmartCurrency(drillingMetrics.costs.totalVesselCost),
               unit: "",
               target: filters.selectedLocation === 'All Locations' ? 15000 : 3000,
               trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
