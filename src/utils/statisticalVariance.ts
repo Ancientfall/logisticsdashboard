@@ -780,7 +780,7 @@ export const calculateProductionOperationalVariance = (
 };
 
 /**
- * Calculate production support cycle time variance for production operations
+ * Calculate production support monthly cost and visits variance for production operations
  */
 export const calculateProductionSupportVariance = (
   voyageEvents: VoyageEvent[],
@@ -790,21 +790,49 @@ export const calculateProductionSupportVariance = (
   currentYear?: number,
   locationFilter?: string
 ): {
-  cycleTimeVariance: VarianceAnalysis;
-  responseTimeVariance: VarianceAnalysis;
+  monthlyCostVariance: VarianceAnalysis;
+  visitsPerWeekVariance: VarianceAnalysis;
   facilityEfficiencyData: Array<{
     facilityName: string;
-    averageCycleTime: number; // Hours from request to completion
-    averageResponseTime: number; // Hours from base to facility
+    averageMonthlyCost: number; // Average monthly vessel cost
+    averageVisitsPerWeek: number; // Average visits per week
     totalSupplyRuns: number;
     totalSupportHours: number;
     utilityTransfers: number;
     chemicalTransfers: number;
   }>;
 } => {
-  // Filter for production operations using cost allocation
-  const productionCostAllocations = costAllocation.filter(ca => !ca.isDrilling);
+  // Filter for production operations using cost allocation with explicit production LC numbers
+  const productionLCNumbers = ['9999','9779','10027','10039','10070','10082','10106','9361','10103','10096','10071','10115','9359','9364','9367','10098','10080','10051','10021','10017','9360','10099','10081','10074','10052','9358','10097','10084','10072','10067'];
+  
+  const productionCostAllocations = costAllocation.filter(ca => {
+    const lcNumber = ca.lcNumber?.toString() || '';
+    if (!productionLCNumbers.includes(lcNumber)) return false;
+    
+    // Exclude drilling rigs from production analysis
+    const location = (ca.locationReference || '').toLowerCase();
+    const isDrillingRig = location.includes('ocean black') || 
+                         location.includes('blackhornet') || 
+                         location.includes('stena icemax') ||
+                         location.includes('steana icemax') ||
+                         location.includes('deepwater') ||
+                         location.includes('island venture') ||
+                         location.includes('auriga') ||
+                         location.includes('drilling') ||
+                         location.includes('rig');
+    
+    return !isDrillingRig;
+  });
+  
   const productionLCs = new Set(productionCostAllocations.map(ca => ca.lcNumber));
+  
+  console.log('🏭 Production Support Variance - Filtering Setup:', {
+    totalCostAllocations: costAllocation.length,
+    productionCostAllocations: productionCostAllocations.length,
+    productionLCs: Array.from(productionLCs),
+    locationFilter,
+    timeFilter: { currentMonth, currentYear }
+  });
 
   // Filter voyage events for production operations
   let productionEvents = voyageEvents.filter(event =>
@@ -815,6 +843,15 @@ export const calculateProductionSupportVariance = (
   let productionManifests = vesselManifests.filter(manifest =>
     manifest.costCode && productionLCs.has(manifest.costCode)
   );
+  
+  console.log('🏭 Production Support Variance - Initial Data:', {
+    totalVoyageEvents: voyageEvents.length,
+    productionEvents: productionEvents.length,
+    totalManifests: vesselManifests.length,
+    productionManifests: productionManifests.length,
+    sampleProductionEvent: productionEvents[0],
+    sampleProductionManifest: productionManifests[0]
+  });
 
   // Apply time filtering
   if (currentMonth !== undefined && currentYear !== undefined) {
@@ -849,100 +886,138 @@ export const calculateProductionSupportVariance = (
     );
   }
 
-  // Group by facility/platform for cycle time analysis
+  // Calculate time period for visits per week and monthly cost calculation
+  const calculateTimeMetrics = () => {
+    if (currentMonth !== undefined && currentYear !== undefined) {
+      return { weeksInPeriod: 4.33, monthsInPeriod: 1 };
+    } else if (currentYear !== undefined && currentMonth === undefined) {
+      const now = new Date();
+      const startOfYear = new Date(currentYear || now.getFullYear(), 0, 1);
+      const weeksYTD = Math.ceil((now.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      const monthsYTD = now.getMonth() + 1;
+      return { weeksInPeriod: Math.max(weeksYTD, 1), monthsInPeriod: Math.max(monthsYTD, 1) };
+    } else {
+      if (productionEvents.length > 0) {
+        const dates = productionEvents.map(e => e.eventDate).sort((a, b) => a.getTime() - b.getTime());
+        const startDate = dates[0];
+        const endDate = dates[dates.length - 1];
+        const weeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        const months = Math.ceil((endDate.getTime() - startDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000));
+        return { weeksInPeriod: Math.max(weeks, 1), monthsInPeriod: Math.max(months, 1) };
+      }
+      return { weeksInPeriod: 52, monthsInPeriod: 12 };
+    }
+  };
+
+  const { weeksInPeriod, monthsInPeriod } = calculateTimeMetrics();
+
+  // Group by facility/platform for cost and visits analysis
   const facilityMetrics = new Map<string, {
-    totalCycleTime: number;
-    totalResponseTime: number;
+    totalCost: number;
+    totalVisits: number;
     totalSupplyRuns: number;
     totalSupportHours: number;
     utilityTransfers: number;
     chemicalTransfers: number;
-    cycleCount: number;
+    voyageNumbers: Set<string>;
   }>();
 
-  // Analyze voyage patterns for cycle time calculation
-  const voyagesByVessel = new Map<string, VoyageEvent[]>();
-  productionEvents.forEach(event => {
-    const vessel = event.vessel;
-    if (!voyagesByVessel.has(vessel)) {
-      voyagesByVessel.set(vessel, []);
-    }
-    voyagesByVessel.get(vessel)!.push(event);
+  // Calculate costs from cost allocation data filtered for production facilities
+  const filteredCostAllocations = costAllocation.filter(ca => {
+    const lcNumber = ca.lcNumber?.toString() || '';
+    return productionLCs.has(lcNumber);
   });
 
-  // Calculate cycle times and response times by facility
-  voyagesByVessel.forEach((events, vessel) => {
-    const sortedEvents = events.sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
-    
-    // Group events by voyage number to calculate complete cycles
-    const voyageGroups = new Map<string, VoyageEvent[]>();
-    sortedEvents.forEach(event => {
-      const voyageKey = event.voyageNumber || 'unknown';
-      if (!voyageGroups.has(voyageKey)) {
-        voyageGroups.set(voyageKey, []);
-      }
-      voyageGroups.get(voyageKey)!.push(event);
-    });
+  // Apply time filtering to cost allocations
+  let timeFilteredCostAllocations = filteredCostAllocations;
+  if (currentMonth !== undefined && currentYear !== undefined) {
+    timeFilteredCostAllocations = filteredCostAllocations.filter(ca =>
+      ca.costAllocationDate &&
+      ca.costAllocationDate.getMonth() === currentMonth &&
+      ca.costAllocationDate.getFullYear() === currentYear
+    );
+  } else if (currentYear !== undefined && currentMonth === undefined) {
+    timeFilteredCostAllocations = filteredCostAllocations.filter(ca =>
+      ca.costAllocationDate &&
+      ca.costAllocationDate.getFullYear() === currentYear
+    );
+  }
 
-    voyageGroups.forEach((voyageEvents, voyageNumber) => {
-      const sortedVoyageEvents = voyageEvents.sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
-      
-      // Find facility destination
-      const facilityEvent = sortedVoyageEvents.find(e => e.portType === 'rig');
-      if (!facilityEvent) return;
-      
-      const facilityName = facilityEvent.location || facilityEvent.mappedLocation || 'Unknown';
-      
-      if (!facilityMetrics.has(facilityName)) {
-        facilityMetrics.set(facilityName, {
-          totalCycleTime: 0,
-          totalResponseTime: 0,
-          totalSupplyRuns: 0,
-          totalSupportHours: 0,
-          utilityTransfers: 0,
-          chemicalTransfers: 0,
-          cycleCount: 0
-        });
-      }
+  // Calculate cost and visits by facility
+  timeFilteredCostAllocations.forEach(ca => {
+    const facilityName = ca.locationReference || 'Unknown';
+    const allocatedDays = ca.totalAllocatedDays || 0;
+    const dayRate = ca.vesselDailyRateUsed || ca.averageVesselCostPerDay || 0;
+    const cost = allocatedDays * dayRate;
 
-      const metrics = facilityMetrics.get(facilityName)!;
-      
-      // Calculate cycle time (total voyage duration)
-      const voyageStart = sortedVoyageEvents[0].eventDate;
-      const voyageEnd = sortedVoyageEvents[sortedVoyageEvents.length - 1].eventDate;
-      const cycleTimeHours = (voyageEnd.getTime() - voyageStart.getTime()) / (1000 * 60 * 60);
-      
-      // Calculate response time (base to facility)
-      const transitEvents = sortedVoyageEvents.filter(e => e.parentEvent === 'Transit');
-      const responseTimeHours = transitEvents.reduce((sum, e) => sum + (e.finalHours || 0), 0);
-      
-      // Calculate support hours (cargo ops + setup + maneuvering at facility)
-      const supportHours = sortedVoyageEvents
-        .filter(e => e.portType === 'rig' && 
-          (e.parentEvent === 'Cargo Ops' || e.parentEvent === 'Setup' || e.parentEvent === 'Maneuvering'))
-        .reduce((sum, e) => sum + (e.finalHours || 0), 0);
-
-      metrics.totalCycleTime += cycleTimeHours;
-      metrics.totalResponseTime += responseTimeHours;
-      metrics.totalSupportHours += supportHours;
-      metrics.totalSupplyRuns += 1;
-      metrics.cycleCount += 1;
-    });
-  });
-
-  // Add manifest data to facility metrics
-  productionManifests.forEach(manifest => {
-    const facilityName = manifest.destination || manifest.mappedLocation || 'Unknown';
-    
     if (!facilityMetrics.has(facilityName)) {
       facilityMetrics.set(facilityName, {
-        totalCycleTime: 0,
-        totalResponseTime: 0,
+        totalCost: 0,
+        totalVisits: 0,
         totalSupplyRuns: 0,
         totalSupportHours: 0,
         utilityTransfers: 0,
         chemicalTransfers: 0,
-        cycleCount: 0
+        voyageNumbers: new Set()
+      });
+    }
+
+    const metrics = facilityMetrics.get(facilityName)!;
+    metrics.totalCost += cost;
+  });
+
+  // Add voyage events data for support hours and visits
+  productionEvents.forEach(event => {
+    const facilityName = event.location || event.mappedLocation || 'Unknown';
+    
+    if (!facilityMetrics.has(facilityName)) {
+      facilityMetrics.set(facilityName, {
+        totalCost: 0,
+        totalVisits: 0,
+        totalSupplyRuns: 0,
+        totalSupportHours: 0,
+        utilityTransfers: 0,
+        chemicalTransfers: 0,
+        voyageNumbers: new Set()
+      });
+    }
+
+    const metrics = facilityMetrics.get(facilityName)!;
+    
+    // Calculate support hours (cargo ops + setup + maneuvering at facility)
+    if (event.portType === 'rig' && 
+        (event.parentEvent === 'Cargo Ops' || event.parentEvent === 'Setup' || event.parentEvent === 'Maneuvering')) {
+      const hours = event.finalHours || 0;
+      const percentage = event.lcPercentage ? event.lcPercentage / 100 : 1;
+      metrics.totalSupportHours += hours * percentage;
+    }
+
+    // Collect voyage numbers more comprehensively
+    if (event.voyageNumber) {
+      metrics.voyageNumbers.add(event.voyageNumber);
+    }
+    // Also try standardized voyage number or create one from vessel + date
+    if (event.standardizedVoyageNumber) {
+      metrics.voyageNumbers.add(event.standardizedVoyageNumber);
+    }
+    // Fallback: create unique identifier for visit counting
+    const visitId = `${event.vessel}_${event.eventDate.getFullYear()}_${event.eventDate.getMonth()}_${event.eventDate.getDate()}`;
+    metrics.voyageNumbers.add(visitId);
+  });
+
+  // Add manifest data to facility metrics
+  productionManifests.forEach(manifest => {
+    const facilityName = manifest.offshoreLocation || manifest.mappedLocation || manifest.from || 'Unknown';
+    
+    if (!facilityMetrics.has(facilityName)) {
+      facilityMetrics.set(facilityName, {
+        totalCost: 0,
+        totalVisits: 0,
+        totalSupplyRuns: 0,
+        totalSupportHours: 0,
+        utilityTransfers: 0,
+        chemicalTransfers: 0,
+        voyageNumbers: new Set()
       });
     }
 
@@ -959,58 +1034,101 @@ export const calculateProductionSupportVariance = (
     } else {
       metrics.utilityTransfers += manifestItems;
     }
+
+    // Count supply runs more comprehensively
+    if (manifest.voyageId) {
+      metrics.voyageNumbers.add(manifest.voyageId);
+    }
+    if (manifest.standardizedVoyageId) {
+      metrics.voyageNumbers.add(manifest.standardizedVoyageId);
+    }
+    if (manifest.manifestNumber) {
+      metrics.voyageNumbers.add(manifest.manifestNumber);
+    }
+    // Fallback: create unique identifier for visit counting
+    const visitId = `${manifest.transporter}_${manifest.manifestDate.getFullYear()}_${manifest.manifestDate.getMonth()}_${manifest.manifestDate.getDate()}`;
+    metrics.voyageNumbers.add(visitId);
   });
 
   // Calculate facility efficiency metrics
   const facilityEfficiencyData: Array<{
     facilityName: string;
-    averageCycleTime: number;
-    averageResponseTime: number;
+    averageMonthlyCost: number;
+    averageVisitsPerWeek: number;
     totalSupplyRuns: number;
     totalSupportHours: number;
     utilityTransfers: number;
     chemicalTransfers: number;
   }> = [];
 
-  const cycleTimeData: DataPoint[] = [];
-  const responseTimeData: DataPoint[] = [];
+  const monthlyCostData: DataPoint[] = [];
+  const visitsPerWeekData: DataPoint[] = [];
 
   facilityMetrics.forEach((metrics, facilityName) => {
-    const averageCycleTime = metrics.cycleCount > 0 ? 
-      metrics.totalCycleTime / metrics.cycleCount : 0;
-    const averageResponseTime = metrics.cycleCount > 0 ? 
-      metrics.totalResponseTime / metrics.cycleCount : 0;
+    // Calculate average monthly cost
+    const averageMonthlyCost = monthsInPeriod > 0 ? 
+      metrics.totalCost / monthsInPeriod : 0;
+    
+    // Calculate average visits per week
+    const totalVisits = metrics.voyageNumbers.size;
+    const averageVisitsPerWeek = weeksInPeriod > 0 ? 
+      totalVisits / weeksInPeriod : 0;
+
+    metrics.totalSupplyRuns = totalVisits;
+
+    console.log(`📊 Facility ${facilityName} Variance Metrics:`, {
+      totalCost: metrics.totalCost,
+      monthsInPeriod,
+      averageMonthlyCost,
+      totalVisits,
+      weeksInPeriod,
+      averageVisitsPerWeek,
+      voyageNumbers: Array.from(metrics.voyageNumbers).slice(0, 5), // Show first 5 for debugging
+      totalVoyageNumbers: metrics.voyageNumbers.size,
+      totalSupportHours: metrics.totalSupportHours,
+      chemicalTransfers: metrics.chemicalTransfers,
+      utilityTransfers: metrics.utilityTransfers
+    });
 
     facilityEfficiencyData.push({
       facilityName,
-      averageCycleTime,
-      averageResponseTime,
+      averageMonthlyCost,
+      averageVisitsPerWeek,
       totalSupplyRuns: metrics.totalSupplyRuns,
       totalSupportHours: metrics.totalSupportHours,
       utilityTransfers: metrics.utilityTransfers,
       chemicalTransfers: metrics.chemicalTransfers
     });
 
-    if (averageCycleTime > 0) {
-      cycleTimeData.push({
-        value: averageCycleTime,
+    if (averageMonthlyCost > 0) {
+      monthlyCostData.push({
+        value: averageMonthlyCost,
         vesselName: facilityName,
         identifier: facilityName
       });
     }
 
-    if (averageResponseTime > 0) {
-      responseTimeData.push({
-        value: averageResponseTime,
+    if (averageVisitsPerWeek > 0) {
+      visitsPerWeekData.push({
+        value: averageVisitsPerWeek,
         vesselName: facilityName,
         identifier: facilityName
       });
     }
   });
 
+  console.log('🏭 Production Support Variance - Final Results:', {
+    totalFacilities: facilityMetrics.size,
+    facilitiesWithCost: monthlyCostData.length,
+    facilitiesWithVisits: visitsPerWeekData.length,
+    totalMonthlyCostDataPoints: monthlyCostData.map(d => ({ facility: d.vesselName, cost: d.value })),
+    totalVisitsPerWeekDataPoints: visitsPerWeekData.map(d => ({ facility: d.vesselName, visits: d.value })),
+    facilityNames: Array.from(facilityMetrics.keys())
+  });
+
   return {
-    cycleTimeVariance: calculateVarianceAnalysis(cycleTimeData),
-    responseTimeVariance: calculateVarianceAnalysis(responseTimeData),
+    monthlyCostVariance: calculateVarianceAnalysis(monthlyCostData),
+    visitsPerWeekVariance: calculateVarianceAnalysis(visitsPerWeekData),
     facilityEfficiencyData
   };
 };

@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, Target, Clock, Ship, Info, HelpCircle } from 'lucide-react';
+import { BarChart3, TrendingUp, AlertTriangle, Target, Clock, Ship, Info, HelpCircle, DollarSign, Calendar } from 'lucide-react';
 import { VarianceAnalysis } from '../../utils/statisticalVariance';
+
+// Currency formatting helper function
+const formatCurrency = (value: number): string => {
+  if (value >= 1000000) {
+    return '$' + (value / 1000000).toFixed(1) + 'M';
+  } else if (value >= 1000) {
+    return '$' + (value / 1000).toFixed(1) + 'K';
+  } else {
+    return '$' + value.toFixed(0);
+  }
+};
 
 interface TooltipProps {
   content: string;
@@ -89,6 +100,23 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
 }) => {
   const { min, max, quartile1, median, quartile3, outliers } = data;
   const [hoveredOutlier, setHoveredOutlier] = useState<number | null>(null);
+  
+  // Validate data to prevent NaN errors
+  if (!data || data.count === 0 || !isFinite(min) || !isFinite(max) || min === max || !isFinite(quartile1) || !isFinite(quartile3) || !isFinite(median)) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+          <Tooltip content="Box plot shows data distribution with median (center line), quartiles (box edges), range (whiskers), and outliers (red/orange dots). Lower box = more consistent performance.">
+            <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+          </Tooltip>
+        </div>
+        <div className="flex items-center justify-center h-20 text-gray-500 text-sm">
+          No data available for analysis
+        </div>
+      </div>
+    );
+  }
   
   // Calculate plot dimensions
   const plotWidth = 300;
@@ -222,7 +250,7 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
                               fontSize="7"
                               textAnchor="middle"
                             >
-                              {outlier.value.toFixed(1)}{unit}
+                              {unit === '$' ? formatCurrency(outlier.value) : outlier.value.toFixed(1)}{unit}
                             </text>
                           </>
                         );
@@ -237,11 +265,11 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
         
         {/* Value labels */}
         <div className="flex justify-between text-xs text-gray-600 mb-2">
-          <span>Min: {min.toFixed(1)}{unit}</span>
-          <span>Q1: {quartile1.toFixed(1)}{unit}</span>
-          <span>Median: {median.toFixed(1)}{unit}</span>
-          <span>Q3: {quartile3.toFixed(1)}{unit}</span>
-          <span>Max: {max.toFixed(1)}{unit}</span>
+          <span>Min: {unit === '$' ? formatCurrency(min) : min.toFixed(1)}{unit}</span>
+          <span>Q1: {unit === '$' ? formatCurrency(quartile1) : quartile1.toFixed(1)}{unit}</span>
+          <span>Median: {unit === '$' ? formatCurrency(median) : median.toFixed(1)}{unit}</span>
+          <span>Q3: {unit === '$' ? formatCurrency(quartile3) : quartile3.toFixed(1)}{unit}</span>
+          <span>Max: {unit === '$' ? formatCurrency(max) : max.toFixed(1)}{unit}</span>
         </div>
         
         {/* Summary statistics */}
@@ -249,12 +277,12 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
           <div className="text-gray-600">
             <Tooltip content="Average value across all vessels. Shows typical performance level.">
               <span className="font-medium border-b border-dotted border-gray-400 cursor-help">Mean:</span>
-            </Tooltip> {data.mean.toFixed(1)}{unit}
+            </Tooltip> {unit === '$' ? formatCurrency(data.mean) : data.mean.toFixed(1)}{unit}
           </div>
           <div className="text-gray-600">
             <Tooltip content="Standard Deviation measures spread from average. Lower = more consistent performance.">
               <span className="font-medium border-b border-dotted border-gray-400 cursor-help">Std Dev:</span>
-            </Tooltip> {data.standardDeviation.toFixed(1)}{unit}
+            </Tooltip> {unit === '$' ? formatCurrency(data.standardDeviation) : data.standardDeviation.toFixed(1)}{unit}
           </div>
           <div className="text-gray-600">
             <Tooltip content="Coefficient of Variation: consistency measure. <10% = Excellent, <20% = Good, <30% = Fair, >30% = High Variance.">
@@ -285,15 +313,39 @@ export const ControlChart: React.FC<ControlChartProps> = ({
   color = '#00754F'
 }) => {
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  
+  // Validate data to prevent NaN errors
+  if (!data || data.length === 0 || !isFinite(mean) || !isFinite(upperControlLimit) || !isFinite(lowerControlLimit)) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+          <Tooltip content="Control chart monitors process stability. Points outside red dashed lines (±2σ) indicate out-of-control performance needing investigation.">
+            <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+          </Tooltip>
+        </div>
+        <div className="flex items-center justify-center h-48 text-gray-500 text-sm">
+          No data available for analysis
+        </div>
+      </div>
+    );
+  }
+  
   const chartHeight = 200;
   const chartWidth = 400;
   const maxValue = Math.max(...data.map(d => d.value), upperControlLimit);
   const minValue = Math.min(...data.map(d => d.value), lowerControlLimit);
-  const range = maxValue - minValue;
+  const range = maxValue - minValue > 0 ? maxValue - minValue : 1; // Prevent division by zero
   const padding = 20;
   
-  const getY = (value: number) => chartHeight - padding - ((value - minValue) / range) * (chartHeight - 2 * padding);
-  const getX = (index: number) => padding + (index / (data.length - 1)) * (chartWidth - 2 * padding);
+  const getY = (value: number) => {
+    if (!isFinite(value)) return chartHeight / 2; // Fallback for invalid values
+    return chartHeight - padding - ((value - minValue) / range) * (chartHeight - 2 * padding);
+  };
+  const getX = (index: number) => {
+    if (data.length <= 1) return chartWidth / 2; // Fallback for single data point
+    return padding + (index / (data.length - 1)) * (chartWidth - 2 * padding);
+  };
   
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -408,7 +460,7 @@ export const ControlChart: React.FC<ControlChartProps> = ({
                             fontSize="9"
                             textAnchor="middle"
                           >
-                            {d.value.toFixed(1)}{unit}
+                            {unit === '$' ? formatCurrency(d.value) : d.value.toFixed(1)}{unit}
                           </text>
                         </>
                       );
@@ -421,13 +473,13 @@ export const ControlChart: React.FC<ControlChartProps> = ({
           
           {/* Labels */}
           <text x={chartWidth - padding - 50} y={getY(upperControlLimit) - 5} fontSize="10" fill="#ef4444">
-            UCL: {upperControlLimit.toFixed(1)}
+            UCL: {unit === '$' ? formatCurrency(upperControlLimit) : upperControlLimit.toFixed(1)}
           </text>
           <text x={chartWidth - padding - 50} y={getY(mean) - 5} fontSize="10" fill={color}>
-            Mean: {mean.toFixed(1)}
+            Mean: {unit === '$' ? formatCurrency(mean) : mean.toFixed(1)}
           </text>
           <text x={chartWidth - padding - 50} y={getY(lowerControlLimit) + 15} fontSize="10" fill="#ef4444">
-            LCL: {lowerControlLimit.toFixed(1)}
+            LCL: {unit === '$' ? formatCurrency(lowerControlLimit) : lowerControlLimit.toFixed(1)}
           </text>
         </svg>
         
@@ -435,7 +487,7 @@ export const ControlChart: React.FC<ControlChartProps> = ({
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           {data.slice(0, 5).map((d, index) => (
             <span key={index} className="text-gray-600">
-              {d.vesselName}: {d.value.toFixed(1)}{unit}
+              {d.vesselName}: {unit === '$' ? formatCurrency(d.value) : d.value.toFixed(1)}{unit}
             </span>
           ))}
           {data.length > 5 && <span className="text-gray-500">+{data.length - 5} more</span>}
@@ -456,8 +508,29 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
   color = 'bg-bp-green',
   tooltipContent = "Statistical variance analysis measures consistency and identifies operational performance patterns."
 }) => {
+  // Validate variance data
+  if (!variance || variance.count === 0 || !isFinite(variance.mean) || !isFinite(variance.standardDeviation)) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+            <Tooltip content={tooltipContent}>
+              <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+            </Tooltip>
+          </div>
+          <Icon className="h-5 w-5 text-bp-green" />
+        </div>
+        <div className="flex items-center justify-center h-20 text-gray-500 text-sm">
+          No data available for analysis
+        </div>
+      </div>
+    );
+  }
+
   const getVarianceStatus = () => {
     const cv = variance.coefficientOfVariation;
+    if (!isFinite(cv)) return { status: 'No Data', color: 'text-gray-600', bgColor: 'bg-gray-50' };
     if (cv < 10) return { status: 'Excellent', color: 'text-green-600', bgColor: 'bg-green-50' };
     if (cv < 20) return { status: 'Good', color: 'text-blue-600', bgColor: 'bg-blue-50' };
     if (cv < 30) return { status: 'Fair', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
@@ -486,7 +559,7 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
               <p className="text-xs text-gray-500 border-b border-dotted border-gray-300 cursor-help">Mean</p>
             </Tooltip>
             <p className="text-lg font-bold text-gray-900">
-              {variance.mean.toFixed(1)}<span className="text-sm font-normal">{unit}</span>
+              {unit === '$' ? formatCurrency(variance.mean) : variance.mean.toFixed(1)}<span className="text-sm font-normal">{unit !== '$' ? unit : ''}</span>
             </p>
           </div>
           <div>
@@ -494,7 +567,7 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
               <p className="text-xs text-gray-500 border-b border-dotted border-gray-300 cursor-help">Std Dev</p>
             </Tooltip>
             <p className="text-lg font-bold text-gray-900">
-              {variance.standardDeviation.toFixed(1)}<span className="text-sm font-normal">{unit}</span>
+              {unit === '$' ? formatCurrency(variance.standardDeviation) : variance.standardDeviation.toFixed(1)}<span className="text-sm font-normal">{unit !== '$' ? unit : ''}</span>
             </p>
           </div>
         </div>
@@ -524,7 +597,7 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
         
         {/* Range */}
         <div className="text-xs text-gray-600">
-          <span className="font-medium">Range:</span> {variance.min.toFixed(1)} - {variance.max.toFixed(1)}{unit}
+          <span className="font-medium">Range:</span> {unit === '$' ? formatCurrency(variance.min) : variance.min.toFixed(1)} - {unit === '$' ? formatCurrency(variance.max) : variance.max.toFixed(1)}{unit !== '$' ? unit : ''}
         </div>
       </div>
     </div>
@@ -916,12 +989,12 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
  * Production Support Variance Dashboard Component
  */
 interface ProductionSupportVarianceDashboardProps {
-  cycleTimeVariance: VarianceAnalysis;
-  responseTimeVariance: VarianceAnalysis;
+  monthlyCostVariance: VarianceAnalysis;
+  visitsPerWeekVariance: VarianceAnalysis;
   facilityEfficiencyData: Array<{
     facilityName: string;
-    averageCycleTime: number;
-    averageResponseTime: number;
+    averageMonthlyCost: number;
+    averageVisitsPerWeek: number;
     totalSupplyRuns: number;
     totalSupportHours: number;
     utilityTransfers: number;
@@ -930,23 +1003,23 @@ interface ProductionSupportVarianceDashboardProps {
 }
 
 export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVarianceDashboardProps> = ({
-  cycleTimeVariance,
-  responseTimeVariance,
+  monthlyCostVariance,
+  visitsPerWeekVariance,
   facilityEfficiencyData
 }) => {
   // Prepare control chart data
-  const cycleTimeControlData = facilityEfficiencyData
-    .filter(f => f.averageCycleTime > 0)
+  const monthlyCostControlData = facilityEfficiencyData
+    .filter(f => f.averageMonthlyCost > 0)
     .map(f => ({
       vesselName: f.facilityName,
-      value: f.averageCycleTime
+      value: f.averageMonthlyCost
     }));
 
-  const responseTimeControlData = facilityEfficiencyData
-    .filter(f => f.averageResponseTime > 0)
+  const visitsControlData = facilityEfficiencyData
+    .filter(f => f.averageVisitsPerWeek > 0)
     .map(f => ({
       vesselName: f.facilityName,
-      value: f.averageResponseTime
+      value: f.averageVisitsPerWeek
     }));
 
   return (
@@ -954,37 +1027,39 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg p-4">
         <h2 className="text-lg font-bold mb-1">Production Support Variance Analysis</h2>
-        <p className="text-sm opacity-90">Statistical analysis of production facility support cycle times</p>
+        <p className="text-sm opacity-90">Statistical analysis of production facility cost and visit patterns</p>
       </div>
       
       {/* Stats Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VarianceStatsCard
-          title="Cycle Time Variance"
-          variance={cycleTimeVariance}
-          unit=" hrs"
-          icon={Clock}
+          title="Monthly Cost Variance"
+          variance={monthlyCostVariance}
+          unit="$"
+          icon={DollarSign}
+          tooltipContent="Monthly vessel cost variance measures consistency in production facility support costs. Lower variance indicates more predictable operational expenses."
         />
         <VarianceStatsCard
-          title="Response Time Variance"
-          variance={responseTimeVariance}
-          unit=" hrs"
-          icon={Ship}
+          title="Visits per Week Variance"
+          variance={visitsPerWeekVariance}
+          unit=" visits/week"
+          icon={Calendar}
+          tooltipContent="Visits per week variance measures consistency in production facility support frequency. Lower variance indicates more predictable supply schedules."
         />
       </div>
       
       {/* Box Plots */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BoxPlot
-          data={cycleTimeVariance}
-          title="Cycle Time Distribution"
-          unit=" hrs"
+          data={monthlyCostVariance}
+          title="Monthly Cost Distribution"
+          unit="$"
           color="bg-emerald-600"
         />
         <BoxPlot
-          data={responseTimeVariance}
-          title="Response Time Distribution"
-          unit=" hrs"
+          data={visitsPerWeekVariance}
+          title="Visits per Week Distribution"
+          unit=" visits/week"
           color="bg-emerald-600"
         />
       </div>
@@ -992,21 +1067,21 @@ export const ProductionSupportVarianceDashboard: React.FC<ProductionSupportVaria
       {/* Control Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ControlChart
-          data={cycleTimeControlData}
-          title="Cycle Time Control Chart"
-          unit=" hrs"
-          mean={cycleTimeVariance.mean}
-          upperControlLimit={cycleTimeVariance.mean + 2 * cycleTimeVariance.standardDeviation}
-          lowerControlLimit={Math.max(0, cycleTimeVariance.mean - 2 * cycleTimeVariance.standardDeviation)}
+          data={monthlyCostControlData}
+          title="Monthly Cost Control Chart"
+          unit="$"
+          mean={monthlyCostVariance.mean}
+          upperControlLimit={monthlyCostVariance.mean + 2 * monthlyCostVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, monthlyCostVariance.mean - 2 * monthlyCostVariance.standardDeviation)}
           color="#059669"
         />
         <ControlChart
-          data={responseTimeControlData}
-          title="Response Time Control Chart"
-          unit=" hrs"
-          mean={responseTimeVariance.mean}
-          upperControlLimit={responseTimeVariance.mean + 2 * responseTimeVariance.standardDeviation}
-          lowerControlLimit={Math.max(0, responseTimeVariance.mean - 2 * responseTimeVariance.standardDeviation)}
+          data={visitsControlData}
+          title="Visits per Week Control Chart"
+          unit=" visits/week"
+          mean={visitsPerWeekVariance.mean}
+          upperControlLimit={visitsPerWeekVariance.mean + 2 * visitsPerWeekVariance.standardDeviation}
+          lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
           color="#059669"
         />
       </div>
