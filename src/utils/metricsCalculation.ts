@@ -648,13 +648,108 @@ export const calculateEnhancedKPIMetrics = (
     
   const vesselCostMetrics = calculateVesselCostMetrics(filteredEvents);
   
-  // Enhanced cost logging with detailed breakdown
-  console.log(`💰 VESSEL COST CALCULATION for ${department}:`, {
+  // DETAILED COST BREAKDOWN LOGGING FOR DISCREPANCY ANALYSIS
+  console.log(`💰 LOGISTICS COST KPI CALCULATION for ${department}:`, {
     filteredEventsCount: filteredEvents.length,
     locationFilter: locationFilter || 'All Locations',
     totalVesselCost: vesselCostMetrics.totalVesselCost,
     averageVesselCostPerHour: vesselCostMetrics.averageVesselCostPerHour,
     vesselCostByDepartment: vesselCostMetrics.vesselCostByDepartment
+  });
+  
+  // DETAILED EVENT-BY-EVENT COST ANALYSIS
+  let existingCostTotal = 0;
+  let calculatedCostTotal = 0;
+  let totalHoursWithCosts = 0;
+  const costBreakdownByVessel = new Map();
+  const costBreakdownByLC = new Map();
+  const costBreakdownByActivity = new Map();
+  
+  filteredEvents.forEach(event => {
+    const hours = event.finalHours || 0;
+    const vesselName = event.vesselName || 'Unknown';
+    const lcNumber = event.lcNumber || 'No LC';
+    const parentEvent = event.parentEvent || 'Unknown Activity';
+    
+    let eventCost = 0;
+    let costSource = '';
+    
+    if (event.vesselCostTotal) {
+      eventCost = event.vesselCostTotal;
+      costSource = 'existing';
+      existingCostTotal += eventCost;
+    } else if (hours > 0 && event.eventDate) {
+      // Calculate cost on-the-fly using vessel cost rates
+      const dailyRate = event.eventDate >= new Date('2025-04-01') ? 37800 : 33000;
+      eventCost = (hours / 24) * dailyRate;
+      costSource = 'calculated';
+      calculatedCostTotal += eventCost;
+    }
+    
+    if (eventCost > 0) {
+      totalHoursWithCosts += hours;
+      
+      // Track by vessel
+      if (!costBreakdownByVessel.has(vesselName)) {
+        costBreakdownByVessel.set(vesselName, { cost: 0, hours: 0, events: 0 });
+      }
+      const vesselData = costBreakdownByVessel.get(vesselName);
+      vesselData.cost += eventCost;
+      vesselData.hours += hours;
+      vesselData.events += 1;
+      
+      // Track by LC
+      if (!costBreakdownByLC.has(lcNumber)) {
+        costBreakdownByLC.set(lcNumber, { cost: 0, hours: 0, events: 0 });
+      }
+      const lcData = costBreakdownByLC.get(lcNumber);
+      lcData.cost += eventCost;
+      lcData.hours += hours;
+      lcData.events += 1;
+      
+      // Track by activity
+      if (!costBreakdownByActivity.has(parentEvent)) {
+        costBreakdownByActivity.set(parentEvent, { cost: 0, hours: 0, events: 0 });
+      }
+      const activityData = costBreakdownByActivity.get(parentEvent);
+      activityData.cost += eventCost;
+      activityData.hours += hours;
+      activityData.events += 1;
+    }
+  });
+  
+  console.log(`🔍 LOGISTICS COST DETAILED BREAKDOWN:`, {
+    totalLogisticsCost: vesselCostMetrics.totalVesselCost,
+    existingCostTotal,
+    calculatedCostTotal,
+    totalHoursWithCosts,
+    costBreakdownByVessel: Array.from(costBreakdownByVessel.entries())
+      .sort(([,a], [,b]) => b.cost - a.cost)
+      .slice(0, 10)
+      .map(([vessel, data]) => ({ 
+        vessel, 
+        cost: Math.round(data.cost), 
+        hours: Math.round(data.hours),
+        events: data.events 
+      })),
+    costBreakdownByLC: Array.from(costBreakdownByLC.entries())
+      .sort(([,a], [,b]) => b.cost - a.cost)
+      .slice(0, 10)
+      .map(([lc, data]) => ({ 
+        lc, 
+        cost: Math.round(data.cost), 
+        hours: Math.round(data.hours),
+        events: data.events 
+      })),
+    costBreakdownByActivity: Array.from(costBreakdownByActivity.entries())
+      .sort(([,a], [,b]) => b.cost - a.cost)
+      .slice(0, 10)
+      .map(([activity, data]) => ({ 
+        activity, 
+        cost: Math.round(data.cost), 
+        hours: Math.round(data.hours),
+        events: data.events 
+      }))
   });
   
   if (vesselCostMetrics.totalVesselCost === 0 && filteredEvents.length > 0) {

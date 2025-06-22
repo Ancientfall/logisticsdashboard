@@ -603,6 +603,47 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           rawRigMetricsCount: Object.keys(rigMetrics).length
         });
         
+        // DETAILED COST ALLOCATION BREAKDOWN FOR DISCREPANCY ANALYSIS
+        console.log('🏗️ RIG LOCATION COST ANALYSIS DETAILED BREAKDOWN:', {
+          totalRigLocationCost: result.summary.totalCost,
+          totalAllocationsProcessed: filteredAllocations.length,
+          rigsIncluded: sortedRigs.length,
+          costAllocationBreakdown: filteredAllocations
+            .filter(allocation => allocation.totalCost > 0 || allocation.budgetedVesselCost > 0)
+            .sort((a, b) => {
+              const costA = a.totalCost || a.budgetedVesselCost || 0;
+              const costB = b.totalCost || b.budgetedVesselCost || 0;
+              return costB - costA;
+            })
+            .slice(0, 15)
+            .map(allocation => ({
+              lcNumber: allocation.lcNumber,
+              locationReference: allocation.locationReference,
+              rigLocation: allocation.rigLocation,
+              totalCost: allocation.totalCost,
+              budgetedVesselCost: allocation.budgetedVesselCost,
+              usedCost: allocation.totalCost || allocation.budgetedVesselCost || 0,
+              totalAllocatedDays: allocation.totalAllocatedDays,
+              department: allocation.department,
+              projectType: allocation.projectType,
+              costPerDay: allocation.totalAllocatedDays > 0 ? 
+                (allocation.totalCost || allocation.budgetedVesselCost || 0) / allocation.totalAllocatedDays : 0
+            })),
+          costSourceBreakdown: {
+            totalCostUsed: filteredAllocations.filter(a => a.totalCost).reduce((sum, a) => sum + a.totalCost, 0),
+            budgetedCostUsed: filteredAllocations.filter(a => !a.totalCost && a.budgetedVesselCost).reduce((sum, a) => sum + a.budgetedVesselCost, 0),
+            totalCostCount: filteredAllocations.filter(a => a.totalCost).length,
+            budgetedCostCount: filteredAllocations.filter(a => !a.totalCost && a.budgetedVesselCost).length
+          },
+          rigLocationMapping: Object.entries(rigMetrics).map(([rigName, metrics]) => ({
+            rigName,
+            totalCost: (metrics as any).totalCost,
+            totalDays: (metrics as any).totalDays,
+            allocations: (metrics as any).allocations,
+            costPerDay: (metrics as any).costPerDay
+          }))
+        });
+        
         return result;
       };
       
@@ -1504,6 +1545,25 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         totalCost: `$${metrics.costs.totalVesselCost.toLocaleString()}`,
         integrityScore: `${Math.round(metrics.integrityScore)}%`,
         criticalIssues: metrics.validationSummary.criticalIssues
+      });
+      
+      // COST DISCREPANCY ANALYSIS - COMPARE BOTH CALCULATIONS
+      const logisticsCostFromKPI = metrics.costs.totalVesselCost;
+      const rigLocationCostFromAnalysis = (metrics as any).rigLocationCostAnalysis?.summary?.totalCost || 0;
+      const costDiscrepancy = logisticsCostFromKPI - rigLocationCostFromAnalysis;
+      
+      console.log('🔍 COST DISCREPANCY ANALYSIS:', {
+        logisticsCostKPI: logisticsCostFromKPI,
+        rigLocationCostAnalysis: rigLocationCostFromAnalysis,
+        discrepancy: costDiscrepancy,
+        discrepancyPercentage: rigLocationCostFromAnalysis > 0 ? 
+          ((costDiscrepancy / rigLocationCostFromAnalysis) * 100).toFixed(1) + '%' : 'N/A',
+        costSourceComparison: {
+          kpiSource: 'VoyageEvent data + calculateVesselCostMetrics()',
+          rigAnalysisSource: 'CostAllocation data + calculateRigLocationCosts()',
+          kpiFiltering: 'Event-based filtering (LC numbers + location matching)',
+          rigAnalysisFiltering: 'Rig location mapping + drilling facility recognition'
+        }
       });
 
       return metrics;
