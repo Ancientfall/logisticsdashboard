@@ -544,3 +544,219 @@ The new dashboard showcase transforms the analytics discovery experience from fu
 - **Mobile Responsive**: Professional visualizations that scale across device types
 
 The variance analysis implementation provides **enterprise-grade statistical intelligence** for operational excellence, delivering actionable insights into vessel performance consistency, cost efficiency patterns, and supply chain optimization opportunities across both drilling and production operations.
+
+## Production Server Deployment
+
+### VPS Server Configuration ⏺ ✅ Complete Production Deployment with Auto-Loading Excel Files!
+
+🎯 **Server Details**:
+- **Domain**: https://bpsolutionsdashboard.com
+- **IP Address**: 178.16.140.185
+- **SSH User**: root
+- **SSH Password**: @dmiralThr@wn1
+- **Server Path**: `/var/www/logisticsdashboard`
+
+🔧 **Technical Architecture**:
+
+**PM2 Process Management**:
+- **Process Name**: `bp-logistics-dashboard`
+- **Port**: 5001 
+- **Service File**: `vps-server.js` (Express server)
+- **Auto-restart**: Yes (managed by PM2)
+- **Status Check**: `pm2 list` and `pm2 logs bp-logistics-dashboard`
+
+**Nginx Configuration**:
+- **Config File**: `/etc/nginx/sites-available/bpsolutionsdashboard.com`
+- **Setup**: Proxy configuration routing HTTPS traffic to localhost:5001
+- **SSL**: Let's Encrypt certificates (auto-renewal enabled)
+- **Cache Busting**: Aggressive no-cache headers for instant updates
+
+**File Structure on Server**:
+```
+/var/www/logisticsdashboard/
+├── index.html                    # React build entry point
+├── static/                       # React build assets (CSS, JS, media)
+├── vps-server.js                 # Express server (serves React + API)
+├── package.json                  # Node.js dependencies
+├── node_modules/                 # Express dependencies
+├── excel-data/
+│   └── excel-files/             # Auto-loading Excel files
+│       ├── Bulk Actions.xlsx
+│       ├── Cost Allocation.xlsx
+│       ├── Vessel Classifications.xlsx
+│       ├── Vessel Manifests.xlsx
+│       ├── Voyage Events.xlsx
+│       └── Voyage List.xlsx
+└── server.log                   # PM2 process logs
+```
+
+### Deployment Commands
+
+**Complete Deployment Process**:
+```bash
+# 1. Build latest version locally
+npm run build
+
+# 2. Create deployment package
+tar -czf bp-dashboard-deployment-$(date +%Y%m%d_%H%M%S).tar.gz -C build .
+
+# 3. Deploy using sshpass script
+chmod +x deploy-with-sshpass.sh && ./deploy-with-sshpass.sh
+
+# 4. Restart PM2 process to pick up changes
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 restart bp-logistics-dashboard"
+
+# 5. Verify deployment
+curl -s -o /dev/null -w "%{http_code}" https://bpsolutionsdashboard.com
+```
+
+**Quick Server Management**:
+```bash
+# Check PM2 status
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 list"
+
+# View server logs
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 logs bp-logistics-dashboard --lines 20"
+
+# Restart server
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 restart bp-logistics-dashboard"
+
+# Check Nginx status
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo systemctl status nginx"
+
+# Test Excel files API
+curl -s "https://bpsolutionsdashboard.com/api/excel-files" | head -20
+```
+
+### Excel File Auto-Loading System
+
+**Server-Side Excel Integration**:
+- **API Endpoint**: `/api/excel-files` - Lists all available Excel files
+- **Download Endpoint**: `/api/excel-files/:filename` - Downloads specific files
+- **Directory**: `/var/www/logisticsdashboard/excel-data/excel-files/`
+- **Auto-Detection**: Dashboard automatically checks for server files on load
+
+**File Status (Current Deployment)**:
+- ✅ **Bulk Actions.xlsx** (346KB) - Transfer tracking and fluid analysis
+- ✅ **Cost Allocation.xlsx** (31KB) - Master LC mapping and cost data  
+- ✅ **Vessel Classifications.xlsx** (11KB) - Vessel activity classification
+- ✅ **Vessel Manifests.xlsx** (278KB) - Cargo manifest data
+- ✅ **Voyage Events.xlsx** (3.8MB) - Complete voyage event tracking
+- ✅ **Voyage List.xlsx** (78KB) - Voyage summary and route data
+
+**User Experience Flow**:
+1. **Visit Landing Page** → https://bpsolutionsdashboard.com
+2. **Click "View Analytics"** → Automatic server file detection
+3. **Auto-Loading** → Dashboard downloads all 6 Excel files automatically
+4. **Data Processing** → Files processed client-side with progress indicators
+5. **Dashboard Access** → Full analytics available without manual upload
+
+### Troubleshooting Guide
+
+**Common Issues and Solutions**:
+
+**1. Site Returns 404/502**:
+```bash
+# Check PM2 process status
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 list"
+
+# If stopped, restart PM2
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 restart bp-logistics-dashboard"
+
+# Check server logs for errors
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 logs bp-logistics-dashboard"
+```
+
+**2. Excel Files Not Loading**:
+```bash
+# Verify Excel files exist
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "ls -la /var/www/logisticsdashboard/excel-data/excel-files/"
+
+# Test API endpoint directly
+curl -s "https://bpsolutionsdashboard.com/api/excel-files"
+
+# Check file permissions
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo chown -R www-data:www-data /var/www/logisticsdashboard"
+```
+
+**3. Outdated Build Deployed**:
+```bash
+# Verify latest build files
+curl -s https://bpsolutionsdashboard.com | grep -o 'main\.[a-f0-9]*\.js'
+
+# Compare with local build
+ls -la build/static/js/main.*.js
+
+# If different, redeploy using deployment script
+./deploy-with-sshpass.sh
+```
+
+**4. Nginx Configuration Issues**:
+```bash
+# Test Nginx configuration
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo nginx -t"
+
+# Reload Nginx
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo systemctl reload nginx"
+
+# Check Nginx logs
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo tail -f /var/log/nginx/error.log"
+```
+
+### Server Dependencies
+
+**Required Node.js Packages** (installed on server):
+```json
+{
+  "dependencies": {
+    "express": "^4.18.2",
+    "path-to-regexp": "^6.2.1"
+  }
+}
+```
+
+**Installation Commands** (if needed):
+```bash
+# SSH into server
+sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185
+
+# Navigate to app directory
+cd /var/www/logisticsdashboard
+
+# Install dependencies
+npm install express@4.18.2 path-to-regexp@6.2.1
+```
+
+### Deployment Verification Checklist
+
+**Post-Deployment Verification**:
+- ✅ **Site Loads**: https://bpsolutionsdashboard.com returns HTTP 200
+- ✅ **Latest Build**: JavaScript bundle hash matches local build
+- ✅ **Excel API**: `/api/excel-files` returns all 6 files with metadata
+- ✅ **File Downloads**: Individual Excel files download successfully
+- ✅ **PM2 Status**: Process shows "online" status with recent restart
+- ✅ **Auto-Loading**: Dashboard automatically detects and loads server files
+- ✅ **Full Functionality**: All dashboards load with complete data sets
+
+**Success Indicators**:
+- **HTTP Status**: 200 for main site and API endpoints
+- **PM2 Process**: Status "online" with current PID and minimal restarts
+- **File Count**: 6 Excel files (Bulk Actions, Cost Allocation, Vessel Classifications, Vessel Manifests, Voyage Events, Voyage List)
+- **Bundle Hash**: Matches current local build (e.g., `main.deba3ccc.js`)
+- **Auto-Detection**: Landing page "View Analytics" triggers automatic file loading
+
+### Current Production Status
+
+**Latest Deployment**: June 22, 2025 at 12:00 PM (UTC)
+- **Build Hash**: `main.deba3ccc.js`
+- **Commit**: `9c25294` - TV Kiosk Display with rotating KPI analytics
+- **Features**: Production Support Variance Analysis, Enhanced currency formatting, Fixed Logistics Cost KPI filtering
+
+**Operational Capabilities**:
+- ✅ **Zero-Setup User Experience**: Automatic Excel file loading from server
+- ✅ **Enterprise-Grade Performance**: PM2 process management with auto-restart
+- ✅ **Complete Analytics Suite**: All 8 dashboards fully functional
+- ✅ **Real-Time Updates**: Cache-busting ensures immediate deployment visibility
+- ✅ **Fallback Support**: Manual upload option if server files unavailable
+
+The production server provides a seamless, enterprise-ready experience where users can access fully loaded analytics dashboards with a single click, automatically pulling all required Excel files from the server without any manual setup required.

@@ -42,7 +42,7 @@ app.use((req, res, next) => {
 })
 
 app.use(express.json())
-app.use(express.static('build'))
+app.use(express.static('.'))
 
 // Excel files directory
 const EXCEL_FILES_DIR = path.join(__dirname, 'excel-data', 'excel-files')
@@ -277,7 +277,7 @@ app.get('/api/excel-files/:filename', (req, res) => {
 
 // Serve React app for all other routes
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'build', 'index.html'))
+    res.sendFile(path.join(__dirname, 'index.html'))
 })
 
 app.listen(PORT, () => {
