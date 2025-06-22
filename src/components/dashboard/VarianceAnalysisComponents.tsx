@@ -1,6 +1,52 @@
-import React from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, Target, Droplet, Clock, Ship } from 'lucide-react';
+import React, { useState } from 'react';
+import { BarChart3, TrendingUp, AlertTriangle, Target, Clock, Ship, Info, HelpCircle } from 'lucide-react';
 import { VarianceAnalysis } from '../../utils/statisticalVariance';
+
+interface TooltipProps {
+  content: string;
+  children: React.ReactNode;
+  position?: 'top' | 'bottom' | 'left' | 'right';
+}
+
+/**
+ * Reusable Tooltip Component
+ */
+const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  const positionClasses = {
+    top: 'bottom-full left-1/2 transform -translate-x-1/2 mb-2',
+    bottom: 'top-full left-1/2 transform -translate-x-1/2 mt-2',
+    left: 'right-full top-1/2 transform -translate-y-1/2 mr-2',
+    right: 'left-full top-1/2 transform -translate-y-1/2 ml-2'
+  };
+
+  const arrowClasses = {
+    top: 'top-full left-1/2 transform -translate-x-1/2 border-l-transparent border-r-transparent border-b-transparent border-t-gray-800',
+    bottom: 'bottom-full left-1/2 transform -translate-x-1/2 border-l-transparent border-r-transparent border-t-transparent border-b-gray-800',
+    left: 'left-full top-1/2 transform -translate-y-1/2 border-t-transparent border-b-transparent border-r-transparent border-l-gray-800',
+    right: 'right-full top-1/2 transform -translate-y-1/2 border-t-transparent border-b-transparent border-l-transparent border-r-gray-800'
+  };
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setIsVisible(true)}
+        onMouseLeave={() => setIsVisible(false)}
+      >
+        {children}
+      </div>
+      {isVisible && (
+        <div className={`absolute z-50 ${positionClasses[position]}`}>
+          <div className="bg-gray-800 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+            {content}
+          </div>
+          <div className={`absolute w-0 h-0 border-4 ${arrowClasses[position]}`}></div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface BoxPlotProps {
   data: VarianceAnalysis;
@@ -29,6 +75,7 @@ interface VarianceStatsCardProps {
   unit: string;
   icon: React.ElementType;
   color?: string;
+  tooltipContent?: string;
 }
 
 /**
@@ -52,7 +99,12 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
   
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <h3 className="text-sm font-semibold mb-4 text-gray-800">{title}</h3>
+      <div className="flex items-center gap-2 mb-4">
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+        <Tooltip content="Box plot shows data distribution with median (center line), quartiles (box edges), range (whiskers), and outliers (red/orange dots). Lower box = more consistent performance.">
+          <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+        </Tooltip>
+      </div>
       
       <div className="relative">
         {/* Box plot visualization */}
@@ -138,16 +190,24 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
         {/* Summary statistics */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="text-gray-600">
-            <span className="font-medium">Mean:</span> {data.mean.toFixed(1)}{unit}
+            <Tooltip content="Average value across all vessels. Shows typical performance level.">
+              <span className="font-medium border-b border-dotted border-gray-400 cursor-help">Mean:</span>
+            </Tooltip> {data.mean.toFixed(1)}{unit}
           </div>
           <div className="text-gray-600">
-            <span className="font-medium">Std Dev:</span> {data.standardDeviation.toFixed(1)}{unit}
+            <Tooltip content="Standard Deviation measures spread from average. Lower = more consistent performance.">
+              <span className="font-medium border-b border-dotted border-gray-400 cursor-help">Std Dev:</span>
+            </Tooltip> {data.standardDeviation.toFixed(1)}{unit}
           </div>
           <div className="text-gray-600">
-            <span className="font-medium">CV:</span> {data.coefficientOfVariation.toFixed(1)}%
+            <Tooltip content="Coefficient of Variation: consistency measure. <10% = Excellent, <20% = Good, <30% = Fair, >30% = High Variance.">
+              <span className="font-medium border-b border-dotted border-gray-400 cursor-help">CV:</span>
+            </Tooltip> {data.coefficientOfVariation.toFixed(1)}%
           </div>
           <div className="text-gray-600">
-            <span className="font-medium">Outliers:</span> {outliers.length}
+            <Tooltip content="Vessels performing unusually high or low. Red dots = extremely high, orange dots = extremely low.">
+              <span className="font-medium border-b border-dotted border-gray-400 cursor-help">Outliers:</span>
+            </Tooltip> {outliers.length}
           </div>
         </div>
       </div>
@@ -179,7 +239,12 @@ export const ControlChart: React.FC<ControlChartProps> = ({
   
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <h3 className="text-sm font-semibold mb-4 text-gray-800">{title}</h3>
+      <div className="flex items-center gap-2 mb-4">
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+        <Tooltip content="Control chart monitors process stability. Points outside red dashed lines (±2σ) indicate out-of-control performance needing investigation.">
+          <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+        </Tooltip>
+      </div>
       
       <div className="relative">
         <svg width={chartWidth} height={chartHeight} className="border border-gray-300 rounded">
@@ -274,7 +339,8 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
   variance,
   unit,
   icon: Icon,
-  color = 'bg-bp-green'
+  color = 'bg-bp-green',
+  tooltipContent = "Statistical variance analysis measures consistency and identifies operational performance patterns."
 }) => {
   const getVarianceStatus = () => {
     const cv = variance.coefficientOfVariation;
@@ -289,7 +355,12 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+          <Tooltip content={tooltipContent}>
+            <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+          </Tooltip>
+        </div>
         <Icon className="h-5 w-5 text-bp-green" />
       </div>
       
@@ -297,13 +368,17 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
         {/* Main metrics */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-xs text-gray-500">Mean</p>
+            <Tooltip content="Average performance across all vessels in this metric.">
+              <p className="text-xs text-gray-500 border-b border-dotted border-gray-300 cursor-help">Mean</p>
+            </Tooltip>
             <p className="text-lg font-bold text-gray-900">
               {variance.mean.toFixed(1)}<span className="text-sm font-normal">{unit}</span>
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Std Dev</p>
+            <Tooltip content="Standard deviation shows how much performance varies. Lower values indicate more consistent operations.">
+              <p className="text-xs text-gray-500 border-b border-dotted border-gray-300 cursor-help">Std Dev</p>
+            </Tooltip>
             <p className="text-lg font-bold text-gray-900">
               {variance.standardDeviation.toFixed(1)}<span className="text-sm font-normal">{unit}</span>
             </p>
@@ -311,22 +386,26 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
         </div>
         
         {/* Variance status */}
-        <div className={`rounded-lg p-2 ${status.bgColor}`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">Consistency</span>
-            <span className={`text-xs font-semibold ${status.color}`}>{status.status}</span>
+        <Tooltip content={`Consistency rating based on Coefficient of Variation (CV). ${status.status} means ${status.status === 'Excellent' ? 'very consistent operations (CV < 10%)' : status.status === 'Good' ? 'acceptable consistency (CV < 20%)' : status.status === 'Fair' ? 'some operational variation (CV < 30%)' : 'high operational inconsistency (CV > 30%)'}.`}>
+          <div className={`rounded-lg p-2 ${status.bgColor} cursor-help`}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Consistency</span>
+              <span className={`text-xs font-semibold ${status.color}`}>{status.status}</span>
+            </div>
+            <div className="mt-1">
+              <span className="text-xs text-gray-600">CV: {variance.coefficientOfVariation.toFixed(1)}%</span>
+            </div>
           </div>
-          <div className="mt-1">
-            <span className="text-xs text-gray-600">CV: {variance.coefficientOfVariation.toFixed(1)}%</span>
-          </div>
-        </div>
+        </Tooltip>
         
         {/* Outliers alert */}
         {variance.outliers.length > 0 && (
-          <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded p-2">
-            <AlertTriangle className="h-4 w-4" />
-            <span>{variance.outliers.length} outlier{variance.outliers.length > 1 ? 's' : ''} detected</span>
-          </div>
+          <Tooltip content="Outliers are vessels performing significantly above or below normal ranges. Investigate these for operational insights or issues.">
+            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded p-2 cursor-help">
+              <AlertTriangle className="h-4 w-4" />
+              <span>{variance.outliers.length} outlier{variance.outliers.length > 1 ? 's' : ''} detected</span>
+            </div>
+          </Tooltip>
         )}
         
         {/* Range */}
@@ -391,7 +470,12 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-bp-green to-emerald-600 text-white rounded-lg p-4">
-        <h2 className="text-lg font-bold mb-1">Drilling Operations KPI Variance Analysis</h2>
+        <div className="flex items-center gap-3 mb-1">
+          <h2 className="text-lg font-bold">Drilling Operations KPI Variance Analysis</h2>
+          <Tooltip content="Business-critical KPI variance analysis focuses on operational efficiency metrics that directly impact drilling performance and cost control. Analyzes consistency and identifies optimization opportunities.">
+            <HelpCircle className="h-5 w-5 text-white/80 hover:text-white cursor-help" />
+          </Tooltip>
+        </div>
         <p className="text-sm opacity-90">Statistical analysis of lifts/hr, cost per ton, and visits per week</p>
       </div>
       
@@ -402,18 +486,21 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
           variance={liftsPerHourVariance}
           unit=" lifts/hr"
           icon={BarChart3}
+          tooltipContent="Measures cargo handling efficiency variance. Low variance indicates consistent lifting operations. High variance suggests training needs or equipment issues affecting productivity."
         />
         <VarianceStatsCard
           title="Cost per Ton Variance"
           variance={costPerTonVariance}
           unit=" $/ton"
           icon={TrendingUp}
+          tooltipContent="Analyzes transportation cost efficiency per ton of cargo. Low variance indicates predictable cost control. High variance suggests operational inefficiencies or inconsistent vessel utilization affecting costs."
         />
         <VarianceStatsCard
           title="Visits per Week Variance"
           variance={visitsPerWeekVariance}
           unit=" visits/week"
           icon={Ship}
+          tooltipContent="Evaluates operational tempo consistency. Low variance indicates steady scheduling and capacity utilization. High variance suggests irregular operations or demand fluctuations affecting resource allocation."
         />
       </div>
       
@@ -621,7 +708,12 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg p-4">
-        <h2 className="text-lg font-bold mb-1">Production Operations KPI Variance Analysis</h2>
+        <div className="flex items-center gap-3 mb-1">
+          <h2 className="text-lg font-bold">Production Operations KPI Variance Analysis</h2>
+          <Tooltip content="Production operations variance analysis focuses on chemical transfer efficiency, production support consistency, and facility support optimization. Identifies opportunities for improved chemical logistics and production support.">
+            <HelpCircle className="h-5 w-5 text-white/80 hover:text-white cursor-help" />
+          </Tooltip>
+        </div>
         <p className="text-sm opacity-90">Statistical analysis of lifts/hr, cost per ton, and visits per week</p>
       </div>
       
@@ -632,18 +724,21 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           variance={liftsPerHourVariance}
           unit=" lifts/hr"
           icon={BarChart3}
+          tooltipContent="Measures chemical transfer efficiency variance. Low variance indicates consistent chemical handling operations. High variance suggests process improvements needed for chemical logistics efficiency."
         />
         <VarianceStatsCard
           title="Cost per Ton Variance"
           variance={costPerTonVariance}
           unit=" $/ton"
           icon={TrendingUp}
+          tooltipContent="Analyzes production support cost efficiency per ton. Low variance indicates predictable chemical transportation costs. High variance suggests optimization opportunities in production logistics."
         />
         <VarianceStatsCard
           title="Visits per Week Variance"
           variance={visitsPerWeekVariance}
           unit=" visits/week"
           icon={Ship}
+          tooltipContent="Evaluates production facility support consistency. Low variance indicates steady chemical supply operations. High variance suggests irregular production support or demand fluctuations."
         />
       </div>
       
