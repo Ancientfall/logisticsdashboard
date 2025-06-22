@@ -182,36 +182,51 @@ export const BoxPlot: React.FC<BoxPlotProps> = ({
                   />
                   {isHovered && outlier.vesselName && (
                     <g>
-                      {/* Tooltip background */}
-                      <rect
-                        x={getPosition(outlier.value) - 35}
-                        y={15}
-                        width="70"
-                        height="20"
-                        fill="rgba(0, 0, 0, 0.8)"
-                        rx="3"
-                        ry="3"
-                      />
-                      {/* Tooltip text */}
-                      <text
-                        x={getPosition(outlier.value)}
-                        y={23}
-                        fill="white"
-                        fontSize="8"
-                        textAnchor="middle"
-                        fontWeight="bold"
-                      >
-                        {outlier.vesselName}
-                      </text>
-                      <text
-                        x={getPosition(outlier.value)}
-                        y={31}
-                        fill="white"
-                        fontSize="7"
-                        textAnchor="middle"
-                      >
-                        {outlier.value.toFixed(1)}{unit}
-                      </text>
+                      {(() => {
+                        // Smart tooltip positioning for box plot outliers  
+                        const minTopSpace = 10;
+                        
+                        // If there's not enough space above, show below the outlier
+                        const showBelow = 15 < minTopSpace;
+                        const tooltipY = showBelow ? 50 : 15;
+                        const textY1 = showBelow ? 58 : 23;
+                        const textY2 = showBelow ? 66 : 31;
+                        
+                        return (
+                          <>
+                            {/* Tooltip background */}
+                            <rect
+                              x={getPosition(outlier.value) - 35}
+                              y={tooltipY}
+                              width="70"
+                              height="20"
+                              fill="rgba(0, 0, 0, 0.8)"
+                              rx="3"
+                              ry="3"
+                            />
+                            {/* Tooltip text */}
+                            <text
+                              x={getPosition(outlier.value)}
+                              y={textY1}
+                              fill="white"
+                              fontSize="8"
+                              textAnchor="middle"
+                              fontWeight="bold"
+                            >
+                              {outlier.vesselName}
+                            </text>
+                            <text
+                              x={getPosition(outlier.value)}
+                              y={textY2}
+                              fill="white"
+                              fontSize="7"
+                              textAnchor="middle"
+                            >
+                              {outlier.value.toFixed(1)}{unit}
+                            </text>
+                          </>
+                        );
+                      })()}
                     </g>
                   )}
                 </g>
@@ -351,36 +366,53 @@ export const ControlChart: React.FC<ControlChartProps> = ({
                 />
                 {isHovered && (
                   <g>
-                    {/* Tooltip background */}
-                    <rect
-                      x={getX(index) - 40}
-                      y={getY(d.value) - 35}
-                      width="80"
-                      height="30"
-                      fill="rgba(0, 0, 0, 0.8)"
-                      rx="4"
-                      ry="4"
-                    />
-                    {/* Tooltip text */}
-                    <text
-                      x={getX(index)}
-                      y={getY(d.value) - 25}
-                      fill="white"
-                      fontSize="10"
-                      textAnchor="middle"
-                      fontWeight="bold"
-                    >
-                      {d.vesselName}
-                    </text>
-                    <text
-                      x={getX(index)}
-                      y={getY(d.value) - 15}
-                      fill="white"
-                      fontSize="9"
-                      textAnchor="middle"
-                    >
-                      {d.value.toFixed(1)}{unit}
-                    </text>
+                    {(() => {
+                      // Smart tooltip positioning to avoid cutoff
+                      const pointY = getY(d.value);
+                      const tooltipHeight = 30;
+                      const tooltipPadding = 5;
+                      
+                      // If point is too close to top, show tooltip below
+                      const showBelow = pointY < (tooltipHeight + tooltipPadding);
+                      const tooltipY = showBelow ? pointY + 10 : pointY - 35;
+                      const textY1 = showBelow ? pointY + 25 : pointY - 25;
+                      const textY2 = showBelow ? pointY + 35 : pointY - 15;
+                      
+                      return (
+                        <>
+                          {/* Tooltip background */}
+                          <rect
+                            x={getX(index) - 40}
+                            y={tooltipY}
+                            width="80"
+                            height="30"
+                            fill="rgba(0, 0, 0, 0.8)"
+                            rx="4"
+                            ry="4"
+                          />
+                          {/* Tooltip text */}
+                          <text
+                            x={getX(index)}
+                            y={textY1}
+                            fill="white"
+                            fontSize="10"
+                            textAnchor="middle"
+                            fontWeight="bold"
+                          >
+                            {d.vesselName}
+                          </text>
+                          <text
+                            x={getX(index)}
+                            y={textY2}
+                            fill="white"
+                            fontSize="9"
+                            textAnchor="middle"
+                          >
+                            {d.value.toFixed(1)}{unit}
+                          </text>
+                        </>
+                      );
+                    })()}
                   </g>
                 )}
               </g>
