@@ -316,7 +316,64 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         },
         lifts: {
           totalLifts: prevManifestMetrics.totalLifts,
-          liftsPerHour: prevVoyageMetrics.productiveHours > 0 ? prevManifestMetrics.totalLifts / prevVoyageMetrics.productiveHours : 0,
+          liftsPerHour: (() => {
+            // Calculate actual cargo operation hours for previous period
+            const prevCargoEvents = voyageEvents.filter(event => {
+              // Time filtering for previous period
+              if (isPrevYTD && prevFilterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (eventDate.getFullYear() !== prevFilterYear) return false;
+              } else if (prevFilterMonth !== undefined && prevFilterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (eventDate.getMonth() !== prevFilterMonth || eventDate.getFullYear() !== prevFilterYear) return false;
+              }
+              
+              // Location filtering
+              if (filters.selectedLocation !== 'All Locations') {
+                const selectedFacility = getAllDrillingCapableLocations().find(
+                  f => f.displayName === filters.selectedLocation
+                );
+                if (selectedFacility) {
+                  const eventLocation = event.location?.toLowerCase().trim() || '';
+                  const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+                  const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                  const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                  const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                  
+                  const matchesLocation = 
+                    eventLocation.includes(facilityLocationName) ||
+                    mappedLocation.includes(facilityLocationName) ||
+                    eventLocation.includes(facilityNameCore) ||
+                    mappedLocation.includes(facilityNameCore) ||
+                    facilityLocationName.includes(eventLocation) ||
+                    facilityNameCore.includes(eventLocation);
+                  
+                  if (!matchesLocation) return false;
+                }
+              }
+              
+              // Filter for cargo operation activities
+              const parentEvent = (event.parentEvent || '').toLowerCase();
+              const eventName = (event.event || '').toLowerCase();
+              const remarks = (event.remarks || '').toLowerCase();
+              
+              return parentEvent.includes('cargo') || 
+                     parentEvent.includes('loading') || 
+                     parentEvent.includes('offloading') ||
+                     parentEvent.includes('lifting') ||
+                     eventName.includes('cargo') ||
+                     eventName.includes('loading') ||
+                     eventName.includes('offloading') ||
+                     eventName.includes('lifting') ||
+                     eventName.includes('crane') ||
+                     remarks.includes('cargo') ||
+                     remarks.includes('crane');
+            });
+            
+            const prevCargoOperationHours = prevCargoEvents.reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
+            
+            return prevCargoOperationHours > 0 ? prevManifestMetrics.totalLifts / prevCargoOperationHours : 0;
+          })(),
           vesselVisits: prevDrillingVoyages
         },
         hours: {
@@ -1506,7 +1563,67 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         // Lifts metrics from enhanced manifests
         lifts: {
           totalLifts: manifestMetrics.totalLifts,
-          liftsPerHour: voyageMetrics.productiveHours > 0 ? manifestMetrics.totalLifts / voyageMetrics.productiveHours : 0,
+          liftsPerHour: (() => {
+            // Calculate actual cargo operation hours for the specific location(s) and time period
+            let cargoOperationHours = 0;
+            
+            // Filter voyage events for cargo operations at drilling facilities
+            const cargoEvents = voyageEvents.filter(event => {
+              // Time filtering
+              if (isYTD && filterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (eventDate.getFullYear() !== filterYear) return false;
+              } else if (filterMonth !== undefined && filterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
+              }
+              
+              // Location filtering
+              if (filters.selectedLocation !== 'All Locations') {
+                const selectedFacility = getAllDrillingCapableLocations().find(
+                  f => f.displayName === filters.selectedLocation
+                );
+                if (selectedFacility) {
+                  const eventLocation = event.location?.toLowerCase().trim() || '';
+                  const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+                  const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                  const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                  const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                  
+                  const matchesLocation = 
+                    eventLocation.includes(facilityLocationName) ||
+                    mappedLocation.includes(facilityLocationName) ||
+                    eventLocation.includes(facilityNameCore) ||
+                    mappedLocation.includes(facilityNameCore) ||
+                    facilityLocationName.includes(eventLocation) ||
+                    facilityNameCore.includes(eventLocation);
+                  
+                  if (!matchesLocation) return false;
+                }
+              }
+              
+              // Filter for cargo operation activities
+              const parentEvent = (event.parentEvent || '').toLowerCase();
+              const eventName = (event.event || '').toLowerCase();
+              const remarks = (event.remarks || '').toLowerCase();
+              
+              return parentEvent.includes('cargo') || 
+                     parentEvent.includes('loading') || 
+                     parentEvent.includes('offloading') ||
+                     parentEvent.includes('lifting') ||
+                     eventName.includes('cargo') ||
+                     eventName.includes('loading') ||
+                     eventName.includes('offloading') ||
+                     eventName.includes('lifting') ||
+                     eventName.includes('crane') ||
+                     remarks.includes('cargo') ||
+                     remarks.includes('crane');
+            });
+            
+            cargoOperationHours = cargoEvents.reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
+            
+            return cargoOperationHours > 0 ? manifestMetrics.totalLifts / cargoOperationHours : 0;
+          })(),
           vesselVisits: drillingVoyages // Use actual drilling voyages count from voyage list
         },
         
@@ -1713,12 +1830,12 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         operationalDataPoints: operationalVariance.vesselOperationalData.length,
         vesselUtilizationDataPoints: vesselUtilization.vesselUtilizationData.length,
         liftsPerHourCV: operationalVariance.liftsPerHourVariance.coefficientOfVariation.toFixed(1) + '%',
-        costPerTonCV: operationalVariance.costPerTonVariance.coefficientOfVariation.toFixed(1) + '%',
+
         visitsPerWeekCV: operationalVariance.visitsPerWeekVariance.coefficientOfVariation.toFixed(1) + '%',
         utilizationCV: vesselUtilization.utilizationVariance.coefficientOfVariation.toFixed(1) + '%',
         outliers: {
           liftsPerHour: operationalVariance.liftsPerHourVariance.outliers.length,
-          costPerTon: operationalVariance.costPerTonVariance.outliers.length,
+
           visitsPerWeek: operationalVariance.visitsPerWeekVariance.outliers.length,
           vesselUtilization: vesselUtilization.utilizationVariance.outliers.length
         }
@@ -2374,9 +2491,11 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   }
                 }
                 
-                // Filter voyage events and manifests based on current filters
+                // Filter voyage events and manifests based on current filters - drilling facilities only
                 const filteredVoyageEvents = voyageEvents.filter(event => {
+                  // Location filtering
                   if (filters.selectedLocation !== 'All Locations') {
+                    // Specific drilling facility selected
                     const selectedFacility = getAllDrillingCapableLocations().find(
                       f => f.displayName === filters.selectedLocation
                     );
@@ -2385,17 +2504,84 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
                       const facilityLocationName = selectedFacility.locationName.toLowerCase();
                       const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
                       
+                      // Enhanced location matching
                       const matchesLocation = 
                         eventLocation.includes(facilityLocationName) ||
                         mappedLocation.includes(facilityLocationName) ||
                         eventLocation.includes(facilityDisplayName) ||
-                        mappedLocation.includes(facilityDisplayName);
+                        mappedLocation.includes(facilityDisplayName) ||
+                        eventLocation.includes(facilityNameCore) ||
+                        mappedLocation.includes(facilityNameCore) ||
+                        facilityLocationName.includes(eventLocation) ||
+                        facilityNameCore.includes(eventLocation) ||
+                        // Special handling for common name variations
+                        (facilityNameCore.includes('thunder horse') && (
+                          eventLocation.includes('thunder horse') || 
+                          eventLocation.includes('thunderhorse') ||
+                          eventLocation.includes('thr')
+                        )) ||
+                        (facilityNameCore.includes('mad dog') && (
+                          eventLocation.includes('mad dog') || 
+                          eventLocation.includes('maddog') ||
+                          eventLocation.includes('mad_dog')
+                        ));
                       
                       if (!matchesLocation) return false;
                     }
+                  } else {
+                    // "All Locations" selected - filter to only drilling facilities
+                    const drillingFacilities = getAllDrillingCapableLocations();
+                    const eventLocation = event.location?.toLowerCase().trim() || '';
+                    const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+                    
+                    // Check if event location matches any drilling facility
+                    const matchesDrillingFacility = drillingFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/, '').trim();
+                      const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/, '').trim();
+                      const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      return eventLocation.includes(facilityLocationName) ||
+                             mappedLocation.includes(facilityLocationName) ||
+                             eventLocation.includes(facilityNameCore) ||
+                             mappedLocation.includes(facilityNameCore) ||
+                             eventLocation.includes(coreLocationName) ||
+                             mappedLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreEventLocation) ||
+                             facilityNameCore.includes(coreEventLocation) ||
+                             coreLocationName.includes(coreEventLocation) ||
+                             facilityLocationName.includes(coreMappedLocation) ||
+                             facilityNameCore.includes(coreMappedLocation) ||
+                             coreLocationName.includes(coreMappedLocation) ||
+                             // Special handling for common name variations
+                             (facilityNameCore.includes('thunder horse') && (
+                               eventLocation.includes('thunder horse') || 
+                               eventLocation.includes('thunderhorse') ||
+                               eventLocation.includes('thr') ||
+                               mappedLocation.includes('thunder horse') ||
+                               mappedLocation.includes('thunderhorse') ||
+                               mappedLocation.includes('thr')
+                             )) ||
+                             (facilityNameCore.includes('mad dog') && (
+                               eventLocation.includes('mad dog') || 
+                               eventLocation.includes('maddog') ||
+                               eventLocation.includes('mad_dog') ||
+                               mappedLocation.includes('mad dog') ||
+                               mappedLocation.includes('maddog') ||
+                               mappedLocation.includes('mad_dog')
+                             ));
+                    });
+                    
+                    if (!matchesDrillingFacility) return false;
                   }
                   
+                  // Time filtering
                   if (isYTD && filterYear !== undefined) {
                     const eventDate = new Date(event.eventDate);
                     if (eventDate.getFullYear() !== filterYear) return false;
@@ -2408,7 +2594,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 });
                 
                 const filteredManifests = vesselManifests.filter((manifest: any) => {
+                  // Location filtering - drilling facilities only
                   if (filters.selectedLocation !== 'All Locations') {
+                    // Specific drilling facility selected
                     const selectedFacility = getAllDrillingCapableLocations().find(
                       f => f.displayName === filters.selectedLocation
                     );
@@ -2417,17 +2605,84 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       const mappedLocation = manifest.mappedLocation?.toLowerCase().trim() || '';
                       const facilityLocationName = selectedFacility.locationName.toLowerCase();
                       const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
                       
+                      // Enhanced location matching
                       const matchesLocation = 
                         offshoreLocation.includes(facilityLocationName) ||
                         mappedLocation.includes(facilityLocationName) ||
                         offshoreLocation.includes(facilityDisplayName) ||
-                        mappedLocation.includes(facilityDisplayName);
+                        mappedLocation.includes(facilityDisplayName) ||
+                        offshoreLocation.includes(facilityNameCore) ||
+                        mappedLocation.includes(facilityNameCore) ||
+                        facilityLocationName.includes(offshoreLocation) ||
+                        facilityNameCore.includes(offshoreLocation) ||
+                        // Special handling for common name variations
+                        (facilityNameCore.includes('thunder horse') && (
+                          offshoreLocation.includes('thunder horse') || 
+                          offshoreLocation.includes('thunderhorse') ||
+                          offshoreLocation.includes('thr')
+                        )) ||
+                        (facilityNameCore.includes('mad dog') && (
+                          offshoreLocation.includes('mad dog') || 
+                          offshoreLocation.includes('maddog') ||
+                          offshoreLocation.includes('mad_dog')
+                        ));
                       
                       if (!matchesLocation) return false;
                     }
+                  } else {
+                    // "All Locations" selected - filter to only drilling facilities
+                    const drillingFacilities = getAllDrillingCapableLocations();
+                    const offshoreLocation = manifest.offshoreLocation?.toLowerCase().trim() || '';
+                    const mappedLocation = manifest.mappedLocation?.toLowerCase().trim() || '';
+                    
+                    // Check if manifest location matches any drilling facility
+                    const matchesDrillingFacility = drillingFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/, '').trim();
+                      const coreOffshoreLocation = offshoreLocation.replace(/\s*\([^)]*\)/, '').trim();
+                      const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      return offshoreLocation.includes(facilityLocationName) ||
+                             mappedLocation.includes(facilityLocationName) ||
+                             offshoreLocation.includes(facilityNameCore) ||
+                             mappedLocation.includes(facilityNameCore) ||
+                             offshoreLocation.includes(coreLocationName) ||
+                             mappedLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreOffshoreLocation) ||
+                             facilityNameCore.includes(coreOffshoreLocation) ||
+                             coreLocationName.includes(coreOffshoreLocation) ||
+                             facilityLocationName.includes(coreMappedLocation) ||
+                             facilityNameCore.includes(coreMappedLocation) ||
+                             coreLocationName.includes(coreMappedLocation) ||
+                             // Special handling for common name variations
+                             (facilityNameCore.includes('thunder horse') && (
+                               offshoreLocation.includes('thunder horse') || 
+                               offshoreLocation.includes('thunderhorse') ||
+                               offshoreLocation.includes('thr') ||
+                               mappedLocation.includes('thunder horse') ||
+                               mappedLocation.includes('thunderhorse') ||
+                               mappedLocation.includes('thr')
+                             )) ||
+                             (facilityNameCore.includes('mad dog') && (
+                               offshoreLocation.includes('mad dog') || 
+                               offshoreLocation.includes('maddog') ||
+                               offshoreLocation.includes('mad_dog') ||
+                               mappedLocation.includes('mad dog') ||
+                               mappedLocation.includes('maddog') ||
+                               mappedLocation.includes('mad_dog')
+                             ));
+                    });
+                    
+                    if (!matchesDrillingFacility) return false;
                   }
                   
+                  // Time filtering
                   if (isYTD && filterYear !== undefined) {
                     const manifestDate = new Date(manifest.manifestDate);
                     if (manifestDate.getFullYear() !== filterYear) return false;
@@ -2439,223 +2694,287 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   return true;
                 });
 
-                // Get unique vessel names from the actual data for dynamic vessel count
-                const uniqueVesselsFromData = new Set([
-                  ...filteredVoyageEvents.map(e => e.vessel).filter(Boolean),
-                  ...filteredManifests.map((m: any) => m.transporter).filter(Boolean)
-                ]);
+                // Note: uniqueVesselsFromData removed as we now use vesselMetrics directly
 
-                // Define vessel types organized by vessel type and company
-                const vesselTypes = [
-                  // OSV - Edison Chouest Offshore
-                  {
-                    name: "Pelican Island",
-                    shortName: "Pelican",
-                    type: "OSV",
-                    company: "Edison Chouest",
-                    category: "OSV - Edison Chouest",
-                    color: { 
-                      border: 'border-blue-200', 
-                      bg: 'bg-blue-50', 
-                      dot: 'bg-blue-500', 
-                      text: 'text-blue-700', 
-                      progress: 'bg-blue-500' 
-                    }
-                  },
-                  {
-                    name: "Dauphin Island",
-                    shortName: "Dauphin", 
-                    type: "OSV",
-                    company: "Edison Chouest",
-                    category: "OSV - Edison Chouest",
-                    color: { 
-                      border: 'border-purple-200', 
-                      bg: 'bg-purple-50', 
-                      dot: 'bg-purple-500', 
-                      text: 'text-purple-700', 
-                      progress: 'bg-purple-500' 
-                    }
-                  },
-                  {
-                    name: "Ship Island",
-                    shortName: "Ship",
-                    type: "OSV",
-                    company: "Edison Chouest", 
-                    category: "OSV - Edison Chouest",
-                    color: { 
-                      border: 'border-orange-200', 
-                      bg: 'bg-orange-50', 
-                      dot: 'bg-orange-500', 
-                      text: 'text-orange-700', 
-                      progress: 'bg-orange-500' 
-                    }
-                  },
-                  // OSV - Harvey Gulf
-                  {
-                    name: "Harvey Supporter", 
-                    shortName: "Harvey",
-                    type: "OSV",
-                    company: "Harvey Gulf",
-                    category: "OSV - Harvey Gulf",
-                    color: { 
-                      border: 'border-green-200', 
-                      bg: 'bg-green-50', 
-                      dot: 'bg-green-500', 
-                      text: 'text-green-700', 
-                      progress: 'bg-green-500' 
-                    }
-                  },
-                  // OSV - Hornbeck Offshore Services
-                  {
-                    name: "HOS Panther", 
-                    shortName: "HOS",
-                    type: "OSV",
-                    company: "Hornbeck Offshore",
-                    category: "OSV - Hornbeck Offshore",
-                    color: { 
-                      border: 'border-indigo-200', 
-                      bg: 'bg-indigo-50', 
-                      dot: 'bg-indigo-500', 
-                      text: 'text-indigo-700', 
-                      progress: 'bg-indigo-500' 
-                    }
-                  },
-                  // OSV - Otto Candies
-                  {
-                    name: "Amber",
-                    shortName: "Amber",
-                    type: "OSV",
-                    company: "Otto Candies",
-                    category: "OSV - Otto Candies",
-                    color: { 
-                      border: 'border-yellow-200', 
-                      bg: 'bg-yellow-50', 
-                      dot: 'bg-yellow-500', 
-                      text: 'text-yellow-700', 
-                      progress: 'bg-yellow-500' 
-                    }
-                  },
-                  // FSV - Edison Chouest
-                  {
-                    name: "Fast Leopard",
-                    shortName: "Fast",
-                    type: "FSV",
-                    company: "Edison Chouest",
-                    category: "FSV - Edison Chouest",
-                    color: { 
-                      border: 'border-red-200', 
-                      bg: 'bg-red-50', 
-                      dot: 'bg-red-500', 
-                      text: 'text-red-700', 
-                      progress: 'bg-red-500' 
-                    }
-                  },
-                  {
-                    name: "Fast Goliath",
-                    shortName: "Fast", 
-                    type: "FSV",
-                    company: "Edison Chouest",
-                    category: "FSV - Edison Chouest",
-                    color: { 
-                      border: 'border-pink-200', 
-                      bg: 'bg-pink-50', 
-                      dot: 'bg-pink-500', 
-                      text: 'text-pink-700', 
-                      progress: 'bg-pink-500' 
-                    }
-                  }
-                ];
-
-                // Calculate metrics for each vessel type based on filtered data
-                const vesselMetrics = vesselTypes.map(vessel => {
-                  // Enhanced vessel name matching - check both full name and short name
-                  const vesselEvents = filteredVoyageEvents.filter(event => {
-                    if (!event.vessel) return false;
-                    const eventVessel = event.vessel.toLowerCase().trim();
-                    const vesselName = vessel.name.toLowerCase().trim();
-                    const vesselShort = vessel.shortName.toLowerCase().trim();
-                    
-                    return eventVessel.includes(vesselName) || 
-                           eventVessel.includes(vesselShort) ||
-                           vesselName.includes(eventVessel) ||
-                           vesselShort.includes(eventVessel);
-                  });
+                // Helper function to classify vessel type and company from vessel name
+                const classifyVessel = (vesselName: string) => {
+                  const name = vesselName.toLowerCase().trim();
                   
-                  const vesselManifests = filteredManifests.filter((manifest: any) => {
-                    if (!manifest.transporter) return false;
-                    const manifestVessel = manifest.transporter.toLowerCase().trim();
-                    const vesselName = vessel.name.toLowerCase().trim();
-                    const vesselShort = vessel.shortName.toLowerCase().trim();
-                    
-                    return manifestVessel.includes(vesselName) || 
-                           manifestVessel.includes(vesselShort) ||
-                           vesselName.includes(manifestVessel) ||
-                           vesselShort.includes(manifestVessel);
-                  });
-
-                  const events = vesselEvents.length;
-                  const hours = vesselEvents.reduce((sum, event) => sum + (event.hours || 0), 0);
-                  const manifests = vesselManifests.length;
-                  const cargo = vesselManifests.reduce((sum: number, manifest: any) => 
-                    sum + (manifest.deckTons || 0) + (manifest.rtTons || 0), 0
-                  );
-                  const lifts = vesselManifests.reduce((sum: number, manifest: any) => 
-                    sum + (manifest.lifts || 0), 0
-                  );
-
-                  // Calculate activity level based on actual data when available
-                  let activityLevel = 0;
-                  if (events > 0 || manifests > 0) {
-                    // Calculate based on actual activity - normalize to reasonable scale
-                    const totalActivity = events + manifests;
-                    activityLevel = Math.min(100, (totalActivity / 50) * 100);
-                  } else {
-                    // Use predefined activity levels for demo when no data matches
-                    if (vessel.type === 'OSV') {
-                      if (vessel.shortName === 'Pelican') activityLevel = 35.1;
-                      else if (vessel.shortName === 'Harvey') activityLevel = 17.9;
-                      else if (vessel.shortName === 'Dauphin') activityLevel = 13.9;
-                      else if (vessel.shortName === 'Ship') activityLevel = 10.8;
-                      else if (vessel.shortName === 'HOS') activityLevel = 7.8;
-                      else if (vessel.shortName === 'Amber') activityLevel = 2.3;
-                    } else if (vessel.type === 'FSV') {
-                      if (vessel.shortName === 'Fast' && vessel.name.includes('Leopard')) activityLevel = 8.7;
-                      else if (vessel.shortName === 'Fast' && vessel.name.includes('Goliath')) activityLevel = 2.6;
-                    }
+                  // Determine vessel type
+                  let type = 'OSV'; // Default to OSV
+                  if (name.includes('fast')) {
+                    type = 'FSV';
                   }
+                  
+                  // Determine company
+                  let company = 'Unknown';
+                  if (name.includes('pelican') || name.includes('dauphin') || 
+                      name.includes('ship') || name.includes('fast') ||
+                      name.includes('charlie') || name.includes('lucy') ||
+                      name.includes('millie')) {
+                    company = 'Edison Chouest';
+                  } else if (name.includes('harvey')) {
+                    company = 'Harvey Gulf';
+                  } else if (name.includes('hos')) {
+                    company = 'Hornbeck Offshore';
+                  } else if (name.includes('amber') || name.includes('candies')) {
+                    company = 'Otto Candies';
+                  } else if (name.includes('jackson') || name.includes('lightning') || 
+                             name.includes('squall') || name.includes('cajun')) {
+                    company = 'Jackson Offshore';
+                  }
+                  
+                  return { type, company };
+                };
 
-                  return {
-                    ...vessel,
-                    events: events > 0 ? events : Math.floor(Math.random() * 120) + 10,
-                    hours: hours > 0 ? Math.round(hours) : Math.floor(Math.random() * 300) + 20,
-                    manifests: manifests > 0 ? manifests : Math.floor(Math.random() * 6) + 1,
-                    cargo: cargo > 0 ? Math.round(cargo) : Math.floor(Math.random() * 2000) + 100,
-                    lifts: lifts > 0 ? lifts : Math.floor(Math.random() * 400) + 10,
-                    activityLevel: Math.round(activityLevel * 10) / 10 // Round to 1 decimal place
+                // Helper function to get color scheme based on company and index
+                const getVesselColor = (company: string, index: number) => {
+                  const colorSchemes = {
+                    'Edison Chouest': [
+                      { border: 'border-blue-200', bg: 'bg-blue-50', dot: 'bg-blue-500', text: 'text-blue-700', progress: 'bg-blue-500' },
+                      { border: 'border-purple-200', bg: 'bg-purple-50', dot: 'bg-purple-500', text: 'text-purple-700', progress: 'bg-purple-500' },
+                      { border: 'border-indigo-200', bg: 'bg-indigo-50', dot: 'bg-indigo-500', text: 'text-indigo-700', progress: 'bg-indigo-500' }
+                    ],
+                    'Harvey Gulf': [
+                      { border: 'border-green-200', bg: 'bg-green-50', dot: 'bg-green-500', text: 'text-green-700', progress: 'bg-green-500' }
+                    ],
+                    'Hornbeck Offshore': [
+                      { border: 'border-teal-200', bg: 'bg-teal-50', dot: 'bg-teal-500', text: 'text-teal-700', progress: 'bg-teal-500' }
+                    ],
+                    'Otto Candies': [
+                      { border: 'border-yellow-200', bg: 'bg-yellow-50', dot: 'bg-yellow-500', text: 'text-yellow-700', progress: 'bg-yellow-500' }
+                    ],
+                    'Jackson Offshore': [
+                      { border: 'border-red-200', bg: 'bg-red-50', dot: 'bg-red-500', text: 'text-red-700', progress: 'bg-red-500' }
+                    ],
+                    'Unknown': [
+                      { border: 'border-gray-200', bg: 'bg-gray-50', dot: 'bg-gray-500', text: 'text-gray-700', progress: 'bg-gray-500' }
+                    ]
                   };
+                  
+                  const companyColors = colorSchemes[company as keyof typeof colorSchemes] || colorSchemes['Unknown'];
+                  return companyColors[index % companyColors.length];
+                };
+
+                // Get unique vessels from filtered data and calculate their metrics
+                // Focus on actual VOYAGES rather than individual events/manifests
+                const uniqueVesselActivity = new Map();
+                
+                // First, identify unique voyages from voyage list data (most accurate for visit counting)
+                let filteredVoyageList = voyageList || [];
+                
+                // Apply location filtering to voyage list - filter to drilling facilities only
+                if (filters.selectedLocation !== 'All Locations') {
+                  // Specific drilling facility selected
+                  const selectedFacility = getAllDrillingCapableLocations().find(
+                    f => f.displayName === filters.selectedLocation
+                  );
+                  if (selectedFacility) {
+                    filteredVoyageList = filteredVoyageList.filter(voyage => {
+                      if (!voyage.locations) return false;
+                      
+                      const voyageLocation = voyage.locations.toLowerCase().trim();
+                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      return voyageLocation.includes(facilityLocationName) ||
+                             voyageLocation.includes(facilityNameCore) ||
+                             facilityLocationName.includes(voyageLocation) ||
+                             facilityNameCore.includes(voyageLocation) ||
+                             // Special handling for common name variations
+                             (facilityNameCore.includes('thunder horse') && (
+                               voyageLocation.includes('thunder horse') || 
+                               voyageLocation.includes('thunderhorse') ||
+                               voyageLocation.includes('thr')
+                             )) ||
+                             (facilityNameCore.includes('mad dog') && (
+                               voyageLocation.includes('mad dog') || 
+                               voyageLocation.includes('maddog') ||
+                               voyageLocation.includes('mad_dog')
+                             ));
+                    });
+                  }
+                } else {
+                  // "All Locations" selected - filter to only drilling facilities
+                  const drillingFacilities = getAllDrillingCapableLocations();
+                  
+                  filteredVoyageList = filteredVoyageList.filter(voyage => {
+                    if (!voyage.locations) return false;
+                    
+                    const voyageLocation = voyage.locations.toLowerCase().trim();
+                    
+                    // Check if voyage location matches any drilling facility
+                    return drillingFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/, '').trim();
+                      const coreVoyageLocation = voyageLocation.replace(/\s*\([^)]*\)/, '').trim();
+                      
+                      return voyageLocation.includes(facilityLocationName) ||
+                             voyageLocation.includes(facilityNameCore) ||
+                             voyageLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreVoyageLocation) ||
+                             facilityNameCore.includes(coreVoyageLocation) ||
+                             coreLocationName.includes(coreVoyageLocation) ||
+                             // Special handling for common name variations
+                             (facilityNameCore.includes('thunder horse') && (
+                               voyageLocation.includes('thunder horse') || 
+                               voyageLocation.includes('thunderhorse') ||
+                               voyageLocation.includes('thr')
+                             )) ||
+                             (facilityNameCore.includes('mad dog') && (
+                               voyageLocation.includes('mad dog') || 
+                               voyageLocation.includes('maddog') ||
+                               voyageLocation.includes('mad_dog')
+                             ));
+                    });
+                  });
+                }
+                
+                // Apply time filtering to voyage list
+                if (isYTD && filterYear !== undefined) {
+                  filteredVoyageList = filteredVoyageList.filter(voyage => {
+                    const voyageDate = voyage.voyageDate || voyage.startDate;
+                    if (!voyageDate) return false;
+                    const vDate = new Date(voyageDate);
+                    return vDate.getFullYear() === filterYear;
+                  });
+                } else if (filterMonth !== undefined && filterYear !== undefined) {
+                  filteredVoyageList = filteredVoyageList.filter(voyage => {
+                    const voyageDate = voyage.voyageDate || voyage.startDate;
+                    if (!voyageDate) return false;
+                    const vDate = new Date(voyageDate);
+                    return vDate.getMonth() === filterMonth && vDate.getFullYear() === filterYear;
+                  });
+                }
+                
+                // Count actual voyages per vessel (this is the correct visit count)
+                filteredVoyageList.forEach(voyage => {
+                  if (!voyage.vessel) return;
+                  const vesselName = voyage.vessel.trim();
+                  
+                  if (!uniqueVesselActivity.has(vesselName)) {
+                    const classification = classifyVessel(vesselName);
+                    uniqueVesselActivity.set(vesselName, {
+                      name: vesselName,
+                      ...classification,
+                      category: `${classification.type} - ${classification.company}`,
+                      voyages: 0, // Actual voyage count
+                      events: 0,
+                      hours: 0,
+                      manifests: 0,
+                      cargo: 0,
+                      lifts: 0
+                    });
+                  }
+                  
+                  const vessel = uniqueVesselActivity.get(vesselName);
+                  vessel.voyages++; // Count actual voyages
+                });
+                
+                // Supplement with voyage events for hours calculation
+                filteredVoyageEvents.forEach(event => {
+                  if (!event.vessel) return;
+                  const vesselName = event.vessel.trim();
+                  
+                  if (!uniqueVesselActivity.has(vesselName)) {
+                    const classification = classifyVessel(vesselName);
+                    uniqueVesselActivity.set(vesselName, {
+                      name: vesselName,
+                      ...classification,
+                      category: `${classification.type} - ${classification.company}`,
+                      voyages: 0,
+                      events: 0,
+                      hours: 0,
+                      manifests: 0,
+                      cargo: 0,
+                      lifts: 0
+                    });
+                  }
+                  
+                  const vessel = uniqueVesselActivity.get(vesselName);
+                  vessel.events++;
+                  vessel.hours += event.hours || 0;
+                });
+                
+                // Supplement with manifests for cargo/lifts calculation
+                filteredManifests.forEach((manifest: any) => {
+                  if (!manifest.transporter) return;
+                  const vesselName = manifest.transporter.trim();
+                  
+                  if (!uniqueVesselActivity.has(vesselName)) {
+                    const classification = classifyVessel(vesselName);
+                    uniqueVesselActivity.set(vesselName, {
+                      name: vesselName,
+                      ...classification,
+                      category: `${classification.type} - ${classification.company}`,
+                      voyages: 0,
+                      events: 0,
+                      hours: 0,
+                      manifests: 0,
+                      cargo: 0,
+                      lifts: 0
+                    });
+                  }
+                  
+                  const vessel = uniqueVesselActivity.get(vesselName);
+                  vessel.manifests++;
+                  vessel.cargo += (manifest.deckTons || 0) + (manifest.rtTons || 0);
+                  vessel.lifts += manifest.lifts || 0;
                 });
 
-                // Group vessels by category for organized display
-                const groupedVessels = vesselMetrics.reduce((groups: any, vessel) => {
-                  const category = vessel.category;
-                  if (!groups[category]) {
-                    groups[category] = [];
-                  }
-                  groups[category].push(vessel);
-                  return groups;
-                }, {});
+                // Convert to array and add color schemes and activity levels
+                const vesselMetrics = Array.from(uniqueVesselActivity.values()).map((vessel: any, index) => {
+                  // Use actual voyage count as the primary metric (this is the real visit count)
+                  const totalVisits = vessel.voyages || 0; // Actual voyages to the location
+                  const totalActivity = vessel.events + vessel.manifests; // Supporting activity data
+                  const activityLevel = Math.min(100, Math.max(0, (totalVisits / 10) * 100)); // Scale based on 10 visits = 100%
+                  
+                  return {
+                    ...vessel,
+                    color: getVesselColor(vessel.company, index),
+                    hours: Math.round(vessel.hours),
+                    cargo: Math.round(vessel.cargo),
+                    activityLevel: Math.round(activityLevel * 10) / 10,
+                    totalActivity,
+                    totalVisits, // This is the actual visit count we want to display
+                    // Calculate averages per visit (voyage)
+                    avgHoursPerVisit: totalVisits > 0 ? Math.round(vessel.hours / totalVisits) : 0,
+                    avgCargoPerVisit: totalVisits > 0 ? Math.round(vessel.cargo / totalVisits) : 0,
+                    avgLiftsPerVisit: totalVisits > 0 ? Math.round(vessel.lifts / totalVisits) : 0
+                  };
+                }).sort((a, b) => b.totalVisits - a.totalVisits); // Sort by actual visit count
 
-                // Define order for categories
-                const categoryOrder = [
-                  "OSV - Edison Chouest",
-                  "FSV - Edison Chouest",
-                  "OSV - Harvey Gulf", 
-                  "OSV - Hornbeck Offshore",
-                  "OSV - Otto Candies"
-                ];
+                // Debug: Log filtering results
+                console.log('🚢 VESSEL FLEET FILTERING DEBUG:', {
+                  selectedLocation: filters.selectedLocation,
+                  selectedMonth: filters.selectedMonth,
+                  timeFilter: { filterMonth, filterYear, isYTD },
+                  originalVoyageList: voyageList?.length || 0,
+                  filteredVoyageList: filteredVoyageList.length,
+                  originalVoyageEvents: voyageEvents.length,
+                  filteredVoyageEvents: filteredVoyageEvents.length,
+                  originalManifests: vesselManifests.length,
+                  filteredManifests: filteredManifests.length,
+                  uniqueVesselsFound: vesselMetrics.length,
+                  vesselVisitCounts: vesselMetrics.map(v => ({ name: v.name, visits: v.totalVisits, events: v.events, manifests: v.manifests })),
+                  totalVisitsAllVessels: vesselMetrics.reduce((sum, v) => sum + v.totalVisits, 0),
+                  sampleFilteredVoyages: filteredVoyageList.slice(0, 3).map(v => ({
+                    vessel: v.vessel,
+                    locations: v.locations,
+                    voyageDate: v.voyageDate,
+                    voyagePurpose: v.voyagePurpose
+                  }))
+                });
+
+                // Note: Removed groupedVessels and categoryOrder as we now use direct vessel list
 
                 // Determine if we should show the summary view (when there are many vessels)
-                const shouldShowSummary = uniqueVesselsFromData.size > 15 || filters.selectedMonth === 'All Months' || filters.selectedMonth === 'YTD';
+                const shouldShowSummary = vesselMetrics.length > 15 || filters.selectedMonth === 'All Months' || filters.selectedMonth === 'YTD';
 
                 if (shouldShowSummary) {
                   // Calculate company-level statistics from actual data
@@ -2748,33 +3067,17 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     totalActivity: stats.events + stats.manifests
                   })).sort((a, b) => b.totalActivity - a.totalActivity);
 
-                  // Get top performing vessels
-                  const allVesselActivity = new Map();
-                  
-                  filteredVoyageEvents.forEach(event => {
-                    if (!event.vessel) return;
-                    if (!allVesselActivity.has(event.vessel)) {
-                      allVesselActivity.set(event.vessel, { vessel: event.vessel, events: 0, hours: 0, manifests: 0, cargo: 0, lifts: 0 });
-                    }
-                    const activity = allVesselActivity.get(event.vessel);
-                    activity.events++;
-                    activity.hours += event.hours || 0;
-                  });
-                  
-                  filteredManifests.forEach((manifest: any) => {
-                    if (!manifest.transporter) return;
-                    if (!allVesselActivity.has(manifest.transporter)) {
-                      allVesselActivity.set(manifest.transporter, { vessel: manifest.transporter, events: 0, hours: 0, manifests: 0, cargo: 0, lifts: 0 });
-                    }
-                    const activity = allVesselActivity.get(manifest.transporter);
-                    activity.manifests++;
-                    activity.cargo += (manifest.deckTons || 0) + (manifest.rtTons || 0);
-                    activity.lifts += manifest.lifts || 0;
-                  });
-
-                  const topVessels = Array.from(allVesselActivity.values())
-                    .map(v => ({ ...v, totalActivity: v.events + v.manifests }))
-                    .sort((a, b) => b.totalActivity - a.totalActivity)
+                  // Get top performing vessels (use the already calculated vesselMetrics)
+                  const topVessels = vesselMetrics
+                    .map(v => ({ 
+                      vessel: v.name, 
+                      events: v.events, 
+                      hours: v.hours, 
+                      manifests: v.manifests, 
+                      cargo: v.cargo, 
+                      lifts: v.lifts,
+                      totalActivity: v.totalActivity 
+                    }))
                     .slice(0, 10);
 
                   return (
@@ -2784,7 +3087,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                         <h4 className="text-lg font-semibold text-blue-900 mb-2">Fleet Summary</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div className="text-center">
-                            <div className="text-2xl font-bold text-blue-700">{uniqueVesselsFromData.size}</div>
+                            <div className="text-2xl font-bold text-blue-700">{vesselMetrics.length}</div>
                             <div className="text-sm text-blue-600">Active Vessels</div>
                           </div>
                           <div className="text-center">
@@ -2885,97 +3188,204 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                   );
                 }
 
-                // Default individual vessel card view for smaller datasets
+                                // Enhanced individual vessel view with visit frequency analysis
                 return (
                   <div className="space-y-8">
-                    {/* Display actual vessel count */}
-                    <div className="mb-6">
-                      <p className="text-sm text-gray-600">
-                        Showing {vesselMetrics.length} vessel showcases ({uniqueVesselsFromData.size} unique vessels found in data)
-                      </p>
-                    </div>
-                    
-                    {categoryOrder.map(category => {
-                      const vessels = groupedVessels[category];
-                      if (!vessels || vessels.length === 0) return null;
-
-                      return (
-                        <div key={category}>
-                          {/* Section Header */}
-                          <div className="mb-4">
-                            <h4 className="text-lg font-semibold text-gray-800 mb-1">{category}</h4>
-                            <div className="h-0.5 bg-gradient-to-r from-blue-500 to-transparent w-24"></div>
+                    {/* Enhanced Header with Period Summary */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-lg font-semibold text-blue-900 mb-2">Vessel Activity Analysis</h4>
+                          <p className="text-sm text-blue-700 mb-1">
+                            {vesselMetrics.length} vessels with activity
+                            {filters.selectedLocation !== 'All Locations' && ` at ${filters.selectedLocation}`}
+                            {filters.selectedMonth !== 'All Months' && ` during ${filters.selectedMonth}`}
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            Filtered from {voyageEvents.length + vesselManifests.length} total records
+                            {filteredVoyageEvents.length + filteredManifests.length < voyageEvents.length + vesselManifests.length && 
+                              ` → ${filteredVoyageEvents.length + filteredManifests.length} matching records`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-700">
+                            {vesselMetrics.reduce((sum, v) => sum + v.totalVisits, 0)}
                           </div>
+                          <div className="text-sm text-blue-600">Total Visits</div>
+                          <div className="text-xs text-blue-500 mt-1">
+                            Actual voyages to location(s)
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* No vessels found message */}
+                    {vesselMetrics.length === 0 && (
+                      <div className="text-center py-12">
+                        <div className="text-gray-400 mb-4">
+                          <Ship className="w-16 h-16 mx-auto" />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-600 mb-2">No Vessels Found</h3>
+                        <p className="text-sm text-gray-500 max-w-md mx-auto">
+                          No vessel activity found for the selected time period
+                          {filters.selectedLocation !== 'All Locations' && ` at ${filters.selectedLocation}`}.
+                          Try selecting a different time period or location.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Enhanced Vessel Cards with Visit Frequency */}
+                    {vesselMetrics.length > 0 && (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {vesselMetrics.map((vessel: any, index) => {
+                          // Use the correct visit count (actual voyages)
+                          const totalVisits = vessel.totalVisits; // Actual voyage count to the location
+                          const averageCargoPerVisit = vessel.avgCargoPerVisit;
+                          const averageHoursPerVisit = vessel.avgHoursPerVisit;
+                          const averageLiftsPerVisit = vessel.avgLiftsPerVisit;
                           
-                          {/* Vessels Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {vessels.map((vessel: any) => (
-                              <div key={vessel.name} className={`${vessel.color.border} ${vessel.color.bg} border-2 rounded-xl p-4 relative hover:shadow-md transition-shadow duration-200`}>
-                                {/* Vessel Status Indicator */}
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-3 h-3 ${vessel.color.dot} rounded-full`}></div>
+                          // Determine visit frequency category (adjusted for realistic visit counts)
+                          let frequencyCategory = '';
+                          let frequencyColor = '';
+                          if (totalVisits >= 10) {
+                            frequencyCategory = 'High Frequency';
+                            frequencyColor = 'text-green-600 bg-green-100';
+                          } else if (totalVisits >= 5) {
+                            frequencyCategory = 'Medium Frequency';
+                            frequencyColor = 'text-blue-600 bg-blue-100';
+                          } else if (totalVisits >= 2) {
+                            frequencyCategory = 'Regular Visitor';
+                            frequencyColor = 'text-orange-600 bg-orange-100';
+                          } else {
+                            frequencyCategory = 'Occasional';
+                            frequencyColor = 'text-gray-600 bg-gray-100';
+                          }
+
+                          return (
+                            <div key={vessel.name} className={`${vessel.color.border} ${vessel.color.bg} border-2 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]`}>
+                              {/* Header with Vessel Info */}
+                              <div className="p-4 border-b border-gray-200">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-4 h-4 ${vessel.color.dot} rounded-full flex-shrink-0`}></div>
                                     <div>
-                                      <h4 className="font-semibold text-gray-900 text-sm">{vessel.name}</h4>
-                                      <p className="text-xs text-gray-600">{vessel.company}</p>
+                                      <h4 className="font-bold text-gray-900 text-base">{vessel.name}</h4>
+                                      <p className="text-sm text-gray-600">{vessel.company} • {vessel.type}</p>
                                     </div>
                                   </div>
-                                </div>
-
-                                {/* Vessel Type */}
-                                <div className="mb-3">
-                                  <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-                                    {vessel.type}
-                                  </span>
-                                </div>
-
-                                {/* Metrics Grid */}
-                                <div className="grid grid-cols-2 gap-3 mb-4">
-                                  <div>
-                                    <div className="text-lg font-bold text-gray-900">{vessel.events}</div>
-                                    <div className="text-xs text-gray-600">Events</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-lg font-bold text-gray-900">{vessel.hours}</div>
-                                    <div className="text-xs text-gray-600">Hours</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-lg font-bold text-gray-900">{vessel.manifests}</div>
-                                    <div className="text-xs text-gray-600">Manifests</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-lg font-bold text-gray-900">{vessel.cargo}t</div>
-                                    <div className="text-xs text-gray-600">Cargo</div>
-                                  </div>
-                                </div>
-
-                                {/* Total Lifts */}
-                                <div className="mb-4">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-medium text-blue-600">Total Lifts</span>
-                                  </div>
-                                  <div className="text-xl font-bold text-blue-700">{vessel.lifts}</div>
-                                </div>
-
-                                {/* Activity Level */}
-                                <div>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs text-gray-600">Activity Level</span>
-                                    <span className="text-xs font-medium text-gray-800">{vessel.activityLevel}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className={`${vessel.color.progress} h-2 rounded-full transition-all duration-300`}
-                                      style={{ width: `${vessel.activityLevel}%` }}
-                                    ></div>
+                                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${frequencyColor}`}>
+                                    {frequencyCategory}
                                   </div>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+
+                              {/* Visit Frequency Section */}
+                              <div className="p-4 bg-white border-b border-gray-100">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h5 className="text-sm font-semibold text-gray-800">Actual Visits</h5>
+                                  <div className="text-right">
+                                    <div className="text-xl font-bold text-indigo-600">{totalVisits}</div>
+                                    <div className="text-xs text-gray-500">Voyages to Location</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3 text-center">
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-lg font-bold text-blue-600">{vessel.events}</div>
+                                    <div className="text-xs text-gray-600">Supporting Events</div>
+                                  </div>
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-lg font-bold text-green-600">{vessel.manifests}</div>
+                                    <div className="text-xs text-gray-600">Manifests</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="mt-2 text-xs text-gray-500 text-center">
+                                  Visit count based on actual voyage records
+                                </div>
+                              </div>
+
+                              {/* Performance Metrics */}
+                              <div className="p-4">
+                                <h5 className="text-sm font-semibold text-gray-800 mb-3">Performance Metrics</h5>
+                                
+                                <div className="space-y-3">
+                                  {/* Total Metrics Row */}
+                                  <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div>
+                                      <div className="text-sm font-bold text-gray-900">{vessel.hours}h</div>
+                                      <div className="text-xs text-gray-600">Total Hours</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-gray-900">{vessel.cargo}t</div>
+                                      <div className="text-xs text-gray-600">Total Cargo</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-gray-900">{vessel.lifts}</div>
+                                      <div className="text-xs text-gray-600">Total Lifts</div>
+                                    </div>
+                                  </div>
+
+                                  {/* Average Per Visit Metrics */}
+                                  <div className="border-t pt-3">
+                                    <p className="text-xs text-gray-500 mb-2 font-medium">Average Per Voyage:</p>
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                      <div className="bg-blue-50 rounded p-2">
+                                        <div className="text-sm font-bold text-blue-700">{averageHoursPerVisit}h</div>
+                                        <div className="text-xs text-blue-600">Hours</div>
+                                      </div>
+                                      <div className="bg-green-50 rounded p-2">
+                                        <div className="text-sm font-bold text-green-700">{averageCargoPerVisit}t</div>
+                                        <div className="text-xs text-green-600">Cargo</div>
+                                      </div>
+                                      <div className="bg-purple-50 rounded p-2">
+                                        <div className="text-sm font-bold text-purple-700">{averageLiftsPerVisit}</div>
+                                        <div className="text-xs text-purple-600">Lifts</div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Activity Level Progress Bar */}
+                                  <div className="border-t pt-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-medium text-gray-700">Visit Frequency</span>
+                                      <span className="text-xs font-bold text-gray-800">{vessel.activityLevel}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-3">
+                                      <div 
+                                        className={`${vessel.color.progress} h-3 rounded-full transition-all duration-500 relative`}
+                                        style={{ width: `${vessel.activityLevel}%` }}
+                                      >
+                                        <div className="absolute inset-0 bg-white bg-opacity-30 rounded-full"></div>
+                                      </div>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1 text-center">
+                                      Based on {totalVisits} voyage{totalVisits !== 1 ? 's' : ''} to location
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Location-Specific Info (if single location selected) */}
+                              {filters.selectedLocation !== 'All Locations' && (
+                                <div className="px-4 pb-4">
+                                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-3 border border-indigo-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                      <span className="text-xs font-medium text-indigo-700">Location Activity</span>
+                                    </div>
+                                    <p className="text-xs text-indigo-600">
+                                      {totalVisits} visits to {filters.selectedLocation}
+                                      {filters.selectedMonth !== 'All Months' && ` in ${filters.selectedMonth}`}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -3403,7 +3813,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           {/* Drilling Operational KPI Variance Analysis */}
           <DrillingOperationalVarianceDashboard
             liftsPerHourVariance={varianceAnalysis.operationalVariance.liftsPerHourVariance}
-            costPerTonVariance={varianceAnalysis.operationalVariance.costPerTonVariance}
+
             visitsPerWeekVariance={varianceAnalysis.operationalVariance.visitsPerWeekVariance}
             vesselOperationalData={varianceAnalysis.operationalVariance.vesselOperationalData}
           />

@@ -159,15 +159,12 @@ export const calculateDrillingOperationalVariance = (
   locationFilter?: string
 ): {
   liftsPerHourVariance: VarianceAnalysis;
-  costPerTonVariance: VarianceAnalysis;
   visitsPerWeekVariance: VarianceAnalysis;
   vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
-    costPerTon: number;
     visitsPerWeek: number;
     totalLifts: number;
-    totalCost: number;
     totalTonnage: number;
     totalVisits: number;
     cargoOpsHours: number;
@@ -254,7 +251,6 @@ export const calculateDrillingOperationalVariance = (
     cargoOpsHours: number;
     totalLifts: number;
     totalTonnage: number;
-    totalCost: number;
     manifestCount: number;
     vesselVisits: Set<string>; // Track unique voyages/visits
   }>();
@@ -271,7 +267,6 @@ export const calculateDrillingOperationalVariance = (
         cargoOpsHours: 0,
         totalLifts: 0,
         totalTonnage: 0,
-        totalCost: 0,
         manifestCount: 0,
         vesselVisits: new Set()
       });
@@ -286,22 +281,17 @@ export const calculateDrillingOperationalVariance = (
     }
   });
 
-  // Aggregate manifest data and cost information by vessel
+  // Aggregate manifest data by vessel
   drillingManifests.forEach(manifest => {
     const vessel = manifest.transporter;
     const lifts = manifest.lifts || 0;
     const tonnage = (manifest.deckTons || 0) + (manifest.rtTons || 0);
-    
-    // Calculate cost (basic estimation: can be enhanced with actual cost data)
-    const estimatedCostPerTon = 150; // Default cost per ton - can be made configurable
-    const vesselCost = tonnage * estimatedCostPerTon;
 
     if (!vesselMetrics.has(vessel)) {
       vesselMetrics.set(vessel, {
         cargoOpsHours: 0,
         totalLifts: 0,
         totalTonnage: 0,
-        totalCost: 0,
         manifestCount: 0,
         vesselVisits: new Set()
       });
@@ -310,7 +300,6 @@ export const calculateDrillingOperationalVariance = (
     const metrics = vesselMetrics.get(vessel)!;
     metrics.totalLifts += lifts;
     metrics.totalTonnage += tonnage;
-    metrics.totalCost += vesselCost;
     metrics.manifestCount += 1;
     
     // Track unique manifest numbers as visits
@@ -323,10 +312,8 @@ export const calculateDrillingOperationalVariance = (
   const vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
-    costPerTon: number;
     visitsPerWeek: number;
     totalLifts: number;
-    totalCost: number;
     totalTonnage: number;
     totalVisits: number;
     cargoOpsHours: number;
@@ -334,22 +321,18 @@ export const calculateDrillingOperationalVariance = (
   }> = [];
 
   const liftsPerHourData: DataPoint[] = [];
-  const costPerTonData: DataPoint[] = [];
   const visitsPerWeekData: DataPoint[] = [];
 
   vesselMetrics.forEach((metrics, vesselName) => {
     const liftsPerHour = metrics.cargoOpsHours > 0 ? metrics.totalLifts / metrics.cargoOpsHours : 0;
-    const costPerTon = metrics.totalTonnage > 0 ? metrics.totalCost / metrics.totalTonnage : 0;
     const totalVisits = metrics.vesselVisits.size;
     const visitsPerWeek = totalVisits / weeksInPeriod;
     
     vesselOperationalData.push({
       vesselName,
       liftsPerHour,
-      costPerTon,
       visitsPerWeek,
       totalLifts: metrics.totalLifts,
-      totalCost: metrics.totalCost,
       totalTonnage: metrics.totalTonnage,
       totalVisits,
       cargoOpsHours: metrics.cargoOpsHours,
@@ -359,14 +342,6 @@ export const calculateDrillingOperationalVariance = (
     if (liftsPerHour > 0) {
       liftsPerHourData.push({
         value: liftsPerHour,
-        vesselName,
-        identifier: vesselName
-      });
-    }
-
-    if (costPerTon > 0) {
-      costPerTonData.push({
-        value: costPerTon,
         vesselName,
         identifier: vesselName
       });
@@ -383,7 +358,6 @@ export const calculateDrillingOperationalVariance = (
 
   return {
     liftsPerHourVariance: calculateVarianceAnalysis(liftsPerHourData),
-    costPerTonVariance: calculateVarianceAnalysis(costPerTonData),
     visitsPerWeekVariance: calculateVarianceAnalysis(visitsPerWeekData),
     vesselOperationalData
   };
@@ -555,15 +529,12 @@ export const calculateProductionOperationalVariance = (
   locationFilter?: string
 ): {
   liftsPerHourVariance: VarianceAnalysis;
-  costPerTonVariance: VarianceAnalysis;
   visitsPerWeekVariance: VarianceAnalysis;
   vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
-    costPerTon: number;
     visitsPerWeek: number;
     totalLifts: number;
-    totalCost: number;
     totalTonnage: number;
     totalVisits: number;
     cargoOpsHours: number;
@@ -647,7 +618,6 @@ export const calculateProductionOperationalVariance = (
     cargoOpsHours: number;
     totalLifts: number;
     totalTonnage: number;
-    totalCost: number;
     manifestCount: number;
     vesselVisits: Set<string>;
   }>();
@@ -664,7 +634,6 @@ export const calculateProductionOperationalVariance = (
         cargoOpsHours: 0,
         totalLifts: 0,
         totalTonnage: 0,
-        totalCost: 0,
         manifestCount: 0,
         vesselVisits: new Set()
       });
@@ -678,55 +647,17 @@ export const calculateProductionOperationalVariance = (
     }
   });
 
-  // Aggregate manifest data and cost information by vessel
+  // Aggregate manifest data by vessel
   productionManifests.forEach(manifest => {
     const vessel = manifest.transporter;
     const lifts = manifest.lifts || 0;
     const tonnage = (manifest.deckTons || 0) + (manifest.rtTons || 0);
-    
-    // Calculate actual cost using cost allocation data for realistic variance
-    let vesselCost = 0;
-    if (manifest.costCode) {
-      const relatedCostAllocation = costAllocation.find(ca => 
-        ca.lcNumber === manifest.costCode
-      );
-      
-      if (relatedCostAllocation) {
-        // Use actual vessel cost from cost allocation data
-        const allocatedDays = relatedCostAllocation.totalAllocatedDays || 0;
-        const dayRate = relatedCostAllocation.vesselDailyRateUsed || relatedCostAllocation.averageVesselCostPerDay || 0;
-        
-        if (allocatedDays > 0 && dayRate > 0) {
-          // Use actual vessel cost from cost allocation data
-          vesselCost = allocatedDays * dayRate;
-        } else {
-          // Use variable cost estimate for realistic variance
-          const vesselHash = vessel.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-          const costVariation = (vesselHash % 100) + 50; // 50-149 variation
-          const baseCostPerTon = 120 + costVariation; // $170-$269 range
-          vesselCost = tonnage * baseCostPerTon;
-        }
-      } else {
-        // Fallback: Use variable cost estimate based on vessel characteristics for realistic variance
-        const vesselHash = vessel.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-        const costVariation = (vesselHash % 100) + 50; // 50-149 variation  
-        const baseCostPerTon = 120 + costVariation; // $170-$269 range based on vessel name
-        vesselCost = tonnage * baseCostPerTon;
-      }
-    } else {
-      // Fallback for missing cost codes - deterministic variation based on vessel name
-      const vesselHash = vessel.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-      const costVariation = (vesselHash % 100) + 50; // 50-149 variation
-      const baseCostPerTon = 120 + costVariation; // $170-$269 range
-      vesselCost = tonnage * baseCostPerTon;
-    }
 
     if (!vesselMetrics.has(vessel)) {
       vesselMetrics.set(vessel, {
         cargoOpsHours: 0,
         totalLifts: 0,
         totalTonnage: 0,
-        totalCost: 0,
         manifestCount: 0,
         vesselVisits: new Set()
       });
@@ -735,7 +666,6 @@ export const calculateProductionOperationalVariance = (
     const metrics = vesselMetrics.get(vessel)!;
     metrics.totalLifts += lifts;
     metrics.totalTonnage += tonnage;
-    metrics.totalCost += vesselCost;
     metrics.manifestCount += 1;
     
     if (manifest.manifestNumber) {
@@ -747,10 +677,8 @@ export const calculateProductionOperationalVariance = (
   const vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
-    costPerTon: number;
     visitsPerWeek: number;
     totalLifts: number;
-    totalCost: number;
     totalTonnage: number;
     totalVisits: number;
     cargoOpsHours: number;
@@ -758,22 +686,18 @@ export const calculateProductionOperationalVariance = (
   }> = [];
 
   const liftsPerHourData: DataPoint[] = [];
-  const costPerTonData: DataPoint[] = [];
   const visitsPerWeekData: DataPoint[] = [];
 
   vesselMetrics.forEach((metrics, vesselName) => {
     const liftsPerHour = metrics.cargoOpsHours > 0 ? metrics.totalLifts / metrics.cargoOpsHours : 0;
-    const costPerTon = metrics.totalTonnage > 0 ? metrics.totalCost / metrics.totalTonnage : 0;
     const totalVisits = metrics.vesselVisits.size;
     const visitsPerWeek = totalVisits / weeksInPeriod;
     
     vesselOperationalData.push({
       vesselName,
       liftsPerHour,
-      costPerTon,
       visitsPerWeek,
       totalLifts: metrics.totalLifts,
-      totalCost: metrics.totalCost,
       totalTonnage: metrics.totalTonnage,
       totalVisits,
       cargoOpsHours: metrics.cargoOpsHours,
@@ -783,14 +707,6 @@ export const calculateProductionOperationalVariance = (
     if (liftsPerHour > 0) {
       liftsPerHourData.push({
         value: liftsPerHour,
-        vesselName,
-        identifier: vesselName
-      });
-    }
-
-    if (costPerTon > 0) {
-      costPerTonData.push({
-        value: costPerTon,
         vesselName,
         identifier: vesselName
       });
@@ -807,7 +723,6 @@ export const calculateProductionOperationalVariance = (
 
   return {
     liftsPerHourVariance: calculateVarianceAnalysis(liftsPerHourData),
-    costPerTonVariance: calculateVarianceAnalysis(costPerTonData),
     visitsPerWeekVariance: calculateVarianceAnalysis(visitsPerWeekData),
     vesselOperationalData
   };

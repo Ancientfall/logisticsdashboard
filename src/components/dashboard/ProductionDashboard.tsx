@@ -181,7 +181,97 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         },
         lifts: {
           totalLifts: prevManifestMetrics.totalLifts,
-          liftsPerHour: prevVoyageMetrics.productiveHours > 0 ? prevManifestMetrics.totalLifts / prevVoyageMetrics.productiveHours : 0,
+          liftsPerHour: (() => {
+            // Calculate actual cargo operation hours for previous period
+            const prevCargoEvents = voyageEvents.filter(event => {
+              // Time filtering for previous period
+              if (previousFilterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (previousFilterMonth !== undefined) {
+                  if (eventDate.getMonth() !== previousFilterMonth || eventDate.getFullYear() !== previousFilterYear) return false;
+                } else {
+                  if (eventDate.getFullYear() !== previousFilterYear) return false;
+                }
+              } else {
+                return false; // No previous period defined
+              }
+              
+              // Location filtering - same logic as current period
+              const eventLocation = event.location?.toLowerCase().trim() || '';
+              const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+              const productionFacilities = getProductionFacilities();
+              
+              if (filters.selectedLocation !== 'All Locations') {
+                const selectedFacility = productionFacilities.find(
+                  f => f.displayName === filters.selectedLocation
+                );
+                if (selectedFacility) {
+                  const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                  const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                  
+                  const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                  const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                  
+                  const matchesLocation = 
+                    eventLocation.includes(facilityLocationName) ||
+                    mappedLocation.includes(facilityLocationName) ||
+                    eventLocation.includes(facilityDisplayName) ||
+                    mappedLocation.includes(facilityDisplayName) ||
+                    coreEventLocation.includes(coreLocationName) ||
+                    facilityLocationName.includes(coreEventLocation) ||
+                    (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                    (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                  
+                  if (!matchesLocation) return false;
+                }
+              } else {
+                const matchesAnyProductionFacility = productionFacilities.some(facility => {
+                  const facilityLocationName = facility.locationName.toLowerCase();
+                  const facilityDisplayName = facility.displayName.toLowerCase();
+                  
+                  const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                  const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                  const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                  
+                  return eventLocation.includes(facilityLocationName) ||
+                         mappedLocation.includes(facilityLocationName) ||
+                         eventLocation.includes(facilityDisplayName) ||
+                         mappedLocation.includes(facilityDisplayName) ||
+                         coreEventLocation.includes(coreLocationName) ||
+                         coreMappedLocation.includes(coreLocationName) ||
+                         facilityLocationName.includes(coreEventLocation) ||
+                         facilityLocationName.includes(coreMappedLocation) ||
+                         (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                         (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                });
+                
+                if (!matchesAnyProductionFacility) return false;
+              }
+              
+              // Filter for cargo operation activities
+              const parentEvent = (event.parentEvent || '').toLowerCase();
+              const eventName = (event.event || '').toLowerCase();
+              const remarks = (event.remarks || '').toLowerCase();
+              
+              return parentEvent.includes('cargo') || 
+                     parentEvent.includes('loading') || 
+                     parentEvent.includes('offloading') ||
+                     parentEvent.includes('lifting') ||
+                     eventName.includes('cargo') ||
+                     eventName.includes('loading') ||
+                     eventName.includes('offloading') ||
+                     eventName.includes('lifting') ||
+                     eventName.includes('crane') ||
+                     remarks.includes('cargo') ||
+                     remarks.includes('loading') ||
+                     remarks.includes('offloading') ||
+                     remarks.includes('lifting') ||
+                     remarks.includes('crane');
+            });
+            
+            const prevCargoOperationHours = prevCargoEvents.reduce((sum, event) => sum + (event.hours || 0), 0);
+            return prevCargoOperationHours > 0 ? prevManifestMetrics.totalLifts / prevCargoOperationHours : 0;
+          })(),
           vesselVisits: prevManifestMetrics.uniqueManifests
         },
         hours: {
@@ -285,6 +375,150 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         'Production',
         filters.selectedLocation
       );
+
+      // Debug: Log detailed manifest metrics for production
+      console.log('📋 PRODUCTION MANIFEST METRICS DEBUG:', {
+        filters: {
+          selectedMonth: filters.selectedMonth,
+          selectedLocation: filters.selectedLocation,
+          parsedMonth: filterMonth,
+          parsedYear: filterYear
+        },
+        manifestMetrics: {
+          totalLifts: manifestMetrics.totalLifts,
+          totalCargoTons: manifestMetrics.totalCargoTons,
+          uniqueManifests: manifestMetrics.uniqueManifests,
+          vesselVisits: manifestMetrics.vesselVisits,
+          validationRate: manifestMetrics.validationRate,
+          invalidManifests: manifestMetrics.invalidManifests
+        },
+        rawDataCounts: {
+          totalVesselManifests: vesselManifests.length,
+          totalCostAllocations: costAllocation.length
+        }
+      });
+
+      // Debug: Compare with direct manifest filtering (without cost allocation dependency)
+      const directManifestFiltering = (() => {
+        // Filter manifests directly by time and location for production facilities
+        let filteredManifests = vesselManifests;
+        
+        // Time filtering
+        if (isYTD && filterYear !== undefined) {
+          filteredManifests = filteredManifests.filter(manifest => 
+            manifest.manifestDate.getFullYear() === filterYear
+          );
+        } else if (filterMonth !== undefined && filterYear !== undefined) {
+          filteredManifests = filteredManifests.filter(manifest => 
+            manifest.manifestDate.getMonth() === filterMonth && 
+            manifest.manifestDate.getFullYear() === filterYear
+          );
+        }
+        
+        // Location filtering for production facilities
+        const productionFacilities = getProductionFacilities();
+        if (filters.selectedLocation !== 'All Locations') {
+          // Filter to specific production facility
+          const selectedFacility = productionFacilities.find(
+            f => f.displayName === filters.selectedLocation
+          );
+          if (selectedFacility) {
+            filteredManifests = filteredManifests.filter(manifest => {
+              const offshoreLocation = manifest.offshoreLocation?.toLowerCase().trim() || '';
+              const mappedLocation = manifest.mappedLocation?.toLowerCase().trim() || '';
+              const facilityLocationName = selectedFacility.locationName.toLowerCase();
+              const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+              
+              const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+              const coreOffshoreLocation = offshoreLocation.replace(/\s*\([^)]*\)/g, '').trim();
+              
+              return offshoreLocation.includes(facilityLocationName) ||
+                     mappedLocation.includes(facilityLocationName) ||
+                     offshoreLocation.includes(facilityDisplayName) ||
+                     mappedLocation.includes(facilityDisplayName) ||
+                     coreOffshoreLocation.includes(coreLocationName) ||
+                     facilityLocationName.includes(coreOffshoreLocation) ||
+                     (facilityLocationName.includes('thunder horse') && offshoreLocation.includes('thunder horse')) ||
+                     (facilityLocationName.includes('mad dog') && offshoreLocation.includes('mad dog'));
+            });
+          }
+        } else {
+          // Filter to ANY production facility (not drilling rigs)
+          filteredManifests = filteredManifests.filter(manifest => {
+            const offshoreLocation = manifest.offshoreLocation?.toLowerCase().trim() || '';
+            const mappedLocation = manifest.mappedLocation?.toLowerCase().trim() || '';
+            
+            return productionFacilities.some(facility => {
+              const facilityLocationName = facility.locationName.toLowerCase();
+              const facilityDisplayName = facility.displayName.toLowerCase();
+              
+              const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+              const coreOffshoreLocation = offshoreLocation.replace(/\s*\([^)]*\)/g, '').trim();
+              const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
+              
+              return offshoreLocation.includes(facilityLocationName) ||
+                     mappedLocation.includes(facilityLocationName) ||
+                     offshoreLocation.includes(facilityDisplayName) ||
+                     mappedLocation.includes(facilityDisplayName) ||
+                     coreOffshoreLocation.includes(coreLocationName) ||
+                     coreMappedLocation.includes(coreLocationName) ||
+                     facilityLocationName.includes(coreOffshoreLocation) ||
+                     facilityLocationName.includes(coreMappedLocation) ||
+                     (facilityLocationName.includes('thunder horse') && (offshoreLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                     (facilityLocationName.includes('mad dog') && (offshoreLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+            });
+          });
+        }
+        
+        // Calculate totals directly
+        const directTotalLifts = filteredManifests.reduce((sum, manifest) => sum + (manifest.lifts || 0), 0);
+        const directTotalCargoTons = filteredManifests.reduce((sum, manifest) => sum + (manifest.deckTons || 0) + (manifest.rtTons || 0), 0);
+        const directUniqueManifests = new Set(filteredManifests.map(m => m.manifestNumber)).size;
+        
+        return {
+          filteredCount: filteredManifests.length,
+          directTotalLifts,
+          directTotalCargoTons,
+          directUniqueManifests,
+          sampleManifests: filteredManifests.slice(0, 5).map(m => ({
+            manifestNumber: m.manifestNumber,
+            offshoreLocation: m.offshoreLocation,
+            lifts: m.lifts,
+            deckTons: m.deckTons,
+            rtTons: m.rtTons,
+            costCode: m.costCode
+          }))
+        };
+      })();
+      
+             console.log('🔍 DIRECT MANIFEST FILTERING COMPARISON:', {
+         enhancedMethod: {
+           totalLifts: manifestMetrics.totalLifts,
+           totalCargoTons: manifestMetrics.totalCargoTons,
+           uniqueManifests: manifestMetrics.uniqueManifests
+         },
+         directMethod: {
+           totalLifts: directManifestFiltering.directTotalLifts,
+           totalCargoTons: directManifestFiltering.directTotalCargoTons,
+           uniqueManifests: directManifestFiltering.directUniqueManifests,
+           filteredCount: directManifestFiltering.filteredCount
+         },
+         difference: {
+           lifts: directManifestFiltering.directTotalLifts - manifestMetrics.totalLifts,
+           cargoTons: directManifestFiltering.directTotalCargoTons - manifestMetrics.totalCargoTons,
+           manifests: directManifestFiltering.directUniqueManifests - manifestMetrics.uniqueManifests
+         },
+         sampleManifests: directManifestFiltering.sampleManifests
+       });
+
+       // PROMINENT LOG FOR EASY SPOTTING
+       console.log('🚨🚨🚨 LIFTS COMPARISON RESULTS 🚨🚨🚨');
+       console.log(`Enhanced Method Lifts: ${manifestMetrics.totalLifts}`);
+       console.log(`Direct Method Lifts: ${directManifestFiltering.directTotalLifts}`);
+       console.log(`Difference: ${directManifestFiltering.directTotalLifts - manifestMetrics.totalLifts} lifts`);
+       console.log(`Location Filter: ${filters.selectedLocation}`);
+       console.log(`Time Filter: ${filters.selectedMonth}`);
+       console.log('🚨🚨🚨 END LIFTS COMPARISON 🚨🚨🚨');
 
       const voyageMetrics = calculateEnhancedVoyageEventMetrics(
         voyageEvents,
@@ -497,7 +731,102 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         // Lifts metrics from enhanced manifests
         lifts: {
           totalLifts: manifestMetrics.totalLifts,
-          liftsPerHour: voyageMetrics.productiveHours > 0 ? manifestMetrics.totalLifts / voyageMetrics.productiveHours : 0,
+          liftsPerHour: (() => {
+            // Calculate actual cargo operation hours for the specific location(s) and time period
+            let cargoOperationHours = 0;
+            
+            // Filter voyage events for cargo operations at production facilities
+            const cargoEvents = voyageEvents.filter(event => {
+              // Time filtering
+              if (isYTD && filterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (eventDate.getFullYear() !== filterYear) return false;
+              } else if (filterMonth !== undefined && filterYear !== undefined) {
+                const eventDate = new Date(event.eventDate);
+                if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
+              }
+              
+              // Location filtering - same logic as used for vessel fleet performance
+              const eventLocation = event.location?.toLowerCase().trim() || '';
+              const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+              const productionFacilities = getProductionFacilities();
+              
+              if (filters.selectedLocation !== 'All Locations') {
+                // Filter to specific production facility
+                const selectedFacility = productionFacilities.find(
+                  f => f.displayName === filters.selectedLocation
+                );
+                if (selectedFacility) {
+                  const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                  const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                  
+                  const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                  const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                  
+                  const matchesLocation = 
+                    eventLocation.includes(facilityLocationName) ||
+                    mappedLocation.includes(facilityLocationName) ||
+                    eventLocation.includes(facilityDisplayName) ||
+                    mappedLocation.includes(facilityDisplayName) ||
+                    coreEventLocation.includes(coreLocationName) ||
+                    facilityLocationName.includes(coreEventLocation) ||
+                    (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                    (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                  
+                  if (!matchesLocation) return false;
+                }
+              } else {
+                // Filter to ANY production facility (not drilling rigs)
+                const matchesAnyProductionFacility = productionFacilities.some(facility => {
+                  const facilityLocationName = facility.locationName.toLowerCase();
+                  const facilityDisplayName = facility.displayName.toLowerCase();
+                  
+                  const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                  const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                  const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                  
+                  return eventLocation.includes(facilityLocationName) ||
+                         mappedLocation.includes(facilityLocationName) ||
+                         eventLocation.includes(facilityDisplayName) ||
+                         mappedLocation.includes(facilityDisplayName) ||
+                         coreEventLocation.includes(coreLocationName) ||
+                         coreMappedLocation.includes(coreLocationName) ||
+                         facilityLocationName.includes(coreEventLocation) ||
+                         facilityLocationName.includes(coreMappedLocation) ||
+                         (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                         (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                });
+                
+                if (!matchesAnyProductionFacility) return false;
+              }
+              
+                             // Filter for cargo operation activities
+               const parentEvent = (event.parentEvent || '').toLowerCase();
+               const eventName = (event.event || '').toLowerCase();
+               const remarks = (event.remarks || '').toLowerCase();
+               
+               return parentEvent.includes('cargo') || 
+                      parentEvent.includes('loading') || 
+                      parentEvent.includes('offloading') ||
+                      parentEvent.includes('lifting') ||
+                      eventName.includes('cargo') ||
+                      eventName.includes('loading') ||
+                      eventName.includes('offloading') ||
+                      eventName.includes('lifting') ||
+                      eventName.includes('crane') ||
+                      remarks.includes('cargo') ||
+                      remarks.includes('loading') ||
+                      remarks.includes('offloading') ||
+                      remarks.includes('lifting') ||
+                      remarks.includes('crane');
+            });
+            
+            // Sum up hours for cargo operations
+            cargoOperationHours = cargoEvents.reduce((sum, event) => sum + (event.hours || 0), 0);
+            
+            // Calculate lifts per hour based on actual cargo operation time
+            return cargoOperationHours > 0 ? manifestMetrics.totalLifts / cargoOperationHours : 0;
+          })(),
           vesselVisits: manifestMetrics.uniqueManifests
         },
         
@@ -658,12 +987,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         operationalDataPoints: operationalVariance.vesselOperationalData.length,
         productionSupportDataPoints: productionSupport.facilityEfficiencyData.length,
         liftsPerHourCV: operationalVariance.liftsPerHourVariance.coefficientOfVariation.toFixed(1) + '%',
-        costPerTonCV: operationalVariance.costPerTonVariance.coefficientOfVariation.toFixed(1) + '%',
+
         visitsPerWeekCV: operationalVariance.visitsPerWeekVariance.coefficientOfVariation.toFixed(1) + '%',
         monthlyCostCV: productionSupport.monthlyCostVariance.coefficientOfVariation.toFixed(1) + '%',
         outliers: {
           liftsPerHour: operationalVariance.liftsPerHourVariance.outliers.length,
-          costPerTon: operationalVariance.costPerTonVariance.outliers.length,
+
           visitsPerWeek: operationalVariance.visitsPerWeekVariance.outliers.length,
           productionSupport: productionSupport.monthlyCostVariance.outliers.length
         }
@@ -912,10 +1241,112 @@ Note: Only production facility voyages counted`;
               isPositive: productionMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour,
               contextualHelp: (() => {
                 const totalLifts = productionMetrics.lifts.totalLifts;
-                const productiveHours = productionMetrics.hours.totalProductiveHours;
                 const liftsPerHour = productionMetrics.lifts.liftsPerHour;
+                
+                // Calculate actual cargo operation hours for tooltip
+                let cargoOperationHours = 0;
+                const cargoEvents = voyageEvents.filter(event => {
+                  // Time filtering
+                  let filterMonth: number | undefined;
+                  let filterYear: number | undefined;
+                  let isYTD = false;
+                  
+                  if (filters.selectedMonth === 'YTD') {
+                    const now = new Date();
+                    filterYear = now.getFullYear();
+                    isYTD = true;
+                  } else if (filters.selectedMonth !== 'All Months') {
+                    const [monthName, year] = filters.selectedMonth.split(' ');
+                    if (monthName && year) {
+                      filterMonth = new Date(`${monthName} 1, ${year}`).getMonth();
+                      filterYear = parseInt(year);
+                    }
+                  }
+                  
+                  if (isYTD && filterYear !== undefined) {
+                    const eventDate = new Date(event.eventDate);
+                    if (eventDate.getFullYear() !== filterYear) return false;
+                  } else if (filterMonth !== undefined && filterYear !== undefined) {
+                    const eventDate = new Date(event.eventDate);
+                    if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
+                  }
+                  
+                  // Location filtering - production facilities only
+                  const eventLocation = event.location?.toLowerCase().trim() || '';
+                  const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+                  const productionFacilities = getProductionFacilities();
+                  
+                  if (filters.selectedLocation !== 'All Locations') {
+                    const selectedFacility = productionFacilities.find(
+                      f => f.displayName === filters.selectedLocation
+                    );
+                    if (selectedFacility) {
+                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      const matchesLocation = 
+                        eventLocation.includes(facilityLocationName) ||
+                        mappedLocation.includes(facilityLocationName) ||
+                        eventLocation.includes(facilityDisplayName) ||
+                        mappedLocation.includes(facilityDisplayName) ||
+                        coreEventLocation.includes(coreLocationName) ||
+                        facilityLocationName.includes(coreEventLocation) ||
+                        (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                        (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                      
+                      if (!matchesLocation) return false;
+                    }
+                  } else {
+                    const matchesAnyProductionFacility = productionFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      return eventLocation.includes(facilityLocationName) ||
+                             mappedLocation.includes(facilityLocationName) ||
+                             eventLocation.includes(facilityDisplayName) ||
+                             mappedLocation.includes(facilityDisplayName) ||
+                             coreEventLocation.includes(coreLocationName) ||
+                             coreMappedLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreEventLocation) ||
+                             facilityLocationName.includes(coreMappedLocation) ||
+                             (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                             (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                    });
+                    
+                    if (!matchesAnyProductionFacility) return false;
+                  }
+                  
+                  // Filter for cargo operation activities
+                  const parentEvent = (event.parentEvent || '').toLowerCase();
+                  const eventName = (event.event || '').toLowerCase();
+                  const remarks = (event.remarks || '').toLowerCase();
+                  
+                  return parentEvent.includes('cargo') || 
+                         parentEvent.includes('loading') || 
+                         parentEvent.includes('offloading') ||
+                         parentEvent.includes('lifting') ||
+                         eventName.includes('cargo') ||
+                         eventName.includes('loading') ||
+                         eventName.includes('offloading') ||
+                         eventName.includes('lifting') ||
+                         eventName.includes('crane') ||
+                         remarks.includes('cargo') ||
+                         remarks.includes('loading') ||
+                         remarks.includes('offloading') ||
+                         remarks.includes('lifting') ||
+                         remarks.includes('crane');
+                });
+                
+                cargoOperationHours = cargoEvents.reduce((sum, event) => sum + (event.hours || 0), 0);
 
-                return `⚡ OPERATIONAL EFFICIENCY
+                return `⚡ CARGO OPERATION EFFICIENCY
 
 ${liftsPerHour.toFixed(2)} lifts/hour
 
@@ -924,7 +1355,7 @@ ${liftsPerHour.toFixed(2)} lifts/hour
 📊 EFFICIENCY BREAKDOWN
 
 Total Lifts: ${totalLifts.toLocaleString()} crane operations
-Productive Hours: ${Math.round(productiveHours).toLocaleString()} hours
+Cargo Operation Hours: ${Math.round(cargoOperationHours).toLocaleString()} hours
 Location: ${filters.selectedLocation}
 Period: ${filters.selectedMonth}
 
@@ -932,12 +1363,12 @@ Period: ${filters.selectedMonth}
 
 📋 METHODOLOGY
 
-Formula: Total Lifts ÷ Productive Hours
-Source: Production manifests + voyage events
-Exclusions: Weather, waiting, non-operational time
+Formula: Total Lifts ÷ Actual Cargo Operation Hours
+Source: Production manifests + filtered voyage events
+Includes: Cargo, loading, offloading, lifting, crane operations
 Target: ${dynamicTargets.liftsPerHour} lifts/hour
 
-Note: Validated against cost allocation LCs`;
+Note: Only counts time spent on actual cargo operations`;
               })()
             },
             {
@@ -1254,7 +1685,7 @@ Note: Excludes drilling/completion fluids`;
             </div>
           </div>
 
-          {/* Vessel Fleet Performance */}
+          {/* Enhanced Production Vessel Fleet Performance */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
               <div className="flex items-center justify-between">
@@ -1265,7 +1696,7 @@ Note: Excludes drilling/completion fluids`;
                   <div>
                     <h3 className="text-lg font-semibold text-white">Production Vessel Fleet Performance</h3>
                     <p className="text-sm text-blue-100 mt-0.5">
-                      {filters.selectedMonth} • {filters.selectedLocation === 'All Locations' ? 'All Locations' : filters.selectedLocation}
+                      Visit Frequency & Performance Analysis
                     </p>
                   </div>
                 </div>
@@ -1273,23 +1704,631 @@ Note: Excludes drilling/completion fluids`;
             </div>
             
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="text-2xl font-bold text-blue-700">{Math.round(productionMetrics.cargo.totalCargoTons).toLocaleString()}</div>
-                  <div className="text-sm text-gray-600">Total Cargo Tons</div>
-                  <div className="text-xs text-blue-600 mt-1">Production equipment & supplies</div>
-                </div>
-                <div className="text-center p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <div className="text-2xl font-bold text-emerald-700">{productionMetrics.lifts.totalLifts.toLocaleString()}</div>
-                  <div className="text-sm text-gray-600">Total Lifts</div>
-                  <div className="text-xs text-emerald-600 mt-1">Crane operations</div>
-                </div>
-                <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <div className="text-2xl font-bold text-indigo-700">{Math.round(productionMetrics.bulk.productionChemicalVolume * 42).toLocaleString()}</div>
-                  <div className="text-sm text-gray-600">Chemical Volume (gals)</div>
-                  <div className="text-xs text-indigo-600 mt-1">Production chemicals</div>
-                </div>
-              </div>
+              {((): React.ReactNode => {
+                // Apply the same filtering logic as used elsewhere in the component
+                let filterMonth: number | undefined;
+                let filterYear: number | undefined;
+                let isYTD = false;
+                
+                if (filters.selectedMonth === 'YTD') {
+                  const now = new Date();
+                  filterYear = now.getFullYear();
+                  isYTD = true;
+                } else if (filters.selectedMonth !== 'All Months') {
+                  const [monthName, year] = filters.selectedMonth.split(' ');
+                  if (monthName && year) {
+                    filterMonth = new Date(`${monthName} 1, ${year}`).getMonth();
+                    filterYear = parseInt(year);
+                  }
+                }
+                
+                // Filter voyage events and manifests based on current filters and production facilities
+                const filteredVoyageEvents = voyageEvents.filter(event => {
+                  // Location filtering - ALWAYS filter to production facilities only
+                  const eventLocation = event.location?.toLowerCase().trim() || '';
+                  const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
+                  const productionFacilities = getProductionFacilities();
+                  
+                  if (filters.selectedLocation !== 'All Locations') {
+                    // Filter to specific production facility
+                    const selectedFacility = productionFacilities.find(
+                      f => f.displayName === filters.selectedLocation
+                    );
+                    if (selectedFacility) {
+                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      const matchesLocation = 
+                        eventLocation.includes(facilityLocationName) ||
+                        mappedLocation.includes(facilityLocationName) ||
+                        eventLocation.includes(facilityDisplayName) ||
+                        mappedLocation.includes(facilityDisplayName) ||
+                        coreEventLocation.includes(coreLocationName) ||
+                        facilityLocationName.includes(coreEventLocation) ||
+                        // Special handling for common location variations
+                        (facilityLocationName.includes('thunder horse') && eventLocation.includes('thunder horse')) ||
+                        (facilityLocationName.includes('mad dog') && eventLocation.includes('mad dog'));
+                      
+                      if (!matchesLocation) return false;
+                    }
+                  } else {
+                    // Filter to ANY production facility (not drilling rigs)
+                    const matchesAnyProductionFacility = productionFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      return eventLocation.includes(facilityLocationName) ||
+                             mappedLocation.includes(facilityLocationName) ||
+                             eventLocation.includes(facilityDisplayName) ||
+                             mappedLocation.includes(facilityDisplayName) ||
+                             coreEventLocation.includes(coreLocationName) ||
+                             coreMappedLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreEventLocation) ||
+                             facilityLocationName.includes(coreMappedLocation) ||
+                             // Special handling for common location variations
+                             (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                             (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                    });
+                    
+                    if (!matchesAnyProductionFacility) return false;
+                  }
+                  
+                  if (isYTD && filterYear !== undefined) {
+                    const eventDate = new Date(event.eventDate);
+                    if (eventDate.getFullYear() !== filterYear) return false;
+                  } else if (filterMonth !== undefined && filterYear !== undefined) {
+                    const eventDate = new Date(event.eventDate);
+                    if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
+                  }
+                  
+                  return true;
+                });
+                
+                const filteredManifests = vesselManifests.filter((manifest: any) => {
+                  // Location filtering - ALWAYS filter to production facilities only
+                  const offshoreLocation = manifest.offshoreLocation?.toLowerCase().trim() || '';
+                  const mappedLocation = manifest.mappedLocation?.toLowerCase().trim() || '';
+                  const productionFacilities = getProductionFacilities();
+                  
+                  if (filters.selectedLocation !== 'All Locations') {
+                    // Filter to specific production facility
+                    const selectedFacility = productionFacilities.find(
+                      f => f.displayName === filters.selectedLocation
+                    );
+                    if (selectedFacility) {
+                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreOffshoreLocation = offshoreLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      const matchesLocation = 
+                        offshoreLocation.includes(facilityLocationName) ||
+                        mappedLocation.includes(facilityLocationName) ||
+                        offshoreLocation.includes(facilityDisplayName) ||
+                        mappedLocation.includes(facilityDisplayName) ||
+                        coreOffshoreLocation.includes(coreLocationName) ||
+                        facilityLocationName.includes(coreOffshoreLocation) ||
+                        // Special handling for common location variations
+                        (facilityLocationName.includes('thunder horse') && offshoreLocation.includes('thunder horse')) ||
+                        (facilityLocationName.includes('mad dog') && offshoreLocation.includes('mad dog'));
+                      
+                      if (!matchesLocation) return false;
+                    }
+                  } else {
+                    // Filter to ANY production facility (not drilling rigs)
+                    const matchesAnyProductionFacility = productionFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreOffshoreLocation = offshoreLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      return offshoreLocation.includes(facilityLocationName) ||
+                             mappedLocation.includes(facilityLocationName) ||
+                             offshoreLocation.includes(facilityDisplayName) ||
+                             mappedLocation.includes(facilityDisplayName) ||
+                             coreOffshoreLocation.includes(coreLocationName) ||
+                             coreMappedLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreOffshoreLocation) ||
+                             facilityLocationName.includes(coreMappedLocation) ||
+                             // Special handling for common location variations
+                             (facilityLocationName.includes('thunder horse') && (offshoreLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
+                             (facilityLocationName.includes('mad dog') && (offshoreLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
+                    });
+                    
+                    if (!matchesAnyProductionFacility) return false;
+                  }
+                  
+                  if (isYTD && filterYear !== undefined) {
+                    const manifestDate = new Date(manifest.manifestDate);
+                    if (manifestDate.getFullYear() !== filterYear) return false;
+                  } else if (filterMonth !== undefined && filterYear !== undefined) {
+                    const manifestDate = new Date(manifest.manifestDate);
+                    if (manifestDate.getMonth() !== filterMonth || manifestDate.getFullYear() !== filterYear) return false;
+                  }
+                  
+                  return true;
+                });
+
+                // Filter voyage list data to get actual voyages (not individual events)
+                const filteredVoyageList = voyageList.filter((voyage: any) => {
+                  // Location filtering - ALWAYS filter to production facilities only
+                  const voyageLocation = voyage.locations?.toLowerCase().trim() || '';
+                  const productionFacilities = getProductionFacilities();
+                  
+                  if (filters.selectedLocation !== 'All Locations') {
+                    // Filter to specific production facility
+                    const selectedFacility = productionFacilities.find(
+                      f => f.displayName === filters.selectedLocation
+                    );
+                    if (selectedFacility) {
+                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreVoyageLocation = voyageLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      const matchesLocation = 
+                        voyageLocation.includes(facilityLocationName) ||
+                        voyageLocation.includes(facilityDisplayName.toLowerCase()) ||
+                        coreVoyageLocation.includes(coreLocationName) ||
+                        facilityLocationName.includes(coreVoyageLocation) ||
+                        // Special handling for common location variations
+                        (facilityLocationName.includes('thunder horse') && voyageLocation.includes('thunder horse')) ||
+                        (facilityLocationName.includes('mad dog') && voyageLocation.includes('mad dog'));
+                      
+                      if (!matchesLocation) return false;
+                    }
+                  } else {
+                    // Filter to ANY production facility (not drilling rigs)
+                    const matchesAnyProductionFacility = productionFacilities.some(facility => {
+                      const facilityLocationName = facility.locationName.toLowerCase();
+                      const facilityDisplayName = facility.displayName.toLowerCase();
+                      
+                      // Enhanced location matching with core name extraction
+                      const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
+                      const coreVoyageLocation = voyageLocation.replace(/\s*\([^)]*\)/g, '').trim();
+                      
+                      return voyageLocation.includes(facilityLocationName) ||
+                             voyageLocation.includes(facilityDisplayName.toLowerCase()) ||
+                             coreVoyageLocation.includes(coreLocationName) ||
+                             facilityLocationName.includes(coreVoyageLocation) ||
+                             // Special handling for common location variations
+                             (facilityLocationName.includes('thunder horse') && voyageLocation.includes('thunder horse')) ||
+                             (facilityLocationName.includes('mad dog') && voyageLocation.includes('mad dog'));
+                    });
+                    
+                    if (!matchesAnyProductionFacility) return false;
+                  }
+                  
+                  // Time filtering
+                  if (voyage.voyageDate) {
+                    const voyageDate = new Date(voyage.voyageDate);
+                    if (isYTD && filterYear !== undefined) {
+                      if (voyageDate.getFullYear() !== filterYear) return false;
+                    } else if (filterMonth !== undefined && filterYear !== undefined) {
+                      if (voyageDate.getMonth() !== filterMonth || voyageDate.getFullYear() !== filterYear) return false;
+                    }
+                  }
+                  
+                  return true;
+                });
+
+                // Helper functions for vessel classification (same as DrillingDashboard)
+                const classifyVessel = (vesselName: string) => {
+                  const name = vesselName.toLowerCase();
+                  
+                  // Determine vessel type
+                  let type = 'OSV'; // Default to OSV
+                  if (name.includes('fast') || name.includes('supply') || name.includes('fsv')) {
+                    type = 'FSV';
+                  }
+                  
+                  // Determine company
+                  let company = 'Unknown';
+                  if (name.includes('pelican') || name.includes('dauphin') || 
+                      name.includes('ship') || name.includes('fast') ||
+                      name.includes('charlie') || name.includes('lucy') ||
+                      name.includes('millie')) {
+                    company = 'Edison Chouest';
+                  } else if (name.includes('harvey')) {
+                    company = 'Harvey Gulf';
+                  } else if (name.includes('hos')) {
+                    company = 'Hornbeck Offshore';
+                  } else if (name.includes('amber') || name.includes('candies')) {
+                    company = 'Otto Candies';
+                  } else if (name.includes('jackson') || name.includes('lightning') || 
+                             name.includes('squall') || name.includes('cajun')) {
+                    company = 'Jackson Offshore';
+                  }
+                  
+                  return { type, company };
+                };
+
+                const getVesselColor = (company: string, index: number) => {
+                  const colorSchemes = {
+                    'Edison Chouest': { 
+                      border: 'border-blue-200', 
+                      bg: 'bg-blue-50', 
+                      dot: 'bg-blue-500', 
+                      text: 'text-blue-700', 
+                      progress: 'bg-blue-500' 
+                    },
+                    'Harvey Gulf': { 
+                      border: 'border-emerald-200', 
+                      bg: 'bg-emerald-50', 
+                      dot: 'bg-emerald-500', 
+                      text: 'text-emerald-700', 
+                      progress: 'bg-emerald-500' 
+                    },
+                    'Hornbeck Offshore': { 
+                      border: 'border-indigo-200', 
+                      bg: 'bg-indigo-50', 
+                      dot: 'bg-indigo-500', 
+                      text: 'text-indigo-700', 
+                      progress: 'bg-indigo-500' 
+                    },
+                    'Otto Candies': { 
+                      border: 'border-green-200', 
+                      bg: 'bg-green-50', 
+                      dot: 'bg-green-500', 
+                      text: 'text-green-700', 
+                      progress: 'bg-green-500' 
+                    },
+                    'Jackson Offshore': { 
+                      border: 'border-purple-200', 
+                      bg: 'bg-purple-50', 
+                      dot: 'bg-purple-500', 
+                      text: 'text-purple-700', 
+                      progress: 'bg-purple-500' 
+                    }
+                  };
+                  
+                  return colorSchemes[company as keyof typeof colorSchemes] || {
+                    border: 'border-gray-200', 
+                    bg: 'bg-gray-50', 
+                    dot: 'bg-gray-500', 
+                    text: 'text-gray-700', 
+                    progress: 'bg-gray-500' 
+                  };
+                };
+
+                // Get unique vessels from filtered data and calculate their metrics based on actual voyages
+                const uniqueVesselActivity = new Map();
+                
+                // Process filtered voyage list to get actual voyage counts
+                filteredVoyageList.forEach((voyage: any) => {
+                  if (!voyage.vessel) return;
+                  const vesselName = voyage.vessel.trim();
+                  
+                  if (!uniqueVesselActivity.has(vesselName)) {
+                    const classification = classifyVessel(vesselName);
+                    uniqueVesselActivity.set(vesselName, {
+                      name: vesselName,
+                      ...classification,
+                      category: `${classification.type} - ${classification.company}`,
+                      voyages: 0,
+                      hours: 0,
+                      cargo: 0,
+                      lifts: 0,
+                      events: 0,
+                      manifests: 0
+                    });
+                  }
+                  
+                  const vessel = uniqueVesselActivity.get(vesselName);
+                  vessel.voyages++; // This is the actual visit count
+                });
+                
+                // Process voyage events to get supporting data (hours)
+                filteredVoyageEvents.forEach(event => {
+                  if (!event.vessel) return;
+                  const vesselName = event.vessel.trim();
+                  
+                  if (uniqueVesselActivity.has(vesselName)) {
+                    const vessel = uniqueVesselActivity.get(vesselName);
+                    vessel.events++;
+                    vessel.hours += event.hours || 0;
+                  }
+                });
+                
+                // Process manifests to get supporting data (cargo, lifts)
+                filteredManifests.forEach((manifest: any) => {
+                  if (!manifest.transporter) return;
+                  const vesselName = manifest.transporter.trim();
+                  
+                  if (uniqueVesselActivity.has(vesselName)) {
+                    const vessel = uniqueVesselActivity.get(vesselName);
+                    vessel.manifests++;
+                    vessel.cargo += (manifest.deckTons || 0) + (manifest.rtTons || 0);
+                    vessel.lifts += manifest.lifts || 0;
+                  }
+                });
+
+                // Convert to array and add color schemes and activity levels
+                const vesselMetrics = Array.from(uniqueVesselActivity.values()).map((vessel: any, index) => {
+                  const totalVisits = vessel.voyages; // Use actual voyage count
+                  const activityLevel = Math.min(100, Math.max(0, (totalVisits / 10) * 100)); // Scale based on 10 visits = 100%
+                  
+                  return {
+                    ...vessel,
+                    color: getVesselColor(vessel.company, index),
+                    hours: Math.round(vessel.hours),
+                    cargo: Math.round(vessel.cargo),
+                    activityLevel: Math.round(activityLevel * 10) / 10,
+                    totalVisits
+                  };
+                }).sort((a, b) => b.totalVisits - a.totalVisits); // Sort by actual visit count
+
+                // Determine if we should show the summary view (when there are many vessels)
+                const shouldShowSummary = vesselMetrics.length > 15 || filters.selectedMonth === 'All Months' || filters.selectedMonth === 'YTD';
+
+                if (shouldShowSummary) {
+                  // Summary view for large datasets
+                  return (
+                    <div className="space-y-6">
+                      {/* Enhanced Header with Period Summary */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-lg font-semibold text-blue-900 mb-2">Production Fleet Summary</h4>
+                            <p className="text-sm text-blue-700">
+                              {vesselMetrics.length} vessels with activity
+                              {filters.selectedLocation !== 'All Locations' && ` at ${filters.selectedLocation}`}
+                              {filters.selectedMonth !== 'All Months' && ` during ${filters.selectedMonth}`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-blue-700">
+                              {vesselMetrics.reduce((sum, v) => sum + v.totalVisits, 0)}
+                            </div>
+                            <div className="text-sm text-blue-600">Total Visits</div>
+                            <div className="text-xs text-blue-500 mt-1">
+                              {filteredVoyageEvents.length} events + {filteredManifests.length} manifests
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-700">{vesselMetrics.length}</div>
+                            <div className="text-sm text-blue-600">Active Vessels</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-700">{Math.round(vesselMetrics.reduce((sum, v) => sum + v.hours, 0)).toLocaleString()}</div>
+                            <div className="text-sm text-blue-600">Total Hours</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-700">{Math.round(vesselMetrics.reduce((sum, v) => sum + v.cargo, 0)).toLocaleString()}</div>
+                            <div className="text-sm text-blue-600">Total Cargo (tons)</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-700">{vesselMetrics.reduce((sum, v) => sum + v.lifts, 0).toLocaleString()}</div>
+                            <div className="text-sm text-blue-600">Total Lifts</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top 10 Most Active Vessels Table */}
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-800 mb-4">Top 10 Most Active Production Vessels</h4>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vessel</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visits</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cargo (tons)</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lifts</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {vesselMetrics.slice(0, 10).map((vessel, index) => (
+                                <tr key={vessel.name} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{vessel.name}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700 font-semibold">{vessel.totalVisits}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">{vessel.hours.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">{vessel.cargo.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">{vessel.lifts}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">{vessel.company}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Default individual vessel card view for smaller datasets
+                return (
+                  <div className="space-y-8">
+                    {/* Enhanced Header with Period Summary */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-lg font-semibold text-blue-900 mb-2">Production Vessel Activity Analysis</h4>
+                          <p className="text-sm text-blue-700">
+                            {vesselMetrics.length} vessels with activity
+                            {filters.selectedLocation !== 'All Locations' && ` at ${filters.selectedLocation}`}
+                            {filters.selectedMonth !== 'All Months' && ` during ${filters.selectedMonth}`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-700">
+                            {vesselMetrics.reduce((sum, v) => sum + v.totalVisits, 0)}
+                          </div>
+                          <div className="text-sm text-blue-600">Total Visits</div>
+                          <div className="text-xs text-blue-500 mt-1">
+                            Actual voyages to location
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* No vessels found message */}
+                    {vesselMetrics.length === 0 && (
+                      <div className="text-center py-12">
+                        <div className="text-gray-400 mb-4">
+                          <Ship className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                          <h4 className="text-lg font-medium text-gray-600">No Vessels Found</h4>
+                          <p className="text-sm text-gray-500 mt-2">
+                            No vessel activity found for the selected time period and location.
+                            {filters.selectedLocation !== 'All Locations' && ` Try selecting "All Locations" or a different location.`}
+                            {filters.selectedMonth !== 'All Months' && ` Try selecting "All Months" or a different time period.`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Individual Vessel Cards */}
+                    {vesselMetrics.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {vesselMetrics.map((vessel: any, index) => {
+                          // Calculate visit frequency metrics
+                          const totalVisits = vessel.totalVisits;
+                          const averageCargoPerVisit = totalVisits > 0 ? vessel.cargo / totalVisits : 0;
+                          const averageHoursPerVisit = totalVisits > 0 ? vessel.hours / totalVisits : 0;
+                          const averageLiftsPerVisit = totalVisits > 0 ? vessel.lifts / totalVisits : 0;
+                          
+                          // Determine visit frequency category
+                          let frequencyCategory = '';
+                          let frequencyColor = '';
+                          if (totalVisits >= 20) {
+                            frequencyCategory = 'High Frequency';
+                            frequencyColor = 'text-green-600 bg-green-100';
+                          } else if (totalVisits >= 10) {
+                            frequencyCategory = 'Medium Frequency';
+                            frequencyColor = 'text-blue-600 bg-blue-100';
+                          } else if (totalVisits >= 5) {
+                            frequencyCategory = 'Regular Visitor';
+                            frequencyColor = 'text-orange-600 bg-orange-100';
+                          } else {
+                            frequencyCategory = 'Occasional';
+                            frequencyColor = 'text-gray-600 bg-gray-100';
+                          }
+
+                          return (
+                            <div key={vessel.name} className={`${vessel.color.bg} ${vessel.color.border} border-2 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden`}>
+                              {/* Vessel Header */}
+                              <div className="p-4 bg-white border-b border-gray-100">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-3 h-3 ${vessel.color.dot} rounded-full`}></div>
+                                    <h5 className="font-semibold text-gray-900 truncate">{vessel.name}</h5>
+                                  </div>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${frequencyColor}`}>
+                                    {frequencyCategory}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-600">{vessel.type} • {vessel.company}</span>
+                                  <span className="font-medium text-gray-800">{vessel.category}</span>
+                                </div>
+                              </div>
+
+                              {/* Visit Frequency Section */}
+                              <div className="p-4 bg-white border-b border-gray-100">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h5 className="text-sm font-semibold text-gray-800">Visit Frequency</h5>
+                                  <div className="text-right">
+                                    <div className="text-xl font-bold text-indigo-600">{totalVisits}</div>
+                                    <div className="text-xs text-gray-500">Total Visits</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3 text-center">
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-sm font-bold text-gray-700">{vessel.events}</div>
+                                    <div className="text-xs text-gray-500">Events</div>
+                                  </div>
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-sm font-bold text-gray-700">{vessel.manifests}</div>
+                                    <div className="text-xs text-gray-500">Manifests</div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3">
+                                  {/* Average Per Visit Metrics */}
+                                  <div className="border-t pt-3">
+                                    <p className="text-xs text-gray-500 mb-2 font-medium">Average Per Visit:</p>
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                      <div className="bg-blue-50 rounded p-2">
+                                        <div className="text-sm font-bold text-blue-700">{Math.round(averageHoursPerVisit)}h</div>
+                                        <div className="text-xs text-blue-600">Hours</div>
+                                      </div>
+                                      <div className="bg-green-50 rounded p-2">
+                                        <div className="text-sm font-bold text-green-700">{Math.round(averageCargoPerVisit)}t</div>
+                                        <div className="text-xs text-green-600">Cargo</div>
+                                      </div>
+                                      <div className="bg-purple-50 rounded p-2">
+                                        <div className="text-sm font-bold text-purple-700">{Math.round(averageLiftsPerVisit)}</div>
+                                        <div className="text-xs text-purple-600">Lifts</div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Activity Level Progress Bar */}
+                                  <div className="border-t pt-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-medium text-gray-700">Activity Level</span>
+                                      <span className="text-xs font-bold text-gray-800">{vessel.activityLevel}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-3">
+                                      <div 
+                                        className={`${vessel.color.progress} h-3 rounded-full transition-all duration-500 relative`}
+                                        style={{ width: `${vessel.activityLevel}%` }}
+                                      >
+                                        <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Performance Metrics Section */}
+                              <div className="p-4 bg-white">
+                                <h5 className="text-sm font-semibold text-gray-800 mb-3">Performance Totals</h5>
+                                <div className="grid grid-cols-3 gap-3 text-center">
+                                  <div>
+                                    <div className="text-lg font-bold text-blue-600">{vessel.hours.toLocaleString()}</div>
+                                    <div className="text-xs text-gray-500">Hours</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-lg font-bold text-green-600">{vessel.cargo.toLocaleString()}</div>
+                                    <div className="text-xs text-gray-500">Cargo (tons)</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-lg font-bold text-purple-600">{vessel.lifts}</div>
+                                    <div className="text-xs text-gray-500">Lifts</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -1722,348 +2761,6 @@ Note: Excludes drilling/completion fluids`;
             costAllocation={costAllocation}
             selectedLocation={filters.selectedLocation}
           />
-
-          {/* Advanced Production Vessel Fleet Performance */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <Ship className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Advanced Vessel Fleet Performance</h3>
-                    <p className="text-sm text-blue-100 mt-0.5">Production Operations Fleet Analysis</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {(() => {
-                // Apply the same filtering logic as used elsewhere in the component
-                let filterMonth: number | undefined;
-                let filterYear: number | undefined;
-                let isYTD = false;
-                
-                if (filters.selectedMonth === 'YTD') {
-                  const now = new Date();
-                  filterYear = now.getFullYear();
-                  isYTD = true;
-                } else if (filters.selectedMonth !== 'All Months') {
-                  const [monthName, year] = filters.selectedMonth.split(' ');
-                  if (monthName && year) {
-                    filterMonth = new Date(`${monthName} 1, ${year}`).getMonth();
-                    filterYear = parseInt(year);
-                  }
-                }
-                
-                // Filter voyage events and manifests based on current filters and production facilities
-                const filteredVoyageEvents = voyageEvents.filter(event => {
-                  if (filters.selectedLocation !== 'All Locations') {
-                    const selectedFacility = getProductionFacilities().find(
-                      f => f.displayName === filters.selectedLocation
-                    );
-                    if (selectedFacility) {
-                      const eventLocation = event.location?.toLowerCase().trim() || '';
-                      const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
-                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
-                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
-                      
-                      const matchesLocation = 
-                        eventLocation.includes(facilityLocationName) ||
-                        mappedLocation.includes(facilityLocationName) ||
-                        eventLocation.includes(facilityDisplayName) ||
-                        mappedLocation.includes(facilityDisplayName);
-                      
-                      if (!matchesLocation) return false;
-                    }
-                  }
-                  
-                  if (isYTD && filterYear !== undefined) {
-                    const eventDate = new Date(event.eventDate);
-                    if (eventDate.getFullYear() !== filterYear) return false;
-                  } else if (filterMonth !== undefined && filterYear !== undefined) {
-                    const eventDate = new Date(event.eventDate);
-                    if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
-                  }
-                  
-                  return true;
-                });
-                
-                const filteredManifests = vesselManifests.filter((manifest: any) => {
-                  if (filters.selectedLocation !== 'All Locations') {
-                    const selectedFacility = getProductionFacilities().find(
-                      f => f.displayName === filters.selectedLocation
-                    );
-                    if (selectedFacility) {
-                      const offshoreLocation = manifest.offshoreLocation?.toLowerCase().trim() || '';
-                      const mappedLocation = manifest.mappedLocation?.toLowerCase().trim() || '';
-                      const facilityLocationName = selectedFacility.locationName.toLowerCase();
-                      const facilityDisplayName = selectedFacility.displayName.toLowerCase();
-                      
-                      const matchesLocation = 
-                        offshoreLocation.includes(facilityLocationName) ||
-                        mappedLocation.includes(facilityLocationName) ||
-                        offshoreLocation.includes(facilityDisplayName) ||
-                        mappedLocation.includes(facilityDisplayName);
-                      
-                      if (!matchesLocation) return false;
-                    }
-                  }
-                  
-                  if (isYTD && filterYear !== undefined) {
-                    const manifestDate = new Date(manifest.manifestDate);
-                    if (manifestDate.getFullYear() !== filterYear) return false;
-                  } else if (filterMonth !== undefined && filterYear !== undefined) {
-                    const manifestDate = new Date(manifest.manifestDate);
-                    if (manifestDate.getMonth() !== filterMonth || manifestDate.getFullYear() !== filterYear) return false;
-                  }
-                  
-                  return true;
-                });
-
-                // Get unique vessel names from the actual data for dynamic vessel count
-                const uniqueVesselsFromData = new Set([
-                  ...filteredVoyageEvents.map(e => e.vessel).filter(Boolean),
-                  ...filteredManifests.map((m: any) => m.transporter).filter(Boolean)
-                ]);
-
-                // Calculate company-level statistics from actual production data
-                const companyStats = new Map();
-                
-                // Process voyage events
-                filteredVoyageEvents.forEach(event => {
-                  if (!event.vessel) return;
-                  
-                  // Get company from vessel classification
-                  let company = 'Unknown';
-                  if (event.vessel.toLowerCase().includes('pelican') || event.vessel.toLowerCase().includes('dauphin') || 
-                      event.vessel.toLowerCase().includes('ship') || event.vessel.toLowerCase().includes('fast') ||
-                      event.vessel.toLowerCase().includes('charlie') || event.vessel.toLowerCase().includes('lucy') ||
-                      event.vessel.toLowerCase().includes('millie')) {
-                    company = 'Edison Chouest';
-                  } else if (event.vessel.toLowerCase().includes('harvey')) {
-                    company = 'Harvey Gulf';
-                  } else if (event.vessel.toLowerCase().includes('hos')) {
-                    company = 'Hornbeck Offshore';
-                  } else if (event.vessel.toLowerCase().includes('amber') || event.vessel.toLowerCase().includes('candies')) {
-                    company = 'Otto Candies';
-                  } else if (event.vessel.toLowerCase().includes('jackson') || event.vessel.toLowerCase().includes('lightning') || 
-                             event.vessel.toLowerCase().includes('squall') || event.vessel.toLowerCase().includes('cajun')) {
-                    company = 'Jackson Offshore';
-                  }
-                  
-                  if (!companyStats.has(company)) {
-                    companyStats.set(company, {
-                      company,
-                      vessels: new Set(),
-                      events: 0,
-                      hours: 0,
-                      manifests: 0,
-                      cargo: 0,
-                      lifts: 0
-                    });
-                  }
-                  
-                  const stats = companyStats.get(company);
-                  stats.vessels.add(event.vessel);
-                  stats.events++;
-                  stats.hours += event.hours || 0;
-                });
-                
-                // Process manifests
-                filteredManifests.forEach((manifest: any) => {
-                  if (!manifest.transporter) return;
-                  
-                  let company = 'Unknown';
-                  if (manifest.transporter.toLowerCase().includes('pelican') || manifest.transporter.toLowerCase().includes('dauphin') || 
-                      manifest.transporter.toLowerCase().includes('ship') || manifest.transporter.toLowerCase().includes('fast') ||
-                      manifest.transporter.toLowerCase().includes('charlie') || manifest.transporter.toLowerCase().includes('lucy') ||
-                      manifest.transporter.toLowerCase().includes('millie')) {
-                    company = 'Edison Chouest';
-                  } else if (manifest.transporter.toLowerCase().includes('harvey')) {
-                    company = 'Harvey Gulf';
-                  } else if (manifest.transporter.toLowerCase().includes('hos')) {
-                    company = 'Hornbeck Offshore';
-                  } else if (manifest.transporter.toLowerCase().includes('amber') || manifest.transporter.toLowerCase().includes('candies')) {
-                    company = 'Otto Candies';
-                  } else if (manifest.transporter.toLowerCase().includes('jackson') || manifest.transporter.toLowerCase().includes('lightning') || 
-                             manifest.transporter.toLowerCase().includes('squall') || manifest.transporter.toLowerCase().includes('cajun')) {
-                    company = 'Jackson Offshore';
-                  }
-                  
-                  if (!companyStats.has(company)) {
-                    companyStats.set(company, {
-                      company,
-                      vessels: new Set(),
-                      events: 0,
-                      hours: 0,
-                      manifests: 0,
-                      cargo: 0,
-                      lifts: 0
-                    });
-                  }
-                  
-                  const stats = companyStats.get(company);
-                  stats.vessels.add(manifest.transporter);
-                  stats.manifests++;
-                  stats.cargo += (manifest.deckTons || 0) + (manifest.rtTons || 0);
-                  stats.lifts += manifest.lifts || 0;
-                });
-
-                // Convert to array and calculate totals
-                const companyStatsArray = Array.from(companyStats.values()).map(stats => ({
-                  ...stats,
-                  vesselCount: stats.vessels.size,
-                  totalActivity: stats.events + stats.manifests
-                })).sort((a, b) => b.totalActivity - a.totalActivity);
-
-                // Get top performing vessels for production operations
-                const allVesselActivity = new Map();
-                
-                filteredVoyageEvents.forEach(event => {
-                  if (!event.vessel) return;
-                  if (!allVesselActivity.has(event.vessel)) {
-                    allVesselActivity.set(event.vessel, { vessel: event.vessel, events: 0, hours: 0, manifests: 0, cargo: 0, lifts: 0 });
-                  }
-                  const activity = allVesselActivity.get(event.vessel);
-                  activity.events++;
-                  activity.hours += event.hours || 0;
-                });
-                
-                filteredManifests.forEach((manifest: any) => {
-                  if (!manifest.transporter) return;
-                  if (!allVesselActivity.has(manifest.transporter)) {
-                    allVesselActivity.set(manifest.transporter, { vessel: manifest.transporter, events: 0, hours: 0, manifests: 0, cargo: 0, lifts: 0 });
-                  }
-                  const activity = allVesselActivity.get(manifest.transporter);
-                  activity.manifests++;
-                  activity.cargo += (manifest.deckTons || 0) + (manifest.rtTons || 0);
-                  activity.lifts += manifest.lifts || 0;
-                });
-
-                const topVessels = Array.from(allVesselActivity.values())
-                  .map(v => ({ ...v, totalActivity: v.events + v.manifests }))
-                  .sort((a, b) => b.totalActivity - a.totalActivity)
-                  .slice(0, 10);
-
-                return (
-                  <div className="space-y-6">
-                    {/* Production Fleet Summary */}
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                      <h4 className="text-lg font-semibold text-blue-900 mb-2">Production Fleet Summary</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-700">{uniqueVesselsFromData.size}</div>
-                          <div className="text-sm text-blue-600">Active Vessels</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-700">{companyStatsArray.length}</div>
-                          <div className="text-sm text-blue-600">Companies</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-700">{filteredVoyageEvents.length}</div>
-                          <div className="text-sm text-blue-600">Total Events</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-700">{filteredManifests.length}</div>
-                          <div className="text-sm text-blue-600">Manifests</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Company Performance for Production */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-800 mb-4">Company Performance - Production Operations</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {companyStatsArray.map((company, index) => {
-                          const colors = [
-                            { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', dot: 'bg-blue-500' },
-                            { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-                            { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', dot: 'bg-indigo-500' },
-                            { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', dot: 'bg-green-500' },
-                            { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', dot: 'bg-blue-500' }
-                          ];
-                          const color = colors[index % colors.length];
-                          
-                          return (
-                            <div key={company.company} className={`${color.bg} ${color.border} border rounded-lg p-4`}>
-                              <div className="flex items-center gap-2 mb-3">
-                                <div className={`w-3 h-3 ${color.dot} rounded-full`}></div>
-                                <h5 className="font-semibold text-gray-900">{company.company}</h5>
-                              </div>
-                              <div className="space-y-2">
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">Vessels:</span>
-                                  <span className="font-medium">{company.vesselCount}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">Events:</span>
-                                  <span className="font-medium">{company.events}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">Hours:</span>
-                                  <span className="font-medium">{Math.round(company.hours)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">Cargo:</span>
-                                  <span className="font-medium">{Math.round(company.cargo)}t</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Top Production Vessels */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-800 mb-4">Top Production Vessels</h4>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vessel Name</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Events</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manifests</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cargo (tons)</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lifts</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity Score</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {topVessels.map((vessel, index) => (
-                              <tr key={vessel.vessel} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{vessel.vessel}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700">{vessel.events}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700">{Math.round(vessel.hours)}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700">{vessel.manifests}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700">{Math.round(vessel.cargo)}</td>
-                                <td className="px-4 py-3 text-sm text-gray-700">{vessel.lifts}</td>
-                                <td className="px-4 py-3 text-sm">
-                                  <div className="flex items-center">
-                                    <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
-                                      <div 
-                                        className="bg-blue-500 h-2 rounded-full" 
-                                        style={{ width: `${Math.min((vessel.totalActivity / Math.max(...topVessels.map(v => v.totalActivity))) * 100, 100)}%` }}
-                                      ></div>
-                                    </div>
-                                    <span className="text-xs text-gray-600">{vessel.totalActivity}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
         </div>
 
         {/* Statistical Variance Analysis Section */}
@@ -2071,7 +2768,7 @@ Note: Excludes drilling/completion fluids`;
           {/* Production Operational KPI Variance Analysis */}
           <ProductionOperationalVarianceDashboard
             liftsPerHourVariance={varianceAnalysis.operationalVariance.liftsPerHourVariance}
-            costPerTonVariance={varianceAnalysis.operationalVariance.costPerTonVariance}
+
             vesselOperationalData={varianceAnalysis.operationalVariance.vesselOperationalData}
           />
 

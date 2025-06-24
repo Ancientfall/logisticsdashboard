@@ -609,15 +609,12 @@ export const VarianceStatsCard: React.FC<VarianceStatsCardProps> = ({
  */
 interface DrillingOperationalVarianceDashboardProps {
   liftsPerHourVariance: VarianceAnalysis;
-  costPerTonVariance: VarianceAnalysis;
   visitsPerWeekVariance: VarianceAnalysis;
   vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
-    costPerTon: number;
     visitsPerWeek: number;
     totalLifts: number;
-    totalCost: number;
     totalTonnage: number;
     totalVisits: number;
     cargoOpsHours: number;
@@ -627,7 +624,6 @@ interface DrillingOperationalVarianceDashboardProps {
 
 export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalVarianceDashboardProps> = ({
   liftsPerHourVariance,
-  costPerTonVariance,
   visitsPerWeekVariance,
   vesselOperationalData
 }) => {
@@ -637,13 +633,6 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
     .map(v => ({
       vesselName: v.vesselName,
       value: v.liftsPerHour
-    }));
-
-  const costControlData = vesselOperationalData
-    .filter(v => v.costPerTon > 0)
-    .map(v => ({
-      vesselName: v.vesselName,
-      value: v.costPerTon
     }));
 
   const visitsControlData = vesselOperationalData
@@ -659,28 +648,21 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
       <div className="bg-gradient-to-r from-bp-green to-emerald-600 text-white rounded-lg p-4">
         <div className="flex items-center gap-3 mb-1">
           <h2 className="text-lg font-bold">Drilling Operations KPI Variance Analysis</h2>
-          <Tooltip content="Business-critical KPI variance analysis focuses on operational efficiency metrics that directly impact drilling performance and cost control. Analyzes consistency and identifies optimization opportunities.">
+          <Tooltip content="Business-critical KPI variance analysis focuses on operational efficiency metrics that directly impact drilling performance. Analyzes consistency and identifies optimization opportunities.">
             <HelpCircle className="h-5 w-5 text-white/80 hover:text-white cursor-help" />
           </Tooltip>
         </div>
-        <p className="text-sm opacity-90">Statistical analysis of lifts/hr, cost per ton, and visits per week</p>
+        <p className="text-sm opacity-90">Statistical analysis of lifts/hr and visits per week</p>
       </div>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VarianceStatsCard
           title="Lifts per Hour Variance"
           variance={liftsPerHourVariance}
           unit=" lifts/hr"
           icon={BarChart3}
           tooltipContent="Measures cargo handling efficiency variance. Low variance indicates consistent lifting operations. High variance suggests training needs or equipment issues affecting productivity."
-        />
-        <VarianceStatsCard
-          title="Cost per Ton Variance"
-          variance={costPerTonVariance}
-          unit=" $/ton"
-          icon={TrendingUp}
-          tooltipContent="Analyzes transportation cost efficiency per ton of cargo. Low variance indicates predictable cost control. High variance suggests operational inefficiencies or inconsistent vessel utilization affecting costs."
         />
         <VarianceStatsCard
           title="Visits per Week Variance"
@@ -692,16 +674,11 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
       </div>
       
       {/* Box Plots */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BoxPlot
           data={liftsPerHourVariance}
           title="Lifts per Hour Distribution"
           unit=" lifts/hr"
-        />
-        <BoxPlot
-          data={costPerTonVariance}
-          title="Cost per Ton Distribution"
-          unit=" $/ton"
         />
         <BoxPlot
           data={visitsPerWeekVariance}
@@ -711,7 +688,7 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
       </div>
       
       {/* Control Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ControlChart
           data={liftsControlData}
           title="Lifts per Hour Control Chart"
@@ -719,14 +696,6 @@ export const DrillingOperationalVarianceDashboard: React.FC<DrillingOperationalV
           mean={liftsPerHourVariance.mean}
           upperControlLimit={liftsPerHourVariance.mean + 2 * liftsPerHourVariance.standardDeviation}
           lowerControlLimit={Math.max(0, liftsPerHourVariance.mean - 2 * liftsPerHourVariance.standardDeviation)}
-        />
-        <ControlChart
-          data={costControlData}
-          title="Cost per Ton Control Chart"
-          unit=" $/ton"
-          mean={costPerTonVariance.mean}
-          upperControlLimit={costPerTonVariance.mean + 2 * costPerTonVariance.standardDeviation}
-          lowerControlLimit={Math.max(0, costPerTonVariance.mean - 2 * costPerTonVariance.standardDeviation)}
         />
         <ControlChart
           data={visitsControlData}
@@ -847,15 +816,12 @@ export const VesselUtilizationVarianceDashboard: React.FC<VesselUtilizationVaria
  */
 interface ProductionOperationalVarianceDashboardProps {
   liftsPerHourVariance: VarianceAnalysis;
-  costPerTonVariance: VarianceAnalysis;
   visitsPerWeekVariance?: VarianceAnalysis;
   vesselOperationalData: Array<{
     vesselName: string;
     liftsPerHour: number;
-    costPerTon: number;
     visitsPerWeek: number;
     totalLifts: number;
-    totalCost: number;
     totalTonnage: number;
     totalVisits: number;
     cargoOpsHours: number;
@@ -865,7 +831,6 @@ interface ProductionOperationalVarianceDashboardProps {
 
 export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperationalVarianceDashboardProps> = ({
   liftsPerHourVariance,
-  costPerTonVariance,
   visitsPerWeekVariance,
   vesselOperationalData
 }) => {
@@ -875,13 +840,6 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
     .map(v => ({
       vesselName: v.vesselName,
       value: v.liftsPerHour
-    }));
-
-  const costControlData = vesselOperationalData
-    .filter(v => v.costPerTon > 0)
-    .map(v => ({
-      vesselName: v.vesselName,
-      value: v.costPerTon
     }));
 
   const visitsControlData = vesselOperationalData
@@ -894,69 +852,47 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg p-4">
-        <div className="flex items-center gap-3 mb-1">
-          <h2 className="text-lg font-bold">Production Operations KPI Variance Analysis</h2>
-          <Tooltip content="Production operations variance analysis focuses on chemical transfer efficiency, production support consistency, and facility support optimization. Identifies opportunities for improved chemical logistics and production support.">
-            <HelpCircle className="h-5 w-5 text-white/80 hover:text-white cursor-help" />
-          </Tooltip>
-        </div>
-        <p className="text-sm opacity-90">Statistical analysis of lifts/hr, cost per ton, and visits per week</p>
+      <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg p-4">
+        <h2 className="text-lg font-bold mb-1">Production Operations KPI Variance Analysis</h2>
+        <p className="text-sm opacity-90">Statistical analysis of production vessel operational efficiency</p>
       </div>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VarianceStatsCard
           title="Lifts per Hour Variance"
           variance={liftsPerHourVariance}
           unit=" lifts/hr"
           icon={BarChart3}
-          tooltipContent="Measures chemical transfer efficiency variance. Low variance indicates consistent chemical handling operations. High variance suggests process improvements needed for chemical logistics efficiency."
         />
-        <VarianceStatsCard
-          title="Cost per Ton Variance"
-          variance={costPerTonVariance}
-          unit=" $/ton"
-          icon={TrendingUp}
-          tooltipContent="Analyzes production support cost efficiency per ton. Low variance indicates predictable chemical transportation costs. High variance suggests optimization opportunities in production logistics."
-        />
-{visitsPerWeekVariance && (
-        <VarianceStatsCard
-          title="Visits per Week Variance"
-          variance={visitsPerWeekVariance}
-          unit=" visits/week"
-          icon={Ship}
-          tooltipContent="Evaluates production facility support consistency. Low variance indicates steady chemical supply operations. High variance suggests irregular production support or demand fluctuations."
-        />
+        {visitsPerWeekVariance && (
+          <VarianceStatsCard
+            title="Visits per Week Variance"
+            variance={visitsPerWeekVariance}
+            unit=" visits/week"
+            icon={Ship}
+          />
         )}
       </div>
       
       {/* Box Plots */}
-      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BoxPlot
           data={liftsPerHourVariance}
           title="Lifts per Hour Distribution"
           unit=" lifts/hr"
-          color="bg-purple-600"
-        />
-        <BoxPlot
-          data={costPerTonVariance}
-          title="Cost per Ton Distribution"
-          unit=" $/ton"
-          color="bg-purple-600"
         />
         {visitsPerWeekVariance && (
-        <BoxPlot
-          data={visitsPerWeekVariance}
-          title="Visits per Week Distribution"
-          unit=" visits/week"
-          color="bg-purple-600"
-        />
+          <BoxPlot
+            data={visitsPerWeekVariance}
+            title="Visits per Week Distribution"
+            unit=" visits/week"
+          />
         )}
       </div>
       
       {/* Control Charts */}
-      <div className={`grid grid-cols-1 ${visitsPerWeekVariance ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ControlChart
           data={liftsControlData}
           title="Lifts per Hour Control Chart"
@@ -964,27 +900,16 @@ export const ProductionOperationalVarianceDashboard: React.FC<ProductionOperatio
           mean={liftsPerHourVariance.mean}
           upperControlLimit={liftsPerHourVariance.mean + 2 * liftsPerHourVariance.standardDeviation}
           lowerControlLimit={Math.max(0, liftsPerHourVariance.mean - 2 * liftsPerHourVariance.standardDeviation)}
-          color="#7c3aed"
-        />
-        <ControlChart
-          data={costControlData}
-          title="Cost per Ton Control Chart"
-          unit=" $/ton"
-          mean={costPerTonVariance.mean}
-          upperControlLimit={costPerTonVariance.mean + 2 * costPerTonVariance.standardDeviation}
-          lowerControlLimit={Math.max(0, costPerTonVariance.mean - 2 * costPerTonVariance.standardDeviation)}
-          color="#7c3aed"
         />
         {visitsPerWeekVariance && (
-        <ControlChart
-          data={visitsControlData}
-          title="Visits per Week Control Chart"
-          unit=" visits/week"
-          mean={visitsPerWeekVariance.mean}
-          upperControlLimit={visitsPerWeekVariance.mean + 2 * visitsPerWeekVariance.standardDeviation}
-          lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
-          color="#7c3aed"
-        />
+          <ControlChart
+            data={visitsControlData}
+            title="Visits per Week Control Chart"
+            unit=" visits/week"
+            mean={visitsPerWeekVariance.mean}
+            upperControlLimit={visitsPerWeekVariance.mean + 2 * visitsPerWeekVariance.standardDeviation}
+            lowerControlLimit={Math.max(0, visitsPerWeekVariance.mean - 2 * visitsPerWeekVariance.standardDeviation)}
+          />
         )}
       </div>
     </div>
