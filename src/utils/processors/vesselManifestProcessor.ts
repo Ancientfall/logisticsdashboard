@@ -9,7 +9,7 @@ import { enhanceManifestWithSegmentData } from '../manifestVoyageIntegration';
  * Extracted from dataProcessing.ts to improve modularity
  */
 
-// Raw vessel manifest interface
+// Raw vessel manifest interface - corrected to match actual Excel column names
 interface RawVesselManifest {
   "Voyage Id": number;
   "Manifest Number": string;
@@ -20,11 +20,13 @@ interface RawVesselManifest {
   From: string;
   "Offshore Location": string;
   "Deck Lbs": number;
-  "Deck Tons": number;
+  "deck tons (metric)": number;
   "RT Tons": number;
+  RTLifts: number;              // Excel column "RTLifts" (no space)
   Lifts: number;
   "Wet Bulk (bbls)": number;
-  "Wet Bulk (gals)": number;
+  "Wet Bulk Gal": number;       // Excel uses "Wet Bulk Gal" not "gals"
+  "RTWet Bulk Gal": number;     // Excel RT Wet Bulk field
   "Deck Sqft": number;
   Remarks?: string;
   Year: number;
@@ -216,16 +218,17 @@ export const processVesselManifests = (
       
       // Enhanced Cargo Type Classification (from PowerBI logic)
       const determineCargoType = (): "Deck Cargo" | "Below Deck Cargo" | "Liquid Bulk" | "Lift Only" | "Other/Mixed" => {
-        const deckTons = manifest["Deck Tons"] || 0;
+        const deckTons = manifest["deck tons (metric)"] || 0;
         const rtTons = manifest["RT Tons"] || 0;
         const wetBulkBbls = manifest["Wet Bulk (bbls)"] || 0;
-        const wetBulkGals = manifest["Wet Bulk (gals)"] || 0;
+        const wetBulkGals = manifest["Wet Bulk Gal"] || 0;
         const lifts = manifest.Lifts || 0;
+        const rtLifts = manifest.RTLifts || 0;
         
         if (deckTons > 0) return "Deck Cargo";
         if (rtTons > 0) return "Below Deck Cargo";
         if (wetBulkBbls > 0 || wetBulkGals > 0) return "Liquid Bulk";
-        if (lifts > 0 && deckTons === 0 && rtTons === 0) return "Lift Only";
+        if ((lifts > 0 || rtLifts > 0) && deckTons === 0 && rtTons === 0) return "Lift Only";
         return "Other/Mixed";
       };
       
@@ -243,6 +246,8 @@ export const processVesselManifests = (
       // Standardized Voyage ID (from PowerBI)
       const standardizedVoyageId = manifest["Voyage Id"] ? String(manifest["Voyage Id"]).trim() : createStandardizedVoyageId(Number(manifest["Voyage Id"]) || 0, manifestDate);
       
+      // Debug removed to improve performance
+
       return {
         id: `manifest-${index}`,
         voyageId: String(manifest["Voyage Id"] || ''),
@@ -253,11 +258,13 @@ export const processVesselManifests = (
         offshoreLocation: manifest["Offshore Location"] || '',
         mappedLocation,
         deckLbs: safeNumeric(manifest["Deck Lbs"]),
-        deckTons: safeNumeric(manifest["Deck Tons"]),
+        deckTons: safeNumeric(manifest["deck tons (metric)"]),
         rtTons: safeNumeric(manifest["RT Tons"]),
+        rtLifts: safeNumeric(manifest.RTLifts),
         lifts: safeNumeric(manifest.Lifts),
         wetBulkBbls: safeNumeric(manifest["Wet Bulk (bbls)"]),
-        wetBulkGals: safeNumeric(manifest["Wet Bulk (gals)"]),
+        wetBulkGals: safeNumeric(manifest["Wet Bulk Gal"]),
+        rtWetBulkGals: safeNumeric(manifest["RTWet Bulk Gal"]),
         deckSqft: safeNumeric(manifest["Deck Sqft"]),
         manifestDate,
         manifestDateOnly,

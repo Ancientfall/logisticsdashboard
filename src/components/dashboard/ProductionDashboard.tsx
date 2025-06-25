@@ -387,6 +387,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         },
         manifestMetrics: {
           totalLifts: manifestMetrics.totalLifts,
+          totalRTLifts: manifestMetrics.totalRTLifts,
+          totalAllLifts: manifestMetrics.totalAllLifts,
+          rtLiftsPercentage: manifestMetrics.rtLiftsPercentage,
           totalCargoTons: manifestMetrics.totalCargoTons,
           uniqueManifests: manifestMetrics.uniqueManifests,
           vesselVisits: manifestMetrics.vesselVisits,
@@ -728,12 +731,16 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       const metrics = {
         // FIXED: Core cargo metrics using cost allocation LC filtering for PRODUCTION
         cargo: {
-          totalCargoTons: fixedProductionKPIs.cargoTons.totalCargoTons,
-          cargoTonnagePerVisit: fixedProductionKPIs.cargoTons.cargoTonnagePerVisit,
-          rtPercentage: manifestMetrics.rtPercentage, // Keep existing calculation for now
-          outboundPercentage: manifestMetrics.outboundPercentage, // Keep existing calculation for now
-          productionOnlyTons: fixedProductionKPIs.cargoTons.totalCargoTons,
-          validationRate: fixedProductionKPIs.cargoTons.validationRate
+          totalCargoTons: manifestMetrics.totalCargoTons || 0, // Use manifest metrics directly
+          cargoTonnagePerVisit: manifestMetrics.cargoTonnagePerVisit || 0,
+          rtPercentage: manifestMetrics.rtPercentage || 0,
+          outboundPercentage: manifestMetrics.outboundPercentage || 0,
+          productionOnlyTons: manifestMetrics.totalCargoTons || 0,
+          validationRate: manifestMetrics.validationRate || 0,
+          // RT Lifts metrics from enhanced manifest calculation
+          totalRTLifts: manifestMetrics.totalRTLifts || 0,
+          totalAllLifts: manifestMetrics.totalAllLifts || manifestMetrics.totalLifts || 0,
+          rtLiftsPercentage: manifestMetrics.rtLiftsPercentage || 0
         },
         
         // FIXED: Lifts metrics with proper LC validation and vessel codes for PRODUCTION
@@ -1441,43 +1448,44 @@ Note: Excludes fuel costs, vessel charter only`;
               })()
             },
             {
-              title: "Chemical Volume",
-              value: Math.round(productionMetrics.bulk.productionChemicalVolume * 42).toLocaleString(),
-              unit: "gals",
-              target: Math.round(dynamicTargets.fluidVolume * 42),
-              trend: previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
-                ((productionMetrics.bulk.productionChemicalVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0,
-              isPositive: productionMetrics.bulk.productionChemicalVolume >= previousPeriodMetrics.bulk.totalBulkVolume,
+              title: "Round-Tripped Lifts",
+              value: ((productionMetrics.cargo as any).totalRTLifts || 0).toLocaleString(),
+              unit: "lifts",
+              target: Math.round(productionMetrics.lifts.totalLifts * 0.15), // Target: Keep RT lifts below 15% of total lifts
+              trend: (previousPeriodMetrics.cargo as any).totalRTLifts > 0 ? 
+                (((productionMetrics.cargo as any).totalRTLifts - (previousPeriodMetrics.cargo as any).totalRTLifts) / (previousPeriodMetrics.cargo as any).totalRTLifts) * 100 : 0,
+              isPositive: ((productionMetrics.cargo as any).totalRTLifts || 0) <= ((previousPeriodMetrics.cargo as any).totalRTLifts || 100), // Lower is better
               contextualHelp: (() => {
-                const chemicalVolume = productionMetrics.bulk.productionChemicalVolume;
-                const totalOperations = bulkActions.filter(action => 
-                  !action.isDrillingFluid && !action.isCompletionFluid && 
-                  action.action === 'offload' && action.portType === 'rig'
-                ).length;
+                const rtLifts = (productionMetrics.cargo as any).totalRTLifts || 0;
+                const totalLifts = productionMetrics.lifts.totalLifts;
+                const allLifts = ((productionMetrics.cargo as any).totalAllLifts || totalLifts);
+                const rtPercentage = allLifts > 0 ? (rtLifts / allLifts) * 100 : 0;
 
-                return `🧪 CHEMICAL VOLUME ANALYSIS
+                return `🔄 ROUND-TRIPPED LIFTS ANALYSIS
 
-${Math.round(chemicalVolume * 42).toLocaleString()} gallons
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📊 VOLUME BREAKDOWN
-
-Total Volume: ${Math.round(chemicalVolume * 42).toLocaleString()} gals
-Operations: ${totalOperations} offload operations
-Location: ${filters.selectedLocation}
-Period: ${filters.selectedMonth}
+${rtLifts.toLocaleString()} round-trip crane operations
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 METHODOLOGY
+📊 LIFT BREAKDOWN
 
-Formula: Sum of offload volumes to platforms
-Source: Bulk actions (production chemicals only)
-Anti-Double-Counting: Offload-only + platform-only
-Target: ${Math.round(dynamicTargets.fluidVolume * 42).toLocaleString()} gals
+RT Lifts: ${rtLifts.toLocaleString()} crane operations
+Outbound Lifts: ${totalLifts.toLocaleString()} crane operations  
+Total Lifts: ${allLifts.toLocaleString()} crane operations
+RT Percentage: ${rtPercentage.toFixed(1)}%
 
-Note: Excludes drilling/completion fluids`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 EFFICIENCY ANALYSIS
+
+Target: <15% of total lifts (lower is better)
+Current: ${rtPercentage <= 15 ? '✅ Within Target' : '⚠️ Above Target'}
+Status: ${rtPercentage <= 10 ? 'Excellent' : rtPercentage <= 15 ? 'Good' : rtPercentage <= 25 ? 'Fair' : 'Needs Attention'}
+
+RT lifts indicate cargo sent to platforms but returned unused.
+High RT% suggests planning inefficiencies or platform issues.
+
+Source: Vessel manifests RT Lifts field`;
               })()
             }
           ]}

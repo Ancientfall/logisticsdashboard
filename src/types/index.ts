@@ -82,9 +82,11 @@ export interface VesselManifest {
   deckLbs: number;
   deckTons: number;
   rtTons: number;
+  rtLifts: number;          // RT Lifts field
   lifts: number;
   wetBulkBbls: number;
   wetBulkGals: number;
+  rtWetBulkGals: number;    // RT Wet Bulk field
   deckSqft: number;
   
   // Time Information

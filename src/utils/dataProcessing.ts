@@ -57,11 +57,13 @@ interface RawVesselManifest {
   From: string;
   "Offshore Location": string;
   "Deck Lbs": number;
-  "Deck Tons": number;
+  "deck tons (metric)": number;
   "RT Tons": number;
+  RTLifts: number;              // RT Lifts field (no space in Excel)
   Lifts: number;
   "Wet Bulk (bbls)": number;
-  "Wet Bulk (gals)": number;
+  "Wet Bulk Gal": number;
+  "RTWet Bulk Gal": number;     // RT Wet Bulk field
   "Deck Sqft": number;
   Remarks?: string;
   Year: number;

@@ -112,8 +112,21 @@ export const calculateEnhancedManifestMetrics = (
   const rtPercentage = totalCargoTons > 0 ? (totalRTTons / totalCargoTons) * 100 : 0;
   const outboundPercentage = totalCargoTons > 0 ? (totalOutboundTons / totalCargoTons) * 100 : 0;
   
-  // Lifts calculation
+  // Debug removed to improve performance
+  
+  // Lifts calculation (including RT lifts)
   const totalLifts = filteredManifests.reduce((sum, manifest) => sum + manifest.lifts, 0);
+  const totalRTLifts = filteredManifests.reduce((sum, manifest) => sum + (manifest.rtLifts || 0), 0);
+  const totalAllLifts = totalLifts + totalRTLifts;
+  const rtLiftsPercentage = totalAllLifts > 0 ? (totalRTLifts / totalAllLifts) * 100 : 0;
+  
+  // Debug removed to improve performance
+  
+  // RT Wet Bulk calculation  
+  const totalWetBulkGals = filteredManifests.reduce((sum, manifest) => sum + (manifest.wetBulkGals || 0), 0);
+  const totalRTWetBulkGals = filteredManifests.reduce((sum, manifest) => sum + (manifest.rtWetBulkGals || 0), 0);
+  const totalAllWetBulkGals = totalWetBulkGals + totalRTWetBulkGals;
+  const rtWetBulkPercentage = totalAllWetBulkGals > 0 ? (totalRTWetBulkGals / totalAllWetBulkGals) * 100 : 0;
   
   // Vessel visits (unique vessels)
   const vesselVisits = new Set(filteredManifests.map(m => m.transporter)).size;
@@ -129,6 +142,13 @@ export const calculateEnhancedManifestMetrics = (
     rtPercentage,
     outboundPercentage,
     totalLifts,
+    totalRTLifts,
+    totalAllLifts,
+    rtLiftsPercentage,
+    totalWetBulkGals,
+    totalRTWetBulkGals,
+    totalAllWetBulkGals,
+    rtWetBulkPercentage,
     vesselVisits,
     uniqueManifests,
     validationRate: validation.validationSummary.validationRate,
