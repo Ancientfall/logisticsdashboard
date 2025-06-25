@@ -11,6 +11,7 @@ import {
   calculateEnhancedVoyageEventMetrics,
   calculateEnhancedBulkFluidMetrics
 } from '../../utils/metricsCalculation';
+import { calculateAllEnhancedKPIs } from '../../utils/enhancedKPICalculation';
 import { validateDataIntegrity } from '../../utils/dataIntegrityValidator';
 import { deduplicateBulkActions, getProductionFluidMovements } from '../../utils/bulkFluidDeduplicationEngine';
 import { 
@@ -520,14 +521,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
        console.log(`Time Filter: ${filters.selectedMonth}`);
        console.log('🚨🚨🚨 END LIFTS COMPARISON 🚨🚨🚨');
 
-      const voyageMetrics = calculateEnhancedVoyageEventMetrics(
-        voyageEvents,
-        costAllocation,
-        filterMonth,
-        filterYear,
-        'Production',
-        filters.selectedLocation
-      );
+      // Legacy voyage metrics calculation - replaced with fixedProductionKPIs
+      // const voyageMetrics = calculateEnhancedVoyageEventMetrics(...);
 
       const bulkMetrics = calculateEnhancedBulkFluidMetrics(
         bulkActions,
@@ -718,138 +713,69 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         };
       }
 
-      // Build comprehensive production metrics object
+      // CRITICAL FIX: Calculate enhanced KPIs using cost allocation as master data source for PRODUCTION
+      console.log('🔧 CALCULATING ENHANCED PRODUCTION KPIs with Cost Allocation Master Data Source');
+      const fixedProductionKPIs = calculateAllEnhancedKPIs(
+        voyageEvents,
+        vesselManifests,
+        costAllocation,
+        'Production', // Focus on production department
+        isYTD ? undefined : filterMonth,
+        filterYear
+      );
+
+      // Build comprehensive production metrics object using FIXED KPIs
       const metrics = {
-        // Cargo metrics from enhanced manifests
+        // FIXED: Core cargo metrics using cost allocation LC filtering for PRODUCTION
         cargo: {
-          totalCargoTons: manifestMetrics.totalCargoTons,
-          cargoTonnagePerVisit: manifestMetrics.cargoTonnagePerVisit,
-          rtPercentage: manifestMetrics.rtPercentage,
-          outboundPercentage: manifestMetrics.outboundPercentage
+          totalCargoTons: fixedProductionKPIs.cargoTons.totalCargoTons,
+          cargoTonnagePerVisit: fixedProductionKPIs.cargoTons.cargoTonnagePerVisit,
+          rtPercentage: manifestMetrics.rtPercentage, // Keep existing calculation for now
+          outboundPercentage: manifestMetrics.outboundPercentage, // Keep existing calculation for now
+          productionOnlyTons: fixedProductionKPIs.cargoTons.totalCargoTons,
+          validationRate: fixedProductionKPIs.cargoTons.validationRate
         },
         
-        // Lifts metrics from enhanced manifests
+        // FIXED: Lifts metrics with proper LC validation and vessel codes for PRODUCTION
         lifts: {
-          totalLifts: manifestMetrics.totalLifts,
-          liftsPerHour: (() => {
-            // Calculate actual cargo operation hours for the specific location(s) and time period
-            let cargoOperationHours = 0;
-            
-            // Filter voyage events for cargo operations at production facilities
-            const cargoEvents = voyageEvents.filter(event => {
-              // Time filtering
-              if (isYTD && filterYear !== undefined) {
-                const eventDate = new Date(event.eventDate);
-                if (eventDate.getFullYear() !== filterYear) return false;
-              } else if (filterMonth !== undefined && filterYear !== undefined) {
-                const eventDate = new Date(event.eventDate);
-                if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
-              }
-              
-              // Location filtering - same logic as used for vessel fleet performance
-              const eventLocation = event.location?.toLowerCase().trim() || '';
-              const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
-              const productionFacilities = getProductionFacilities();
-              
-              if (filters.selectedLocation !== 'All Locations') {
-                // Filter to specific production facility
-                const selectedFacility = productionFacilities.find(
-                  f => f.displayName === filters.selectedLocation
-                );
-                if (selectedFacility) {
-                  const facilityLocationName = selectedFacility.locationName.toLowerCase();
-                  const facilityDisplayName = selectedFacility.displayName.toLowerCase();
-                  
-                  const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
-                  const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
-                  
-                  const matchesLocation = 
-                    eventLocation.includes(facilityLocationName) ||
-                    mappedLocation.includes(facilityLocationName) ||
-                    eventLocation.includes(facilityDisplayName) ||
-                    mappedLocation.includes(facilityDisplayName) ||
-                    coreEventLocation.includes(coreLocationName) ||
-                    facilityLocationName.includes(coreEventLocation) ||
-                    (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
-                    (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
-                  
-                  if (!matchesLocation) return false;
-                }
-              } else {
-                // Filter to ANY production facility (not drilling rigs)
-                const matchesAnyProductionFacility = productionFacilities.some(facility => {
-                  const facilityLocationName = facility.locationName.toLowerCase();
-                  const facilityDisplayName = facility.displayName.toLowerCase();
-                  
-                  const coreLocationName = facilityLocationName.replace(/\s*\([^)]*\)/g, '').trim();
-                  const coreEventLocation = eventLocation.replace(/\s*\([^)]*\)/g, '').trim();
-                  const coreMappedLocation = mappedLocation.replace(/\s*\([^)]*\)/g, '').trim();
-                  
-                  return eventLocation.includes(facilityLocationName) ||
-                         mappedLocation.includes(facilityLocationName) ||
-                         eventLocation.includes(facilityDisplayName) ||
-                         mappedLocation.includes(facilityDisplayName) ||
-                         coreEventLocation.includes(coreLocationName) ||
-                         coreMappedLocation.includes(coreLocationName) ||
-                         facilityLocationName.includes(coreEventLocation) ||
-                         facilityLocationName.includes(coreMappedLocation) ||
-                         (facilityLocationName.includes('thunder horse') && (eventLocation.includes('thunder horse') || mappedLocation.includes('thunder horse'))) ||
-                         (facilityLocationName.includes('mad dog') && (eventLocation.includes('mad dog') || mappedLocation.includes('mad dog')));
-                });
-                
-                if (!matchesAnyProductionFacility) return false;
-              }
-              
-                             // Filter for cargo operation activities
-               const parentEvent = (event.parentEvent || '').toLowerCase();
-               const eventName = (event.event || '').toLowerCase();
-               const remarks = (event.remarks || '').toLowerCase();
-               
-               return parentEvent.includes('cargo') || 
-                      parentEvent.includes('loading') || 
-                      parentEvent.includes('offloading') ||
-                      parentEvent.includes('lifting') ||
-                      eventName.includes('cargo') ||
-                      eventName.includes('loading') ||
-                      eventName.includes('offloading') ||
-                      eventName.includes('lifting') ||
-                      eventName.includes('crane') ||
-                      remarks.includes('cargo') ||
-                      remarks.includes('loading') ||
-                      remarks.includes('offloading') ||
-                      remarks.includes('lifting') ||
-                      remarks.includes('crane');
-            });
-            
-            // Sum up hours for cargo operations
-            cargoOperationHours = cargoEvents.reduce((sum, event) => sum + (event.hours || 0), 0);
-            
-            // Calculate lifts per hour based on actual cargo operation time
-            return cargoOperationHours > 0 ? manifestMetrics.totalLifts / cargoOperationHours : 0;
-          })(),
+          totalLifts: fixedProductionKPIs.liftsPerHour.totalLifts,
+          liftsPerHour: fixedProductionKPIs.liftsPerHour.liftsPerHour,
+          cargoOperationHours: fixedProductionKPIs.liftsPerHour.cargoOperationHours,
+          lcValidationRate: fixedProductionKPIs.liftsPerHour.lcValidationRate,
           vesselVisits: manifestMetrics.uniqueManifests
         },
         
-        // Hours metrics from enhanced voyage events
+        // FIXED: Hours metrics using vessel codes classification for PRODUCTION
         hours: {
-          totalOSVHours: voyageMetrics.totalHours,
-          totalProductiveHours: voyageMetrics.productiveHours,
-          productiveHoursPercentage: voyageMetrics.totalHours > 0 ? (voyageMetrics.productiveHours / voyageMetrics.totalHours) * 100 : 0,
+          totalOSVHours: fixedProductionKPIs.productiveHours.totalOSVHours,
+          totalProductiveHours: fixedProductionKPIs.productiveHours.productiveHours,
+          productiveHoursPercentage: fixedProductionKPIs.productiveHours.productivePercentage,
+          vesselCodesCoverage: fixedProductionKPIs.productiveHours.vesselCodesCoverage,
           averageTripDuration: 0 // Will be calculated from voyage duration if needed
         },
         
         // Cost metrics from enhanced cost allocation
         costs: {
-          totalVesselCost: enhancedKPIs.totalVesselCost,
-          costPerTon: manifestMetrics.totalCargoTons > 0 ? enhancedKPIs.totalVesselCost / manifestMetrics.totalCargoTons : 0,
-          costPerHour: voyageMetrics.totalHours > 0 ? enhancedKPIs.totalVesselCost / voyageMetrics.totalHours : 0
+          totalVesselCost: enhancedKPIs.totalVesselCost || 0,
+          costPerTon: fixedProductionKPIs.cargoTons.totalCargoTons > 0 ? (enhancedKPIs.totalVesselCost || 0) / fixedProductionKPIs.cargoTons.totalCargoTons : 0,
+          costPerHour: fixedProductionKPIs.productiveHours.totalOSVHours > 0 ? (enhancedKPIs.totalVesselCost || 0) / fixedProductionKPIs.productiveHours.totalOSVHours : 0
         },
         
-        // Utilization metrics from enhanced calculations
+        // FIXED: Utilization metrics using enhanced calculations with cost allocation validation for PRODUCTION
         utilization: {
-          vesselUtilization: voyageMetrics.vesselUtilization,
-          transitTimeHours: voyageMetrics.transitTime || 0,
-          atLocationHours: voyageMetrics.totalOffshoreTime || 0
+          vesselUtilization: fixedProductionKPIs.utilization.vesselUtilization,
+          transitTimeHours: fixedProductionKPIs.utilization.transitTimeHours,
+          atLocationHours: fixedProductionKPIs.utilization.atLocationHours,
+          totalOffshoreTime: fixedProductionKPIs.utilization.totalOffshoreTime,
+          utilizationConfidence: fixedProductionKPIs.utilization.utilizationConfidence
+        },
+        
+        // ENHANCED: Waiting time metrics using vessel codes classification for PRODUCTION
+        waitingTime: {
+          waitingTimeOffshore: fixedProductionKPIs.waitingTime.waitingTimeOffshore,
+          waitingPercentage: fixedProductionKPIs.waitingTime.waitingPercentage,
+          weatherExcludedHours: fixedProductionKPIs.waitingTime.weatherExcludedHours,
+          installationWaitingHours: fixedProductionKPIs.waitingTime.installationWaitingHours
         },
         
         // Bulk chemical metrics from enhanced deduplication
@@ -870,25 +796,14 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         }
       };
 
-      console.log('✅ ENHANCED PRODUCTION METRICS CALCULATED WITH FILTERS:', {
-        appliedFilters: {
-          selectedMonth: filters.selectedMonth,
-          selectedLocation: filters.selectedLocation,
-          parsedMonth: filterMonth,
-          parsedYear: filterYear,
-          isYTD: isYTD
-        },
-        calculatedMetrics: {
-          cargoTons: metrics.cargo.totalCargoTons.toLocaleString(),
-          vesselVisits: metrics.lifts.vesselVisits.toLocaleString(),
-          lifts: metrics.lifts.totalLifts.toLocaleString(),
-          productiveHours: metrics.hours.totalProductiveHours.toLocaleString(),
-          chemicalVolumeGals: Math.round(metrics.bulk.productionChemicalVolume * 42).toLocaleString() + ' gals',
-          chemicalVolumeBbls: metrics.bulk.productionChemicalVolume.toLocaleString() + ' bbls',
-          totalCost: `$${metrics.costs.totalVesselCost.toLocaleString()}`,
-          integrityScore: `${Math.round(metrics.integrityScore)}%`,
-          criticalIssues: metrics.validationSummary.criticalIssues
-        }
+      console.log('✅ ENHANCED PRODUCTION METRICS CALCULATED:', {
+        cargoTons: `${metrics.cargo.totalCargoTons.toLocaleString()} tons (${(metrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}% validation)`,
+        lifts: `${metrics.lifts.totalLifts.toLocaleString()} lifts @ ${metrics.lifts.liftsPerHour.toFixed(2)} lifts/hr`,
+        productiveHours: `${metrics.hours.totalProductiveHours.toLocaleString()} hrs (${metrics.hours.productiveHoursPercentage.toFixed(1)}%)`,
+        vesselUtilization: `${metrics.utilization.vesselUtilization.toFixed(1)}% (${(metrics.utilization as any).utilizationConfidence || 'Medium'} confidence)`,
+        dataQuality: `LC: ${fixedProductionKPIs.dataQuality.lcCoverage.toFixed(1)}%, VesselCodes: ${fixedProductionKPIs.dataQuality.vesselCodesCoverage.toFixed(1)}%`,
+        totalCost: `$${metrics.costs.totalVesselCost.toLocaleString()}`,
+        integrityScore: `${Math.round(metrics.integrityScore)}%`
       });
 
       return metrics;
@@ -1133,8 +1048,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
                 ((productionMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
               isPositive: productionMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
               contextualHelp: filters.selectedLocation === 'All Locations' ? 
-                "Total outbound tonnage delivered from base to all production facilities across GoA. Calculated from vessel manifests filtered for production operations using cost allocation LC validation. Includes production equipment, supplies, and chemicals." :
-                `Outbound tonnage specific to ${filters.selectedLocation}. Filtered from vessel manifests where destination matches selected production location. Validated against cost allocation LC numbers.`
+                `ENHANCED: Total outbound tonnage delivered from base to all production facilities across GoA. Uses CostAllocation.xlsx as authoritative master data source for production-only filtering. Validation rate: ${(productionMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Includes production equipment, supplies, and chemicals validated against production LC numbers.` :
+                `ENHANCED: Outbound tonnage specific to ${filters.selectedLocation}. Filtered using cost allocation LC numbers as master data source. Validation rate: ${(productionMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Only includes manifests validated against authoritative production cost allocation data.`
             },
             {
               title: "Avg Visits/Week",
@@ -1346,7 +1261,7 @@ Note: Only production facility voyages counted`;
                 
                 cargoOperationHours = cargoEvents.reduce((sum, event) => sum + (event.hours || 0), 0);
 
-                return `⚡ CARGO OPERATION EFFICIENCY
+                return `⚡ ENHANCED CARGO OPERATION EFFICIENCY
 
 ${liftsPerHour.toFixed(2)} lifts/hour
 
@@ -1355,20 +1270,22 @@ ${liftsPerHour.toFixed(2)} lifts/hour
 📊 EFFICIENCY BREAKDOWN
 
 Total Lifts: ${totalLifts.toLocaleString()} crane operations
-Cargo Operation Hours: ${Math.round(cargoOperationHours).toLocaleString()} hours
+Cargo Operation Hours: ${(productionMetrics.lifts as any).cargoOperationHours?.toFixed(1) || Math.round(cargoOperationHours)} hours
+LC Validation Rate: ${(productionMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%
 Location: ${filters.selectedLocation}
 Period: ${filters.selectedMonth}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 METHODOLOGY
+📋 ENHANCED METHODOLOGY
 
 Formula: Total Lifts ÷ Actual Cargo Operation Hours
-Source: Production manifests + filtered voyage events
-Includes: Cargo, loading, offloading, lifting, crane operations
+Source: Cost allocation LC validation + vessel codes classification
+Includes: Vessel codes cargo operations (no hardcoded patterns)
 Target: ${dynamicTargets.liftsPerHour} lifts/hour
+Data Quality: Uses CostAllocation.xlsx as master data source
 
-Note: Only counts time spent on actual cargo operations`;
+Note: ENHANCED with cost allocation validation and vessel codes classification`;
               })()
             },
             {
@@ -1581,24 +1498,15 @@ Note: Excludes drilling/completion fluids`;
             contextualHelp="Total production chemical volume offloaded to platforms. Calculated from bulk actions with anti-double-counting (load/offload pair deduplication). Includes production chemicals, utilities, and specialized fluids. Filtered for platform destinations only."
           />
           <KPICard 
-            title="Weather Impact" 
-            value={`${Math.round((productionMetrics.hours.totalOSVHours - productionMetrics.hours.totalProductiveHours) / productionMetrics.hours.totalOSVHours * 100 * 0.15)}`}
+            title="Data Quality" 
+            value={`${Math.round((productionMetrics.hours as any).vesselCodesCoverage || 0)}`}
             variant="compact"
             unit="%"
-            trend={(() => {
-              const currentWeatherImpact = (productionMetrics.hours.totalOSVHours - productionMetrics.hours.totalProductiveHours) / productionMetrics.hours.totalOSVHours * 100 * 0.15;
-              const prevWeatherImpact = previousPeriodMetrics.hours.totalProductiveHours > 0 ? 
-                ((productionMetrics.hours.totalOSVHours - previousPeriodMetrics.hours.totalProductiveHours) / productionMetrics.hours.totalOSVHours * 100 * 0.15) : currentWeatherImpact;
-              return prevWeatherImpact > 0 ? ((currentWeatherImpact - prevWeatherImpact) / prevWeatherImpact) * 100 : 0;
-            })()} 
-            isPositive={(() => {
-              const currentWeatherImpact = (productionMetrics.hours.totalOSVHours - productionMetrics.hours.totalProductiveHours) / productionMetrics.hours.totalOSVHours * 100 * 0.15;
-              const prevWeatherImpact = previousPeriodMetrics.hours.totalProductiveHours > 0 ? 
-                ((productionMetrics.hours.totalOSVHours - previousPeriodMetrics.hours.totalProductiveHours) / productionMetrics.hours.totalOSVHours * 100 * 0.15) : currentWeatherImpact;
-              return currentWeatherImpact < prevWeatherImpact; // Lower weather impact is positive
-            })()}
+            trend={(previousPeriodMetrics.hours as any).vesselCodesCoverage > 0 ? 
+              (((productionMetrics.hours as any).vesselCodesCoverage - (previousPeriodMetrics.hours as any).vesselCodesCoverage) / (previousPeriodMetrics.hours as any).vesselCodesCoverage) * 100 : 0}
+            isPositive={(productionMetrics.hours as any).vesselCodesCoverage >= 80} // 80%+ is good data quality
             color="orange"
-            contextualHelp="Estimated weather downtime as percentage of total vessel time. Calculated as (Total OSV Hours - Productive Hours) × Weather Factor (15%). Based on voyage events classified via vessel codes. Lower percentages indicate better weather conditions."
+            contextualHelp={`ENHANCED: Data quality score based on vessel codes classification coverage for PRODUCTION operations. Current coverage: ${(productionMetrics.hours as any).vesselCodesCoverage?.toFixed(1) || 'N/A'}%. Cost allocation validation: ${(productionMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. High coverage ensures accurate productive/non-productive classification using authoritative vessel codes rather than hardcoded patterns.`}
           />
           <KPICard 
             title="Production Voyages" 
@@ -1612,15 +1520,15 @@ Note: Excludes drilling/completion fluids`;
             contextualHelp="Total number of vessel voyages supporting production operations. Counted from voyage list data where voyage purpose = 'Production' or 'Mixed' with production components. Filtered by selected location if specified. Each round trip = 1 voyage."
           />
           <KPICard 
-            title="Maneuvering Hours" 
-            value={Math.round(productionMetrics.utilization.transitTimeHours).toLocaleString()}
+            title="Vessel Utilization" 
+            value={Math.round((productionMetrics.utilization as any).vesselUtilization || 0).toString()}
             variant="compact"
-            unit="hrs"
-            trend={previousPeriodMetrics.utilization.transitTimeHours > 0 ? 
-              ((productionMetrics.utilization.transitTimeHours - previousPeriodMetrics.utilization.transitTimeHours) / previousPeriodMetrics.utilization.transitTimeHours) * 100 : 0}
-            isPositive={productionMetrics.utilization.transitTimeHours <= previousPeriodMetrics.utilization.transitTimeHours} // Lower is better for efficiency
+            unit="%"
+            trend={(previousPeriodMetrics.utilization as any).vesselUtilization > 0 ? 
+              (((productionMetrics.utilization as any).vesselUtilization - (previousPeriodMetrics.utilization as any).vesselUtilization) / (previousPeriodMetrics.utilization as any).vesselUtilization) * 100 : 0}
+            isPositive={(productionMetrics.utilization as any).vesselUtilization >= (previousPeriodMetrics.utilization as any).vesselUtilization}
             color="purple"
-            contextualHelp="Time spent in vessel positioning, maneuvering, and transit between base and production locations. Calculated from voyage events with 'Maneuvering' and 'Transit' parent events. Includes setup time at production platforms. Lower hours indicate better route efficiency."
+            contextualHelp={`ENHANCED: Vessel utilization calculated using cost allocation validation and vessel codes classification for PRODUCTION operations. Confidence: ${(productionMetrics.utilization as any).utilizationConfidence || 'Medium'}. Transit time: ${(productionMetrics.utilization as any).transitTimeHours?.toFixed(1) || 'N/A'} hrs. Total offshore time: ${(productionMetrics.utilization as any).totalOffshoreTime?.toFixed(1) || 'N/A'} hrs. Uses enhanced calculation to prevent unrealistic values.`}
           />
         </div>
 

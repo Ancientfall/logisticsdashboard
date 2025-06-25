@@ -12,7 +12,7 @@ import { VoyageEvent } from '../types';
 const VESSEL_COST_RATES = [
   {
     startDate: new Date('2024-01-01'),    // January 1, 2024
-    endDate: new Date('2025-04-01'),      // April 1, 2025 (inclusive of March 31)
+    endDate: new Date('2025-03-31'),      // April 1, 2025 (inclusive of March 31)
     dailyRate: 33000, // $33,000 per day
     description: 'Jan 2024 - Mar 2025 Rate'
   },

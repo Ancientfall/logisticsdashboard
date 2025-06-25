@@ -11,6 +11,7 @@ import {
   calculateEnhancedVoyageEventMetrics,
   calculateEnhancedBulkFluidMetrics
 } from '../../utils/metricsCalculation';
+import { calculateAllEnhancedKPIs } from '../../utils/enhancedKPICalculation';
 import { validateDataIntegrity } from '../../utils/dataIntegrityValidator';
 import { deduplicateBulkActions, getDrillingFluidMovements } from '../../utils/bulkFluidDeduplicationEngine';
 import { 
@@ -802,18 +803,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       
       console.log(`📊 Data Integrity Score: ${Math.round(integrityReport.overallScore)}%`);
       
-      // Enhanced KPI calculations with drilling department focus
-      const enhancedKPIs = calculateEnhancedKPIMetrics(
-        voyageEvents,
-        vesselManifests,
-        voyageList,
-        costAllocation,
-        bulkActions,
-        'Drilling', // Focus on drilling department
-        isYTD ? undefined : filterMonth, // For YTD, don't filter by specific month
-        filterYear, // Always pass filterYear (will be current year for YTD)
-        filters.selectedLocation
-      );
+      // Enhanced KPI calculations with drilling department focus (kept for legacy compatibility)
+      // const enhancedKPIs = calculateEnhancedKPIMetrics(...) - replaced with fixedKPIs using enhanced calculation
 
       // Enhanced manifest metrics with filtering
       const manifestMetrics = calculateEnhancedManifestMetrics(
@@ -1550,108 +1541,69 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       // Calculate rig location cost analysis first (needed for costs calculation)
       const rigLocationCostAnalysis = calculateRigLocationCosts(costAllocation, filterMonth, filterYear, isYTD, filters.selectedLocation);
 
-      // Build comprehensive metrics object
+      // CRITICAL FIX: Calculate enhanced KPIs using cost allocation as master data source
+      console.log('🔧 CALCULATING ENHANCED KPIs with Cost Allocation Master Data Source');
+      const fixedKPIs = calculateAllEnhancedKPIs(
+        voyageEvents,
+        vesselManifests,
+        costAllocation,
+        'Drilling',
+        isYTD ? undefined : filterMonth,
+        filterYear
+      );
+
+      // Build comprehensive metrics object using FIXED KPIs
       const metrics = {
-        // Core cargo metrics from enhanced manifests
+        // FIXED: Core cargo metrics using cost allocation LC filtering
         cargo: {
-          totalCargoTons: manifestMetrics.totalCargoTons,
-          cargoTonnagePerVisit: manifestMetrics.cargoTonnagePerVisit,
-          rtPercentage: manifestMetrics.rtPercentage,
-          outboundPercentage: manifestMetrics.outboundPercentage
+          totalCargoTons: fixedKPIs.cargoTons.totalCargoTons,
+          cargoTonnagePerVisit: fixedKPIs.cargoTons.cargoTonnagePerVisit,
+          rtPercentage: manifestMetrics.rtPercentage, // Keep existing calculation for now
+          outboundPercentage: manifestMetrics.outboundPercentage, // Keep existing calculation for now
+          drillingOnlyTons: fixedKPIs.cargoTons.drillingOnlyTons,
+          validationRate: fixedKPIs.cargoTons.validationRate
         },
         
-        // Lifts metrics from enhanced manifests
+        // FIXED: Lifts metrics with proper LC validation and vessel codes
         lifts: {
-          totalLifts: manifestMetrics.totalLifts,
-          liftsPerHour: (() => {
-            // Calculate actual cargo operation hours for the specific location(s) and time period
-            let cargoOperationHours = 0;
-            
-            // Filter voyage events for cargo operations at drilling facilities
-            const cargoEvents = voyageEvents.filter(event => {
-              // Time filtering
-              if (isYTD && filterYear !== undefined) {
-                const eventDate = new Date(event.eventDate);
-                if (eventDate.getFullYear() !== filterYear) return false;
-              } else if (filterMonth !== undefined && filterYear !== undefined) {
-                const eventDate = new Date(event.eventDate);
-                if (eventDate.getMonth() !== filterMonth || eventDate.getFullYear() !== filterYear) return false;
-              }
-              
-              // Location filtering
-              if (filters.selectedLocation !== 'All Locations') {
-                const selectedFacility = getAllDrillingCapableLocations().find(
-                  f => f.displayName === filters.selectedLocation
-                );
-                if (selectedFacility) {
-                  const eventLocation = event.location?.toLowerCase().trim() || '';
-                  const mappedLocation = event.mappedLocation?.toLowerCase().trim() || '';
-                  const facilityLocationName = selectedFacility.locationName.toLowerCase();
-                  const facilityDisplayName = selectedFacility.displayName.toLowerCase();
-                  const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim();
-                  
-                  const matchesLocation = 
-                    eventLocation.includes(facilityLocationName) ||
-                    mappedLocation.includes(facilityLocationName) ||
-                    eventLocation.includes(facilityNameCore) ||
-                    mappedLocation.includes(facilityNameCore) ||
-                    facilityLocationName.includes(eventLocation) ||
-                    facilityNameCore.includes(eventLocation);
-                  
-                  if (!matchesLocation) return false;
-                }
-              }
-              
-              // Filter for cargo operation activities
-              const parentEvent = (event.parentEvent || '').toLowerCase();
-              const eventName = (event.event || '').toLowerCase();
-              const remarks = (event.remarks || '').toLowerCase();
-              
-              return parentEvent.includes('cargo') || 
-                     parentEvent.includes('loading') || 
-                     parentEvent.includes('offloading') ||
-                     parentEvent.includes('lifting') ||
-                     eventName.includes('cargo') ||
-                     eventName.includes('loading') ||
-                     eventName.includes('offloading') ||
-                     eventName.includes('lifting') ||
-                     eventName.includes('crane') ||
-                     remarks.includes('cargo') ||
-                     remarks.includes('crane');
-            });
-            
-            cargoOperationHours = cargoEvents.reduce((sum, event) => sum + (event.finalHours || event.hours || 0), 0);
-            
-            return cargoOperationHours > 0 ? manifestMetrics.totalLifts / cargoOperationHours : 0;
-          })(),
+          totalLifts: fixedKPIs.liftsPerHour.totalLifts,
+          liftsPerHour: fixedKPIs.liftsPerHour.liftsPerHour,
+          cargoOperationHours: fixedKPIs.liftsPerHour.cargoOperationHours,
+          lcValidationRate: fixedKPIs.liftsPerHour.lcValidationRate,
           vesselVisits: drillingVoyages // Use actual drilling voyages count from voyage list
         },
         
-        // Hours metrics from enhanced voyage events
+        // FIXED: Hours metrics using vessel codes classification
         hours: {
-          totalOSVHours: voyageMetrics.totalHours,
-          totalProductiveHours: voyageMetrics.productiveHours,
-          productiveHoursPercentage: voyageMetrics.totalHours > 0 ? Math.min((voyageMetrics.productiveHours / voyageMetrics.totalHours) * 100, 100) : 0,
+          totalOSVHours: fixedKPIs.productiveHours.totalOSVHours,
+          totalProductiveHours: fixedKPIs.productiveHours.productiveHours,
+          productiveHoursPercentage: fixedKPIs.productiveHours.productivePercentage,
+          vesselCodesCoverage: fixedKPIs.productiveHours.vesselCodesCoverage,
           averageTripDuration: 0 // Will be calculated from voyage duration if needed
         },
         
         // Cost metrics from LC-based cost allocation calculation
         costs: {
           totalVesselCost: Number(rigLocationCostAnalysis?.summary?.totalCost || 0),
-          costPerTon: manifestMetrics.totalCargoTons > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / manifestMetrics.totalCargoTons : 0,
-          costPerHour: voyageMetrics.totalHours > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / voyageMetrics.totalHours : 0
+          costPerTon: fixedKPIs.cargoTons.totalCargoTons > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / fixedKPIs.cargoTons.totalCargoTons : 0,
+          costPerHour: fixedKPIs.productiveHours.totalOSVHours > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / fixedKPIs.productiveHours.totalOSVHours : 0
         },
         
-        // Utilization metrics from enhanced calculations
+        // FIXED: Utilization metrics using enhanced calculations with cost allocation validation
         utilization: {
-          vesselUtilization: (() => {
-            const rawValue = voyageMetrics.vesselUtilization || 0;
-            const cappedValue = Math.min(rawValue, 100);
-            console.log(`🎯 DRILLING DASHBOARD: Vessel utilization ${rawValue.toFixed(1)}% -> ${cappedValue.toFixed(1)}%`);
-            return cappedValue;
-          })(),
-          transitTimeHours: voyageMetrics.transitTime || 0,
-          atLocationHours: voyageMetrics.totalOffshoreTime || 0
+          vesselUtilization: fixedKPIs.utilization.vesselUtilization,
+          transitTimeHours: fixedKPIs.utilization.transitTimeHours,
+          atLocationHours: fixedKPIs.utilization.atLocationHours,
+          totalOffshoreTime: fixedKPIs.utilization.totalOffshoreTime,
+          utilizationConfidence: fixedKPIs.utilization.utilizationConfidence
+        },
+        
+        // ENHANCED: Waiting time metrics using vessel codes classification
+        waitingTime: {
+          waitingTimeOffshore: fixedKPIs.waitingTime.waitingTimeOffshore,
+          waitingPercentage: fixedKPIs.waitingTime.waitingPercentage,
+          weatherExcludedHours: fixedKPIs.waitingTime.weatherExcludedHours,
+          installationWaitingHours: fixedKPIs.waitingTime.installationWaitingHours
         },
         
         // Bulk fluid metrics from enhanced deduplication
@@ -1683,20 +1635,21 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         ratePeriodAnalysis: [],
         budgetVsActual: {
           totalBudgeted: 0, // Will be calculated separately if needed
-          totalActual: enhancedKPIs.totalVesselCost || 0,
-          variance: enhancedKPIs.totalVesselCost || 0
+          totalActual: Number(rigLocationCostAnalysis?.summary?.totalCost || 0),
+          variance: Number(rigLocationCostAnalysis?.summary?.totalCost || 0)
         },
         budgetVariancePercentage: 0, // Will be calculated separately if needed
         dateFilteredDrillingCosts: []
       };
 
       console.log('✅ ENHANCED DRILLING METRICS CALCULATED:', {
-        cargoTons: metrics.cargo.totalCargoTons.toLocaleString(),
-        lifts: metrics.lifts.totalLifts.toLocaleString(),
-        productiveHours: metrics.hours.totalProductiveHours.toLocaleString(),
+        cargoTons: `${metrics.cargo.totalCargoTons.toLocaleString()} tons (${metrics.cargo.validationRate.toFixed(1)}% validation)`,
+        lifts: `${metrics.lifts.totalLifts.toLocaleString()} lifts @ ${metrics.lifts.liftsPerHour.toFixed(2)} lifts/hr`,
+        productiveHours: `${metrics.hours.totalProductiveHours.toLocaleString()} hrs (${metrics.hours.productiveHoursPercentage.toFixed(1)}%)`,
+        vesselUtilization: `${metrics.utilization.vesselUtilization.toFixed(1)}% (${metrics.utilization.utilizationConfidence} confidence)`,
+        dataQuality: `LC: ${fixedKPIs.dataQuality.lcCoverage.toFixed(1)}%, VesselCodes: ${fixedKPIs.dataQuality.vesselCodesCoverage.toFixed(1)}%`,
         totalCost: `$${metrics.costs.totalVesselCost.toLocaleString()}`,
-        integrityScore: `${Math.round(metrics.integrityScore)}%`,
-        criticalIssues: metrics.validationSummary.criticalIssues
+        integrityScore: `${Math.round(metrics.integrityScore)}%`
       });
       
       // COST DISCREPANCY ANALYSIS - COMPARE BOTH CALCULATIONS
@@ -2122,8 +2075,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 ((drillingMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
               isPositive: drillingMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
               contextualHelp: filters.selectedLocation === 'All Locations' ? 
-                "Total outbound tonnage delivered from base to all drilling rigs across GoA. Calculated from vessel manifests filtered for drilling operations using cost allocation LC validation. Includes deck cargo, tubulars, and drilling supplies." :
-                `Outbound tonnage specific to ${filters.selectedLocation}. Filtered from vessel manifests where destination matches selected drilling location. Validated against cost allocation LC numbers.`
+                `ENHANCED: Total outbound tonnage delivered from base to all drilling rigs across GoA. Uses CostAllocation.xlsx as authoritative master data source for drilling-only filtering. Validation rate: ${(drillingMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Includes deck cargo, tubulars, and drilling supplies validated against drilling LC numbers.` :
+                `ENHANCED: Outbound tonnage specific to ${filters.selectedLocation}. Filtered using cost allocation LC numbers as master data source. Validation rate: ${(drillingMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Only includes manifests validated against authoritative drilling cost allocation data.`
             },
             {
               title: filters.selectedLocation === 'All Locations' ? "Avg Visits/Week" : "Visits per Week",
@@ -2303,8 +2256,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 ((drillingMetrics.lifts.liftsPerHour - previousPeriodMetrics.lifts.liftsPerHour) / previousPeriodMetrics.lifts.liftsPerHour) * 100 : 0,
               isPositive: drillingMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour,
               contextualHelp: filters.selectedLocation === 'All Locations' ?
-                "Average operational efficiency across all GoA drilling locations. Calculated as total lifts divided by total productive hours. Includes all crane operations from drilling manifests validated against cost allocation LCs." :
-                `Operational efficiency specific to ${filters.selectedLocation}. Lifts per productive hour for this drilling location only. Productive hours exclude weather, waiting, and non-operational time.`
+                `ENHANCED: Average operational efficiency across all GoA drilling locations. Uses vessel codes classification for precise cargo operation identification and cost allocation LC validation for drilling-only filtering. LC validation rate: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Cargo ops hours: ${(drillingMetrics.lifts as any).cargoOperationHours?.toFixed(1) || 'N/A'} hrs.` :
+                `ENHANCED: Operational efficiency specific to ${filters.selectedLocation}. Uses vessel codes to identify cargo operations and cost allocation for location validation. LC validation: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Excludes weather, waiting, and non-operational time per vessel codes classification.`
             },
             {
               title: "Logistics Cost",
@@ -2349,24 +2302,15 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             contextualHelp="Total drilling and completion fluid volume offloaded to rigs. Calculated from bulk actions with anti-double-counting (load/offload pair deduplication). Includes drilling muds, completion fluids, and specialized chemicals. Filtered for rig destinations only."
           />
           <KPICard 
-            title="Weather Impact" 
-            value={`${Math.round((drillingMetrics.hours.totalOSVHours - drillingMetrics.hours.totalProductiveHours) / drillingMetrics.hours.totalOSVHours * 100 * 0.15)}`}
+            title="Data Quality" 
+            value={`${Math.round((drillingMetrics.hours as any).vesselCodesCoverage || 0)}`}
             variant="compact"
             unit="%"
-            trend={(() => {
-              const currentWeatherImpact = (drillingMetrics.hours.totalOSVHours - drillingMetrics.hours.totalProductiveHours) / drillingMetrics.hours.totalOSVHours * 100 * 0.15;
-              const prevWeatherImpact = previousPeriodMetrics.hours.totalProductiveHours > 0 ? 
-                ((drillingMetrics.hours.totalOSVHours - previousPeriodMetrics.hours.totalProductiveHours) / drillingMetrics.hours.totalOSVHours * 100 * 0.15) : currentWeatherImpact;
-              return prevWeatherImpact > 0 ? ((currentWeatherImpact - prevWeatherImpact) / prevWeatherImpact) * 100 : 0;
-            })()} 
-            isPositive={(() => {
-              const currentWeatherImpact = (drillingMetrics.hours.totalOSVHours - drillingMetrics.hours.totalProductiveHours) / drillingMetrics.hours.totalOSVHours * 100 * 0.15;
-              const prevWeatherImpact = previousPeriodMetrics.hours.totalProductiveHours > 0 ? 
-                ((drillingMetrics.hours.totalOSVHours - previousPeriodMetrics.hours.totalProductiveHours) / drillingMetrics.hours.totalOSVHours * 100 * 0.15) : currentWeatherImpact;
-              return currentWeatherImpact < prevWeatherImpact; // Lower weather impact is positive
-            })()}
+            trend={(previousPeriodMetrics.hours as any).vesselCodesCoverage > 0 ? 
+              (((drillingMetrics.hours as any).vesselCodesCoverage - (previousPeriodMetrics.hours as any).vesselCodesCoverage) / (previousPeriodMetrics.hours as any).vesselCodesCoverage) * 100 : 0}
+            isPositive={(drillingMetrics.hours as any).vesselCodesCoverage >= 80} // 80%+ is good data quality
             color="orange"
-            contextualHelp="Estimated weather downtime as percentage of total vessel time. Calculated as (Total OSV Hours - Productive Hours) × Weather Factor (15%). Based on voyage events classified via vessel codes. Lower percentages indicate better weather conditions."
+            contextualHelp={`ENHANCED: Data quality score based on vessel codes classification coverage. Current coverage: ${(drillingMetrics.hours as any).vesselCodesCoverage?.toFixed(1) || 'N/A'}%. Cost allocation validation: ${(drillingMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. High coverage ensures accurate productive/non-productive classification using authoritative vessel codes rather than hardcoded patterns.`}
           />
           <KPICard 
             title="Drilling Voyages" 
@@ -2380,15 +2324,15 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             contextualHelp="Total number of vessel voyages supporting drilling operations. Counted from voyage list data where voyage purpose = 'Drilling' or 'Mixed' with drilling components. Filtered by selected location if specified. Each round trip = 1 voyage."
           />
           <KPICard 
-            title="Maneuvering Hours" 
-            value={Math.round(drillingMetrics.utilization.transitTimeHours).toLocaleString()}
+            title="Vessel Utilization" 
+            value={Math.round((drillingMetrics.utilization as any).vesselUtilization || 0).toString()}
             variant="compact"
-            unit="hrs"
-            trend={previousPeriodMetrics.utilization.transitTimeHours > 0 ? 
-              ((drillingMetrics.utilization.transitTimeHours - previousPeriodMetrics.utilization.transitTimeHours) / previousPeriodMetrics.utilization.transitTimeHours) * 100 : 0}
-            isPositive={drillingMetrics.utilization.transitTimeHours <= previousPeriodMetrics.utilization.transitTimeHours} // Lower is better for efficiency
+            unit="%"
+            trend={(previousPeriodMetrics.utilization as any).vesselUtilization > 0 ? 
+              (((drillingMetrics.utilization as any).vesselUtilization - (previousPeriodMetrics.utilization as any).vesselUtilization) / (previousPeriodMetrics.utilization as any).vesselUtilization) * 100 : 0}
+            isPositive={(drillingMetrics.utilization as any).vesselUtilization >= (previousPeriodMetrics.utilization as any).vesselUtilization}
             color="purple"
-            contextualHelp="Time spent in vessel positioning, maneuvering, and transit between base and drilling locations. Calculated from voyage events with 'Maneuvering' and 'Transit' parent events. Includes setup time at drilling rigs. Lower hours indicate better route efficiency."
+            contextualHelp={`ENHANCED: Vessel utilization calculated using cost allocation validation and vessel codes classification. Confidence: ${(drillingMetrics.utilization as any).utilizationConfidence || 'Medium'}. Transit time: ${(drillingMetrics.utilization as any).transitTimeHours?.toFixed(1) || 'N/A'} hrs. Total offshore time: ${(drillingMetrics.utilization as any).totalOffshoreTime?.toFixed(1) || 'N/A'} hrs. Uses enhanced calculation to prevent unrealistic values.`}
           />
         </div>
 
