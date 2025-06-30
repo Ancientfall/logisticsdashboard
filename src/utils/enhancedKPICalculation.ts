@@ -10,6 +10,7 @@ import {
   getProductionCostAllocations
 } from './costAllocationProcessor';
 import { classifyEventWithVesselCodes, isProductiveEvent, isCargoOperationEvent } from './vesselCodesProcessor';
+import { getAllDrillingCapableLocations, mapCostAllocationLocation } from '../data/masterFacilities';
 
 // ==================== ENHANCED KPI INTERFACES ====================
 
@@ -70,6 +71,41 @@ export interface EnhancedKPIMetrics {
 }
 
 // ==================== COST ALLOCATION MASTER DATA FUNCTIONS ====================
+
+/**
+ * Filter cost allocations by selected location
+ */
+export function filterCostAllocationsByLocation(
+  costAllocations: CostAllocation[],
+  selectedLocation?: string
+): CostAllocation[] {
+  if (!selectedLocation || selectedLocation === 'All Locations') {
+    return costAllocations;
+  }
+
+  // Find the selected facility
+  const selectedFacility = getAllDrillingCapableLocations().find(
+    f => f.displayName === selectedLocation
+  );
+
+  if (!selectedFacility) {
+    console.warn(`⚠️ LOCATION FILTER: Selected location "${selectedLocation}" not found in master facilities`);
+    return costAllocations;
+  }
+
+  // Filter cost allocations that match the selected location
+  const filteredAllocations = costAllocations.filter(allocation => {
+    const mappedLocation = mapCostAllocationLocation(
+      allocation.rigLocation,
+      allocation.locationReference
+    );
+    
+    return mappedLocation && mappedLocation.displayName === selectedLocation;
+  });
+
+  console.log(`🎯 LOCATION FILTER: ${selectedLocation} -> ${filteredAllocations.length}/${costAllocations.length} cost allocations match`);
+  return filteredAllocations;
+}
 
 /**
  * Get authoritative drilling LC numbers from CostAllocation.xlsx
@@ -147,14 +183,18 @@ export function calculateFixedCargoTonsKPI(
   costAllocations: CostAllocation[],
   department: 'Drilling' | 'Production' = 'Drilling',
   month?: number,
-  year?: number
+  year?: number,
+  selectedLocation?: string
 ): EnhancedKPIMetrics['cargoTons'] {
-  console.log(`🚚 FIXED CARGO TONS KPI: Starting calculation for ${department} department`);
+  console.log(`🚚 FIXED CARGO TONS KPI: Starting calculation for ${department} department, location: ${selectedLocation || 'All Locations'}`);
   
-  // Get authoritative LC numbers from cost allocation
+  // CRITICAL FIX: Apply location filtering to cost allocations first
+  const locationFilteredCostAllocations = filterCostAllocationsByLocation(costAllocations, selectedLocation);
+  
+  // Get authoritative LC numbers from location-filtered cost allocation
   const authoritativeLCs = department === 'Drilling' 
-    ? getAuthoritativeDrillingLCs(costAllocations)
-    : getAuthoritativeProductionLCs(costAllocations);
+    ? getAuthoritativeDrillingLCs(locationFilteredCostAllocations)
+    : getAuthoritativeProductionLCs(locationFilteredCostAllocations);
   
   // Filter manifests by time period if specified
   let filteredManifests = vesselManifests;
@@ -217,14 +257,18 @@ export function calculateFixedLiftsPerHourKPI(
   costAllocations: CostAllocation[],
   department: 'Drilling' | 'Production' = 'Drilling',
   month?: number,
-  year?: number
+  year?: number,
+  selectedLocation?: string
 ): EnhancedKPIMetrics['liftsPerHour'] {
-  console.log(`🏗️ FIXED LIFTS/HR KPI: Starting calculation for ${department} department`);
+  console.log(`🏗️ FIXED LIFTS/HR KPI: Starting calculation for ${department} department, location: ${selectedLocation || 'All Locations'}`);
   
-  // Get authoritative LC numbers from cost allocation
+  // CRITICAL FIX: Apply location filtering to cost allocations first
+  const locationFilteredCostAllocations = filterCostAllocationsByLocation(costAllocations, selectedLocation);
+  
+  // Get authoritative LC numbers from location-filtered cost allocation
   const authoritativeLCs = department === 'Drilling' 
-    ? getAuthoritativeDrillingLCs(costAllocations)
-    : getAuthoritativeProductionLCs(costAllocations);
+    ? getAuthoritativeDrillingLCs(locationFilteredCostAllocations)
+    : getAuthoritativeProductionLCs(locationFilteredCostAllocations);
   
   // Filter manifests by time period and validate against cost allocation
   let filteredManifests = vesselManifests;
@@ -305,14 +349,18 @@ export function calculateFixedOSVProductiveHoursKPI(
   costAllocations: CostAllocation[],
   department: 'Drilling' | 'Production' = 'Drilling',
   month?: number,
-  year?: number
+  year?: number,
+  selectedLocation?: string
 ): EnhancedKPIMetrics['productiveHours'] {
-  console.log(`⚙️ FIXED OSV PRODUCTIVE HOURS: Starting calculation for ${department} department`);
+  console.log(`⚙️ FIXED OSV PRODUCTIVE HOURS: Starting calculation for ${department} department, location: ${selectedLocation || 'All Locations'}`);
   
-  // Get authoritative LC numbers from cost allocation
+  // CRITICAL FIX: Apply location filtering to cost allocations first
+  const locationFilteredCostAllocations = filterCostAllocationsByLocation(costAllocations, selectedLocation);
+  
+  // Get authoritative LC numbers from location-filtered cost allocation
   const authoritativeLCs = department === 'Drilling' 
-    ? getAuthoritativeDrillingLCs(costAllocations)
-    : getAuthoritativeProductionLCs(costAllocations);
+    ? getAuthoritativeDrillingLCs(locationFilteredCostAllocations)
+    : getAuthoritativeProductionLCs(locationFilteredCostAllocations);
   
   // Filter events by time period and validate against cost allocation
   let filteredEvents = voyageEvents;
@@ -382,14 +430,18 @@ export function calculateEnhancedWaitingTimeKPI(
   costAllocations: CostAllocation[],
   department: 'Drilling' | 'Production' = 'Drilling',
   month?: number,
-  year?: number
+  year?: number,
+  selectedLocation?: string
 ): EnhancedKPIMetrics['waitingTime'] {
-  console.log(`⏱️ ENHANCED WAITING TIME: Starting calculation for ${department} department`);
+  console.log(`⏱️ ENHANCED WAITING TIME: Starting calculation for ${department} department, location: ${selectedLocation || 'All Locations'}`);
   
-  // Get authoritative LC numbers from cost allocation
+  // CRITICAL FIX: Apply location filtering to cost allocations first
+  const locationFilteredCostAllocations = filterCostAllocationsByLocation(costAllocations, selectedLocation);
+  
+  // Get authoritative LC numbers from location-filtered cost allocation
   const authoritativeLCs = department === 'Drilling' 
-    ? getAuthoritativeDrillingLCs(costAllocations)
-    : getAuthoritativeProductionLCs(costAllocations);
+    ? getAuthoritativeDrillingLCs(locationFilteredCostAllocations)
+    : getAuthoritativeProductionLCs(locationFilteredCostAllocations);
   
   // Filter events by time period and validate against cost allocation
   let filteredEvents = voyageEvents;
@@ -466,14 +518,18 @@ export function calculateEnhancedVesselUtilizationKPI(
   costAllocations: CostAllocation[],
   department: 'Drilling' | 'Production' = 'Drilling',
   month?: number,
-  year?: number
+  year?: number,
+  selectedLocation?: string
 ): EnhancedKPIMetrics['utilization'] {
-  console.log(`📊 ENHANCED VESSEL UTILIZATION: Starting calculation for ${department} department`);
+  console.log(`📊 ENHANCED VESSEL UTILIZATION: Starting calculation for ${department} department, location: ${selectedLocation || 'All Locations'}`);
   
-  // Get authoritative LC numbers from cost allocation
+  // CRITICAL FIX: Apply location filtering to cost allocations first
+  const locationFilteredCostAllocations = filterCostAllocationsByLocation(costAllocations, selectedLocation);
+  
+  // Get authoritative LC numbers from location-filtered cost allocation
   const authoritativeLCs = department === 'Drilling' 
-    ? getAuthoritativeDrillingLCs(costAllocations)
-    : getAuthoritativeProductionLCs(costAllocations);
+    ? getAuthoritativeDrillingLCs(locationFilteredCostAllocations)
+    : getAuthoritativeProductionLCs(locationFilteredCostAllocations);
   
   // Filter events by time period and validate against cost allocation
   let filteredEvents = voyageEvents;
@@ -557,21 +613,23 @@ export function calculateAllEnhancedKPIs(
   costAllocations: CostAllocation[],
   department: 'Drilling' | 'Production' = 'Drilling',
   month?: number,
-  year?: number
+  year?: number,
+  selectedLocation?: string
 ): EnhancedKPIMetrics {
-  console.log(`🎯 CALCULATING ALL ENHANCED KPIs for ${department} department`);
+  console.log(`🎯 CALCULATING ALL ENHANCED KPIs for ${department} department, location: ${selectedLocation || 'All Locations'}`);
   
-  // Calculate all fixed KPIs
-  const cargoTons = calculateFixedCargoTonsKPI(vesselManifests, costAllocations, department, month, year);
-  const liftsPerHour = calculateFixedLiftsPerHourKPI(vesselManifests, voyageEvents, costAllocations, department, month, year);
-  const productiveHours = calculateFixedOSVProductiveHoursKPI(voyageEvents, costAllocations, department, month, year);
-  const waitingTime = calculateEnhancedWaitingTimeKPI(voyageEvents, costAllocations, department, month, year);
-  const utilization = calculateEnhancedVesselUtilizationKPI(voyageEvents, costAllocations, department, month, year);
+  // Calculate all fixed KPIs with location filtering
+  const cargoTons = calculateFixedCargoTonsKPI(vesselManifests, costAllocations, department, month, year, selectedLocation);
+  const liftsPerHour = calculateFixedLiftsPerHourKPI(vesselManifests, voyageEvents, costAllocations, department, month, year, selectedLocation);
+  const productiveHours = calculateFixedOSVProductiveHoursKPI(voyageEvents, costAllocations, department, month, year, selectedLocation);
+  const waitingTime = calculateEnhancedWaitingTimeKPI(voyageEvents, costAllocations, department, month, year, selectedLocation);
+  const utilization = calculateEnhancedVesselUtilizationKPI(voyageEvents, costAllocations, department, month, year, selectedLocation);
   
-  // Calculate data quality metrics
+  // Calculate data quality metrics with location filtering
+  const locationFilteredCostAllocations = filterCostAllocationsByLocation(costAllocations, selectedLocation);
   const authoritativeLCs = department === 'Drilling' 
-    ? getAuthoritativeDrillingLCs(costAllocations)
-    : getAuthoritativeProductionLCs(costAllocations);
+    ? getAuthoritativeDrillingLCs(locationFilteredCostAllocations)
+    : getAuthoritativeProductionLCs(locationFilteredCostAllocations);
   
   const totalEvents = voyageEvents.filter(event => 
     month === undefined || year === undefined ||

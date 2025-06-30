@@ -25,7 +25,9 @@ export const calculateEnhancedManifestMetrics = (
   currentMonth?: number,
   currentYear?: number,
   department: 'Drilling' | 'Production' | 'All' = 'All',
-  locationFilter?: string
+  locationFilter?: string,
+  voyageList?: any[],
+  allVesselManifests?: VesselManifest[]
 ) => {
   // Minimal logging for manifest metrics
   
@@ -133,6 +135,13 @@ export const calculateEnhancedManifestMetrics = (
 
   // Cargo metrics calculated successfully
 
+  // Calculate shared visits percentage (pass voyageList and all manifests for proper analysis)
+  const sharedVisitsAnalysis = calculateSharedVisitsPercentage(
+    filteredManifests, 
+    voyageList || [], 
+    allVesselManifests || vesselManifests
+  );
+
   return {
     totalDeckTons,
     totalRTTons,
@@ -153,7 +162,97 @@ export const calculateEnhancedManifestMetrics = (
     uniqueManifests,
     validationRate: validation.validationSummary.validationRate,
     invalidManifests: validation.validationSummary.invalidCount,
-    orphanedManifests: validation.validationSummary.orphanedCount
+    orphanedManifests: validation.validationSummary.orphanedCount,
+    sharedVisitsPercentage: sharedVisitsAnalysis.sharedVisitsPercentage,
+    totalProductionVisits: sharedVisitsAnalysis.totalProductionVisits,
+    sharedProductionVisits: sharedVisitsAnalysis.sharedProductionVisits,
+    sharedVisitsDetails: sharedVisitsAnalysis.details
+  };
+};
+
+/**
+ * Calculate shared visits percentage for production facilities
+ * Determines what percentage of visits to production facilities were part of multi-stop voyages
+ */
+export const calculateSharedVisitsPercentage = (
+  vesselManifests: VesselManifest[],
+  voyageList: any[],
+  allVesselManifests?: VesselManifest[]
+): {
+  sharedVisitsPercentage: number;
+  totalProductionVisits: number;
+  sharedProductionVisits: number;
+  details: Array<{
+    voyageId: string;
+    vessel: string;
+    productionFacility: string;
+    otherLocations: string[];
+    isShared: boolean;
+  }>;
+} => {
+  // Use the filtered manifests for counting visits to the selected location/department
+  const productionManifests = vesselManifests;
+  
+  // Use all manifests to determine if voyages have multiple stops
+  const manifestsForVoyageAnalysis = allVesselManifests || vesselManifests;
+
+  // Create a map of all locations by voyage ID from all manifests
+  const allVoyageLocations = new Map<string, Set<string>>();
+  manifestsForVoyageAnalysis.forEach(manifest => {
+    const voyageId = manifest.voyageId || manifest.standardizedVoyageId;
+    const location = manifest.mappedLocation || manifest.offshoreLocation || '';
+    if (voyageId && location) {
+      if (!allVoyageLocations.has(voyageId)) {
+        allVoyageLocations.set(voyageId, new Set());
+      }
+      allVoyageLocations.get(voyageId)!.add(location);
+    }
+  });
+
+  // Analyze each production manifest to determine if it's part of a shared voyage
+  const details: Array<{
+    voyageId: string;
+    vessel: string;
+    productionFacility: string;
+    otherLocations: string[];
+    isShared: boolean;
+  }> = [];
+
+  let totalProductionVisits = 0;
+  let sharedProductionVisits = 0;
+
+  productionManifests.forEach(manifest => {
+    totalProductionVisits++;
+    
+    const voyageId = manifest.voyageId || manifest.standardizedVoyageId;
+    const productionFacility = manifest.mappedLocation || manifest.offshoreLocation || '';
+    
+    // Get all locations visited in this voyage
+    const allLocationsInVoyage = allVoyageLocations.get(voyageId) || new Set([productionFacility]);
+    const otherLocations = Array.from(allLocationsInVoyage).filter(loc => loc !== productionFacility);
+    const isShared = otherLocations.length > 0;
+    
+    if (isShared) {
+      sharedProductionVisits++;
+    }
+    
+    details.push({
+      voyageId,
+      vessel: manifest.transporter || '',
+      productionFacility,
+      otherLocations,
+      isShared
+    });
+  });
+
+  const sharedVisitsPercentage = totalProductionVisits > 0 ? 
+    (sharedProductionVisits / totalProductionVisits) * 100 : 0;
+
+  return {
+    sharedVisitsPercentage,
+    totalProductionVisits,
+    sharedProductionVisits,
+    details
   };
 };
 

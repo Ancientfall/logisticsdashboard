@@ -1549,7 +1549,8 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         costAllocation,
         'Drilling',
         isYTD ? undefined : filterMonth,
-        filterYear
+        filterYear,
+        filters.selectedLocation
       );
 
       // Build comprehensive metrics object using FIXED KPIs
@@ -2070,7 +2071,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               title: "Outbound Tonnage",
               value: Math.round(drillingMetrics.cargo.totalCargoTons).toLocaleString(),
               unit: "tons",
-              target: dynamicTargets.cargoTons,
+              target: filters.selectedLocation === 'All Locations' ? 14000 : 3000,
               trend: previousPeriodMetrics.cargo.totalCargoTons > 0 ? 
                 ((drillingMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
               isPositive: drillingMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
@@ -2239,7 +2240,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 }
               })(),
               unit: "visits/week",
-              target: filters.selectedLocation === 'All Locations' ? 2.0 : 8,
+              target: 3,
               trend: previousPeriodMetrics.lifts.vesselVisits > 0 ? 
                 ((drillingMetrics.lifts.vesselVisits - previousPeriodMetrics.lifts.vesselVisits) / previousPeriodMetrics.lifts.vesselVisits) * 100 : 0,
               isPositive: drillingMetrics.lifts.vesselVisits >= previousPeriodMetrics.lifts.vesselVisits,
@@ -2251,7 +2252,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               title: "Lifts per Hour",
               value: (Math.round(drillingMetrics.lifts.liftsPerHour * 100) / 100).toString(),
               unit: "lifts/hr",
-              target: dynamicTargets.liftsPerHour,
+              target: 3,
               trend: previousPeriodMetrics.lifts.liftsPerHour > 0 ? 
                 ((drillingMetrics.lifts.liftsPerHour - previousPeriodMetrics.lifts.liftsPerHour) / previousPeriodMetrics.lifts.liftsPerHour) * 100 : 0,
               isPositive: drillingMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour,
@@ -2260,10 +2261,10 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 `ENHANCED: Operational efficiency specific to ${filters.selectedLocation}. Uses vessel codes to identify cargo operations and cost allocation for location validation. LC validation: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Excludes weather, waiting, and non-operational time per vessel codes classification.`
             },
             {
-              title: "Logistics Cost",
+              title: "Vessel Logistics Cost",
               value: formatSmartCurrency(drillingMetrics.costs.totalVesselCost),
               unit: "",
-              target: filters.selectedLocation === 'All Locations' ? 15000 : 3000,
+              target: filters.selectedLocation === 'All Locations' ? 11000000 : 1000000,
               trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
                 ((drillingMetrics.costs.totalVesselCost - (previousPeriodMetrics.costs?.totalVesselCost || 0)) / (previousPeriodMetrics.costs?.totalVesselCost || 1)) * 100 : 0,
               isPositive: drillingMetrics.costs.totalVesselCost <= (previousPeriodMetrics.costs?.totalVesselCost || 0), // Lower cost is positive
@@ -2289,7 +2290,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
 
 
         {/* Compact KPI Cards Row - Matching your image layout */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
           <KPICard 
             title="Fluid Movement" 
             value={Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString()}
@@ -2300,17 +2301,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             isPositive={drillingMetrics.bulk.totalBulkVolume >= previousPeriodMetrics.bulk.totalBulkVolume}
             color="blue"
             contextualHelp="Total drilling and completion fluid volume offloaded to rigs. Calculated from bulk actions with anti-double-counting (load/offload pair deduplication). Includes drilling muds, completion fluids, and specialized chemicals. Filtered for rig destinations only."
-          />
-          <KPICard 
-            title="Data Quality" 
-            value={`${Math.round((drillingMetrics.hours as any).vesselCodesCoverage || 0)}`}
-            variant="compact"
-            unit="%"
-            trend={(previousPeriodMetrics.hours as any).vesselCodesCoverage > 0 ? 
-              (((drillingMetrics.hours as any).vesselCodesCoverage - (previousPeriodMetrics.hours as any).vesselCodesCoverage) / (previousPeriodMetrics.hours as any).vesselCodesCoverage) * 100 : 0}
-            isPositive={(drillingMetrics.hours as any).vesselCodesCoverage >= 80} // 80%+ is good data quality
-            color="orange"
-            contextualHelp={`ENHANCED: Data quality score based on vessel codes classification coverage. Current coverage: ${(drillingMetrics.hours as any).vesselCodesCoverage?.toFixed(1) || 'N/A'}%. Cost allocation validation: ${(drillingMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. High coverage ensures accurate productive/non-productive classification using authoritative vessel codes rather than hardcoded patterns.`}
           />
           <KPICard 
             title="Drilling Voyages" 

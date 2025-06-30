@@ -113,7 +113,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       ytdVoyageEvents, ytdVesselManifests, ytdVoyageList, costAllocation, ytdBulkActions, 'Drilling', currentMonth, currentYear
     );
     const drillingManifests = calculateEnhancedManifestMetrics(
-      ytdVesselManifests, costAllocation, currentMonth, currentYear, 'Drilling'
+      ytdVesselManifests, costAllocation, currentMonth, currentYear, 'Drilling', undefined, ytdVoyageList, ytdVesselManifests
     );
     const drillingEvents = calculateEnhancedVoyageEventMetrics(
       ytdVoyageEvents, costAllocation, currentMonth, currentYear, 'Drilling'
@@ -123,7 +123,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       ytdVoyageEvents, ytdVesselManifests, ytdVoyageList, costAllocation, ytdBulkActions, 'Production', currentMonth, currentYear
     );
     const productionManifests = calculateEnhancedManifestMetrics(
-      ytdVesselManifests, costAllocation, currentMonth, currentYear, 'Production'
+      ytdVesselManifests, costAllocation, currentMonth, currentYear, 'Production', undefined, ytdVoyageList, ytdVesselManifests
     );
 
     const voyageKPIs = calculateEnhancedKPIMetrics(
@@ -472,6 +472,18 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       const productionCargoTons = (allMetrics.production as any)?.totalDeckTons || (allMetrics.production as any)?.totalCargoTons || 0;
       const productionUtilization = (allMetrics.production as any)?.vesselUtilizationRate || 0;
       
+      // Calculate Lifts per Hour for production using enhanced calculations
+      const productionLifts = (allMetrics.production as any)?.totalLifts || 0;
+      const productionProductiveHours = (allMetrics.production as any)?.productiveHours || 0;
+      const productionLiftsPerHour = productionProductiveHours > 0 ? productionLifts / productionProductiveHours : 0;
+      
+      // Get Shared Visits and RT Lifts from enhanced manifest metrics
+      const sharedVisitsPercentage = (allMetrics.production as any)?.sharedVisitsPercentage || 0;
+      const totalRTLifts = (allMetrics.production as any)?.totalRTLifts || 0;
+      
+      // Calculate Logistics Cost using facility-specific targets
+      const productionCostFormatted = formatSmartCurrency(productionCost);
+      
       // DEBUG: Log TV Display production utilization calculation 
       console.error('🚨 TV DISPLAY PRODUCTION UTILIZATION DEBUG:', {
         rawProductionUtilizationRate: (allMetrics.production as any)?.vesselUtilizationRate,
@@ -496,62 +508,54 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         costAllocationProductionLCs: costAllocation.filter(ca => !ca.isDrilling).map(ca => ca.lcNumber).slice(0, 5)
       });
       
-      const productionCostFormatted = formatSmartCurrency(productionCost);
-      
       slides.push({
         id: 'production-operations',
         category: 'Production Support',
         gradient: 'bg-gradient-to-br from-purple-50 to-violet-100',
         cards: [
           {
-            id: 'production-volume',
-            title: 'Chemical Volume',
-            value: formatNumber(Math.round(fluidVolumeGals / 1000)),
-            unit: 'K gals',
+            id: 'shared-visits',
+            title: '% Shared Visits',
+            value: sharedVisitsPercentage.toFixed(1),
+            unit: '%',
             trend: 12.3,
             isPositive: true,
-            icon: Droplet,
+            icon: Ship,
             color: 'from-purple-500 to-violet-600',
-            subtitle: 'Chemical transfers'
+            subtitle: 'Multi-stop voyage efficiency'
           },
           {
-            id: 'production-cargo',
-            title: 'Production Cargo',
-            value: formatNumber(Math.round(productionCargoTons)),
-            unit: 'tons',
-            trend: 6.8,
-            isPositive: true,
+            id: 'rt-lifts',
+            title: 'Round-Tripped Lifts',
+            value: formatNumber(totalRTLifts),
+            unit: 'lifts',
+            trend: -6.8,
+            isPositive: false,
             icon: Target,
             color: 'from-indigo-500 to-purple-600',
-            subtitle: 'Production cargo tons'
+            subtitle: 'RT crane operations'
           },
           {
-            id: 'production-voyages',
-            title: 'Avg Voyages/Month',
-            value: avgProductionVoyagesPerMonth.toFixed(1),
-            unit: 'voyages/mo',
-            trend: 3.7,
+            id: 'lifts-per-hour',
+            title: 'Lifts per Hour',
+            value: productionLiftsPerHour.toFixed(1),
+            unit: 'lifts/hr',
+            trend: 5.2,
             isPositive: true,
-            icon: Ship,
+            icon: Gauge,
             color: 'from-cyan-500 to-blue-600',
-            subtitle: 'Monthly production voyages'
+            subtitle: 'Production efficiency'
           },
           {
-            id: 'production-utilization',
-            title: 'Production Utilization',
-            value: (() => {
-              // Smart percentage handling: if productionUtilization is already >1, it's likely already a percentage
-              const rawValue = productionUtilization > 1 ? productionUtilization : productionUtilization * 100;
-              const cappedValue = Math.min(rawValue, 100);
-              console.log(`🎯 TV DISPLAY: Production utilization raw=${productionUtilization}, converted=${rawValue}, capped=${cappedValue}`);
-              return cappedValue.toFixed(1);
-            })(),
-            unit: '%',
-            trend: -2.8,
+            id: 'logistics-cost',
+            title: 'Logistics Cost',
+            value: productionCostFormatted,
+            unit: '',
+            trend: -3.1,
             isPositive: false,
-            icon: Fuel,
+            icon: DollarSign,
             color: 'from-orange-500 to-red-600',
-            subtitle: 'Production vessel efficiency'
+            subtitle: 'Production cost allocation'
           }
         ]
       });

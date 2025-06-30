@@ -155,7 +155,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         previousFilterMonth,
         previousFilterYear,
         'Production',
-        filters.selectedLocation
+        filters.selectedLocation,
+        voyageList,
+        vesselManifests // Pass all vessel manifests for shared visits analysis
       );
 
       const prevVoyageMetrics = calculateEnhancedVoyageEventMetrics(
@@ -178,7 +180,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       return {
         cargo: {
           totalCargoTons: prevManifestMetrics.totalCargoTons,
-          cargoTonnagePerVisit: prevManifestMetrics.cargoTonnagePerVisit
+          cargoTonnagePerVisit: prevManifestMetrics.cargoTonnagePerVisit,
+          sharedVisitsPercentage: prevManifestMetrics.sharedVisitsPercentage || 0
         },
         lifts: {
           totalLifts: prevManifestMetrics.totalLifts,
@@ -374,7 +377,9 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         filterMonth,
         filterYear,
         'Production',
-        filters.selectedLocation
+        filters.selectedLocation,
+        voyageList,
+        vesselManifests // Pass all vessel manifests for shared visits analysis
       );
 
       // Debug: Log detailed manifest metrics for production
@@ -724,7 +729,8 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
         costAllocation,
         'Production', // Focus on production department
         isYTD ? undefined : filterMonth,
-        filterYear
+        filterYear,
+        filters.selectedLocation
       );
 
       // Build comprehensive production metrics object using FIXED KPIs
@@ -740,7 +746,12 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           // RT Lifts metrics from enhanced manifest calculation
           totalRTLifts: manifestMetrics.totalRTLifts || 0,
           totalAllLifts: manifestMetrics.totalAllLifts || manifestMetrics.totalLifts || 0,
-          rtLiftsPercentage: manifestMetrics.rtLiftsPercentage || 0
+          rtLiftsPercentage: manifestMetrics.rtLiftsPercentage || 0,
+          // Shared visits metrics
+          sharedVisitsPercentage: manifestMetrics.sharedVisitsPercentage || 0,
+          totalProductionVisits: manifestMetrics.totalProductionVisits || 0,
+          sharedProductionVisits: manifestMetrics.sharedProductionVisits || 0,
+          sharedVisitsDetails: manifestMetrics.sharedVisitsDetails || []
         },
         
         // FIXED: Lifts metrics with proper LC validation and vessel codes for PRODUCTION
@@ -988,9 +999,7 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
       cargoTons: isSingleLocation && isSingleMonth ? 2500 : 
                  isSingleLocation ? 25000 : 
                  isSingleMonth ? 8500 : 85000,
-      liftsPerHour: isSingleLocation && isSingleMonth ? 1.4 : 
-                    isSingleLocation ? 1.3 : 
-                    isSingleMonth ? 1.1 : 1.2,
+      liftsPerHour: 6, // Target: 6 lifts per hour for all scenarios
       productiveHours: isSingleLocation && isSingleMonth ? 300 : 
                        isSingleLocation ? 1200 : 
                        isSingleMonth ? 400 : 2000,
@@ -1047,16 +1056,53 @@ const ProductionDashboard: React.FC<ProductionDashboardProps> = ({ onNavigateToU
           }
           heroMetrics={[
             {
-              title: "Outbound Tonnage",
-              value: Math.round(productionMetrics.cargo.totalCargoTons).toLocaleString(),
-              unit: "tons",
-              target: dynamicTargets.cargoTons,
-              trend: previousPeriodMetrics.cargo.totalCargoTons > 0 ? 
-                ((productionMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
-              isPositive: productionMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
-              contextualHelp: filters.selectedLocation === 'All Locations' ? 
-                `ENHANCED: Total outbound tonnage delivered from base to all production facilities across GoA. Uses CostAllocation.xlsx as authoritative master data source for production-only filtering. Validation rate: ${(productionMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Includes production equipment, supplies, and chemicals validated against production LC numbers.` :
-                `ENHANCED: Outbound tonnage specific to ${filters.selectedLocation}. Filtered using cost allocation LC numbers as master data source. Validation rate: ${(productionMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Only includes manifests validated against authoritative production cost allocation data.`
+              title: "% Shared Visits",
+              value: ((productionMetrics.cargo as any).sharedVisitsPercentage || 0).toFixed(1),
+              unit: "%",
+              target: 50, // Target: 50% shared visits for efficient multi-stop operations
+              trend: (previousPeriodMetrics.cargo as any).sharedVisitsPercentage > 0 ? 
+                (((productionMetrics.cargo as any).sharedVisitsPercentage - (previousPeriodMetrics.cargo as any).sharedVisitsPercentage)) : 0,
+              isPositive: ((productionMetrics.cargo as any).sharedVisitsPercentage || 0) >= 20, // Higher is better for efficiency
+              contextualHelp: (() => {
+                const sharedVisitsPercentage = (productionMetrics.cargo as any).sharedVisitsPercentage || 0;
+                const totalProductionVisits = (productionMetrics.cargo as any).totalProductionVisits || 0;
+                const sharedProductionVisits = (productionMetrics.cargo as any).sharedProductionVisits || 0;
+                const details = (productionMetrics.cargo as any).sharedVisitsDetails || [];
+                
+                // Get unique vessels and locations for summary
+                const uniqueVessels = new Set(details.map((d: any) => d.vessel)).size;
+                const uniqueFacilities = new Set(details.map((d: any) => d.productionFacility)).size;
+
+                return `🚢 SHARED VISITS ANALYSIS
+
+${sharedVisitsPercentage.toFixed(1)}% of production visits share voyages
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 VISIT BREAKDOWN
+
+Shared Visits: ${sharedProductionVisits.toLocaleString()} visits
+Total Production Visits: ${totalProductionVisits.toLocaleString()} visits
+Efficiency Rate: ${sharedVisitsPercentage.toFixed(1)}%
+Unique Vessels: ${uniqueVessels} vessels
+Production Facilities: ${uniqueFacilities} locations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 EFFICIENCY ANALYSIS
+
+Target: >50% shared visits for optimal route efficiency
+Current: ${sharedVisitsPercentage >= 50 ? '✅ Exceeds Target' : sharedVisitsPercentage >= 40 ? '⚠️ Near Target' : '❌ Below Target'}
+Status: ${sharedVisitsPercentage >= 60 ? 'Excellent' : sharedVisitsPercentage >= 50 ? 'Good' : sharedVisitsPercentage >= 40 ? 'Fair' : 'Needs Improvement'}
+
+Shared visits indicate efficient multi-stop voyage planning.
+Higher percentages suggest optimized logistics and reduced costs.
+
+Period: ${filters.selectedMonth}
+Location: ${filters.selectedLocation}
+
+Source: Vessel manifests voyage analysis`;
+              })()
             },
             {
               title: "Avg Visits/Week",
@@ -1355,7 +1401,16 @@ Note: ENHANCED with cost allocation validation and vessel codes classification`;
                 return Math.min(productionVesselCost, 4000000); // Cap at $4M for production assets only
               })()),
               unit: "",
-              target: filters.selectedLocation === 'All Locations' ? 3.0 : 1.2, // Production assets logistics cost targets in millions
+              target: (() => {
+                // Facility-specific logistics cost targets
+                const selectedLocation = filters.selectedLocation;
+                if (selectedLocation.includes('Na Kika')) return 550000; // $550k for Na Kika
+                if (selectedLocation.includes('Thunder Horse')) return 800000; // $800k for Thunder Horse
+                if (selectedLocation.includes('Mad Dog')) return 750000; // $750k for Mad Dog
+                if (selectedLocation.includes('Atlantis')) return 650000; // $650k for Atlantis
+                if (selectedLocation.includes('Argos')) return 280000; // $280k for Argos
+                return 2500000; // $2.5M for All Locations
+              })(),
               trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
                 ((productionMetrics.costs.totalVesselCost - (previousPeriodMetrics.costs?.totalVesselCost || 0)) / (previousPeriodMetrics.costs?.totalVesselCost || 1)) * 100 : 0,
               isPositive: productionMetrics.costs.totalVesselCost <= (previousPeriodMetrics.costs?.totalVesselCost || 0),
@@ -1451,7 +1506,7 @@ Note: Excludes fuel costs, vessel charter only`;
               title: "Round-Tripped Lifts",
               value: ((productionMetrics.cargo as any).totalRTLifts || 0).toLocaleString(),
               unit: "lifts",
-              target: Math.round(productionMetrics.lifts.totalLifts * 0.15), // Target: Keep RT lifts below 15% of total lifts
+              target: 15, // Target: 15 round-tripped lifts
               trend: (previousPeriodMetrics.cargo as any).totalRTLifts > 0 ? 
                 (((productionMetrics.cargo as any).totalRTLifts - (previousPeriodMetrics.cargo as any).totalRTLifts) / (previousPeriodMetrics.cargo as any).totalRTLifts) * 100 : 0,
               isPositive: ((productionMetrics.cargo as any).totalRTLifts || 0) <= ((previousPeriodMetrics.cargo as any).totalRTLifts || 100), // Lower is better
