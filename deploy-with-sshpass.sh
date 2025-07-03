@@ -6,12 +6,27 @@
 echo "🚀 BP Logistics Dashboard - VPS Deployment Script"
 echo "================================================="
 
-# Configuration
-VPS_USER="root"
-VPS_HOST="178.16.140.185"
-VPS_PATH="/var/www/logisticsdashboard"
-VPS_PASSWORD="@dmiralThr@wn1"
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# Configuration - Use environment variables with fallbacks
+VPS_USER="${VPS_SSH_USER:-root}"
+VPS_HOST="${VPS_SERVER_IP:-PLEASE_SET_VPS_SERVER_IP}"
+VPS_PATH="${VPS_SERVER_PATH:-/var/www/logisticsdashboard}"
+VPS_PASSWORD="${VPS_SSH_PASSWORD:-PLEASE_SET_VPS_SSH_PASSWORD}"
 LOCAL_BUILD_PATH="./build"
+
+# Security check
+if [ "$VPS_HOST" = "PLEASE_SET_VPS_SERVER_IP" ] || [ "$VPS_PASSWORD" = "PLEASE_SET_VPS_SSH_PASSWORD" ]; then
+    echo "❌ ERROR: Please set VPS credentials in .env file"
+    echo "Copy .env.example to .env and configure:"
+    echo "  VPS_SERVER_IP=your.server.ip"
+    echo "  VPS_SSH_USER=your_user"
+    echo "  VPS_SSH_PASSWORD=your_password"
+    exit 1
+fi
 
 # Find the latest deployment package
 DEPLOYMENT_PACKAGE=$(ls -t bp-dashboard-deployment-*.tar.gz 2>/dev/null | head -1)

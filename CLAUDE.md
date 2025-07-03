@@ -551,9 +551,9 @@ The variance analysis implementation provides **enterprise-grade statistical int
 
 🎯 **Server Details**:
 - **Domain**: https://bpsolutionsdashboard.com
-- **IP Address**: 178.16.140.185
-- **SSH User**: root
-- **SSH Password**: @dmiralThr@wn1
+- **IP Address**: [SERVER_IP] # Set in .env as VPS_SERVER_IP
+- **SSH User**: [SSH_USER] # Set in .env as VPS_SSH_USER  
+- **SSH Password**: [SSH_PASSWORD] # Set in .env as VPS_SSH_PASSWORD
 - **Server Path**: `/var/www/logisticsdashboard`
 
 🔧 **Technical Architecture**:
@@ -604,7 +604,7 @@ tar -czf bp-dashboard-deployment-$(date +%Y%m%d_%H%M%S).tar.gz -C build .
 chmod +x deploy-with-sshpass.sh && ./deploy-with-sshpass.sh
 
 # 4. Restart PM2 process to pick up changes
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 restart bp-logistics-dashboard"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
 
 # 5. Verify deployment
 curl -s -o /dev/null -w "%{http_code}" https://bpsolutionsdashboard.com
@@ -613,16 +613,16 @@ curl -s -o /dev/null -w "%{http_code}" https://bpsolutionsdashboard.com
 **Quick Server Management**:
 ```bash
 # Check PM2 status
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 list"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 list"
 
 # View server logs
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 logs bp-logistics-dashboard --lines 20"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 logs bp-logistics-dashboard --lines 20"
 
 # Restart server
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 restart bp-logistics-dashboard"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
 
 # Check Nginx status
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo systemctl status nginx"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "sudo systemctl status nginx"
 
 # Test Excel files API
 curl -s "https://bpsolutionsdashboard.com/api/excel-files" | head -20
@@ -658,25 +658,25 @@ curl -s "https://bpsolutionsdashboard.com/api/excel-files" | head -20
 **1. Site Returns 404/502**:
 ```bash
 # Check PM2 process status
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 list"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 list"
 
 # If stopped, restart PM2
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 restart bp-logistics-dashboard"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
 
 # Check server logs for errors
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "pm2 logs bp-logistics-dashboard"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 logs bp-logistics-dashboard"
 ```
 
 **2. Excel Files Not Loading**:
 ```bash
 # Verify Excel files exist
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "ls -la /var/www/logisticsdashboard/excel-data/excel-files/"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "ls -la /var/www/logisticsdashboard/excel-data/excel-files/"
 
 # Test API endpoint directly
 curl -s "https://bpsolutionsdashboard.com/api/excel-files"
 
 # Check file permissions
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo chown -R www-data:www-data /var/www/logisticsdashboard"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "sudo chown -R www-data:www-data /var/www/logisticsdashboard"
 ```
 
 **3. Outdated Build Deployed**:
@@ -694,13 +694,13 @@ ls -la build/static/js/main.*.js
 **4. Nginx Configuration Issues**:
 ```bash
 # Test Nginx configuration
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo nginx -t"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "sudo nginx -t"
 
 # Reload Nginx
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo systemctl reload nginx"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "sudo systemctl reload nginx"
 
 # Check Nginx logs
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo tail -f /var/log/nginx/error.log"
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "sudo tail -f /var/log/nginx/error.log"
 ```
 
 ### Server Dependencies
@@ -718,7 +718,7 @@ sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185 "sudo tail -f /var/log/nginx
 **Installation Commands** (if needed):
 ```bash
 # SSH into server
-sshpass -p "@dmiralThr@wn1" ssh root@178.16.140.185
+sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP
 
 # Navigate to app directory
 cd /var/www/logisticsdashboard

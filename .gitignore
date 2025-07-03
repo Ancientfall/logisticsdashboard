@@ -157,10 +157,42 @@ backup/
 # Private/sensitive data
 private/
 secrets/
+credentials/
 *.key
 *.pem
 *.p12
 *.crt
+*.p8
+
+# Deployment packages with potential credentials
+bp-dashboard-deployment-*.tar.gz
+deployment-*.tar.gz
+
+# Configuration files that might contain credentials
+config.json
+config.yml
+config.yaml
+secrets.json
+credentials.json
+
+# SSH keys and configs
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+known_hosts
+.ssh/
+
+# Database dumps
+*.sql
+*.dump
+database.sqlite
+*.db
+
+# VPS-specific sensitive files
+vps-config.js
+server-config.js
+production-config.js
 
 # Excel temporary files
 ~$*.xlsx
