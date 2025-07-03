@@ -1,0 +1,59 @@
+# BP Logistics Analytics Dashboard
+# humans.txt - The people behind the project
+
+/* TEAM */
+Organization: BP Solutions
+Project: BP Logistics Analytics Dashboard
+Purpose: Business Intelligence and Analytics Platform
+Industry: Energy, Oil & Gas, Maritime Logistics
+Classification: Enterprise Internal Tool
+Location: Global Operations
+
+/* TECHNOLOGY */
+Framework: React 19, TypeScript
+UI Library: NextUI, Tailwind CSS
+Charts: Recharts, React Three Fiber
+Database: IndexedDB (Client-side)
+Backend: Node.js, Express
+Security: bcrypt, HTTPS enforcement
+Build: Webpack, Babel
+Testing: Jest, React Testing Library
+
+/* SITE INFO */
+Last update: 2025-07-03
+Language: English
+Doctype: HTML5
+Standards: W3C, WCAG 2.1
+Categories: Business, Productivity, Analytics
+Target Audience: Internal Operations Team
+Security Level: Enterprise Grade
+
+/* FEATURES */
+- Real-time logistics analytics
+- Offshore drilling operations tracking
+- Production support analytics
+- Vessel performance monitoring
+- Cost allocation analysis
+- Bulk operations management
+- KPI dashboard suite
+- Excel data integration
+- Advanced filtering and comparison
+- Statistical variance analysis
+- TV kiosk display mode
+
+/* CONTACT */
+For technical support: security@bpsolutionsdashboard.com
+For business inquiries: Contact your system administrator
+Security concerns: Follow internal security protocols
+
+/* COMPLIANCE */
+Enterprise Security Standards: Yes
+Data Privacy: Internal Use Only
+Authentication: Required for Admin Functions
+Audit Trail: System logs maintained
+Access Control: Role-based permissions
+
+/* THANKS */
+Built with modern web technologies
+Designed for operational excellence
+Committed to data security and privacy

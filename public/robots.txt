@@ -1,6 +1,7 @@
 User-agent: *
 Disallow: /api/
 Disallow: /admin/
+Disallow: /backend/
 Allow: /
 
 # BP Logistics Analytics Dashboard
@@ -8,5 +9,16 @@ Allow: /
 # Industry: Energy, Oil & Gas, Maritime Logistics
 # Purpose: Business Intelligence and Analytics
 # Classification: Enterprise Internal Tool
+# Application Type: Business Analytics Dashboard
+# Target Audience: Internal Operations Team
+# Security: Authentication Required for Admin Functions
+# Data Sources: Excel Files, Business Intelligence Systems
+# Compliance: Enterprise Security Standards
 
+# Standard Web Security Files
 Sitemap: https://bpsolutionsdashboard.com/sitemap.xml
+Security: https://bpsolutionsdashboard.com/.well-known/security.txt
+
+# Contact Information
+# For technical support or security concerns
+# Contact: security@bpsolutionsdashboard.com

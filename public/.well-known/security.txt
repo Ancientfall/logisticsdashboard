@@ -1,0 +1,16 @@
+Contact: security@bpsolutionsdashboard.com
+Contact: https://bpsolutionsdashboard.com/security
+Expires: 2025-12-31T23:59:59Z
+Encryption: https://bpsolutionsdashboard.com/pgp-key.txt
+Acknowledgments: https://bpsolutionsdashboard.com/security-acknowledgments
+Preferred-Languages: en
+Canonical: https://bpsolutionsdashboard.com/.well-known/security.txt
+Policy: https://bpsolutionsdashboard.com/security-policy
+
+# BP Logistics Dashboard Security Contact Information
+# This is an internal business application for BP operations
+# Industry: Energy, Oil & Gas, Maritime Logistics
+# Classification: Enterprise Internal Analytics Tool
+# Purpose: Business Intelligence and Data Analytics
+# Security Reporting: For security vulnerabilities or concerns
+# Contact your system administrator or security team immediately
