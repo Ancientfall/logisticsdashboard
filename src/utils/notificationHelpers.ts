@@ -171,6 +171,56 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationSubType, NotificationTem
     autoDismiss: false
   },
 
+  // Platform Updates & Announcements
+  'dashboard-enhancement': {
+    type: 'system',
+    subType: 'dashboard-enhancement',
+    priority: 'info',
+    titleTemplate: 'Dashboard Enhancement',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
+  'new-dashboard': {
+    type: 'system',
+    subType: 'new-dashboard',
+    priority: 'success',
+    titleTemplate: 'New Dashboard Available',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
+  'feature-improvement': {
+    type: 'system',
+    subType: 'feature-improvement',
+    priority: 'info',
+    titleTemplate: 'Feature Improvement',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
+  'data-source-added': {
+    type: 'system',
+    subType: 'data-source-added',
+    priority: 'success',
+    titleTemplate: 'New Data Source Available',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
+  'platform-announcement': {
+    type: 'system',
+    subType: 'platform-announcement',
+    priority: 'info',
+    titleTemplate: 'Platform Announcement',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
+  'maintenance-notice': {
+    type: 'system',
+    subType: 'maintenance-notice',
+    priority: 'warning',
+    titleTemplate: 'Maintenance Notice',
+    messageTemplate: '{message}',
+    autoDismiss: false
+  },
+
   // Operational Insights
   'efficiency-improvement': {
     type: 'operational-insight',
@@ -439,13 +489,27 @@ export function limitNotifications(
   notifications: Notification[],
   maxCount: number
 ): Notification[] {
-  if (notifications.length <= maxCount) {
-    return notifications;
-  }
-  
-  // Sort by importance and recency
-  const sorted = sortNotifications(notifications);
-  
-  // Keep the most important/recent notifications
-  return sorted.slice(0, maxCount);
+  return notifications
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, maxCount);
+}
+
+// Helper function to create platform announcements
+export function createPlatformAnnouncement(
+  type: 'dashboard-enhancement' | 'new-dashboard' | 'feature-improvement' | 'data-source-added' | 'platform-announcement' | 'maintenance-notice',
+  title: string,
+  message: string,
+  priority: NotificationPriority = 'info'
+): Notification {
+  return {
+    id: uuidv4(),
+    type: 'system',
+    subType: type,
+    priority,
+    title,
+    message,
+    timestamp: new Date(),
+    isRead: false,
+    isAutoDismiss: false
+  };
 }

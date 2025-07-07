@@ -33,6 +33,13 @@ export type NotificationSubType =
   | 'system-update'
   | 'data-cleared'
   | 'system-error'
+  // Platform Updates & Announcements
+  | 'dashboard-enhancement'
+  | 'new-dashboard'
+  | 'feature-improvement'
+  | 'data-source-added'
+  | 'platform-announcement'
+  | 'maintenance-notice'
   // Operational Insights
   | 'efficiency-improvement'
   | 'cost-optimization'

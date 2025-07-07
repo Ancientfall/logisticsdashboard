@@ -20,7 +20,7 @@ import {
 	Pagination,
 	Spinner
 } from '@nextui-org/react'
-import { Users, Shield, Activity, UserCheck, Search, RefreshCw, Database, Server } from 'lucide-react'
+import { Users, Shield, Activity, UserCheck, Search, RefreshCw, Database, Server, Bell } from 'lucide-react'
 import { adminAPI } from '../../services/api'
 import { useNotifications } from '../../context/NotificationContext'
 import ReferenceDataManager from './ReferenceDataManager'
@@ -56,7 +56,7 @@ interface SystemStats {
 }
 
 export default function AdminDashboard() {
-	const { addNotification } = useNotifications()
+	const { addNotification, addCustomNotification } = useNotifications()
 	const [users, setUsers] = useState<User[]>([])
 	const [stats, setStats] = useState<SystemStats | null>(null)
 	const [loading, setLoading] = useState(true)
@@ -72,6 +72,12 @@ export default function AdminDashboard() {
 		isActive: true
 	})
 	const [activeTab, setActiveTab] = useState<'users' | 'files' | 'reference'>('users')
+	const [announcement, setAnnouncement] = useState({
+		type: 'dashboard-enhancement' as const,
+		title: '',
+		message: '',
+		priority: 'info' as const
+	})
 
 	const fetchStats = useCallback(async () => {
 		try {
@@ -153,6 +159,32 @@ export default function AdminDashboard() {
 
 	const getStatusColor = (isActive: boolean) => {
 		return isActive ? 'success' : 'danger'
+	}
+
+	const handleAnnouncement = () => {
+		if (!announcement.title || !announcement.message) {
+			alert('Please fill in both title and message')
+			return
+		}
+
+		addCustomNotification({
+			type: 'system',
+			subType: announcement.type,
+			priority: announcement.priority,
+			title: announcement.title,
+			message: announcement.message,
+			isRead: false,
+			isAutoDismiss: false
+		})
+
+		setAnnouncement({
+			type: 'dashboard-enhancement',
+			title: '',
+			message: '',
+			priority: 'info'
+		})
+
+		alert('Announcement posted successfully!')
 	}
 
 	return (
@@ -473,6 +505,82 @@ export default function AdminDashboard() {
 					</ModalFooter>
 				</ModalContent>
 			</Modal>
+
+			{/* Platform Announcements Section */}
+			<div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+				<h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+					<Bell className="text-green-600" size={20} />
+					Platform Announcements
+				</h3>
+				
+				<div className="space-y-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Update Type
+						</label>
+						<select
+							value={announcement.type}
+							onChange={(e) => setAnnouncement({...announcement, type: e.target.value as any})}
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+						>
+							<option value="dashboard-enhancement">Dashboard Enhancement</option>
+							<option value="new-dashboard">New Dashboard</option>
+							<option value="feature-improvement">Feature Improvement</option>
+							<option value="data-source-added">New Data Source</option>
+							<option value="platform-announcement">General Announcement</option>
+							<option value="maintenance-notice">Maintenance Notice</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Priority
+						</label>
+						<select
+							value={announcement.priority}
+							onChange={(e) => setAnnouncement({...announcement, priority: e.target.value as any})}
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+						>
+							<option value="info">Info</option>
+							<option value="success">Success</option>
+							<option value="warning">Warning</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Title
+						</label>
+						<input
+							type="text"
+							value={announcement.title}
+							onChange={(e) => setAnnouncement({...announcement, title: e.target.value})}
+							placeholder="e.g., New Cost Allocation Dashboard Features"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Message
+						</label>
+						<textarea
+							value={announcement.message}
+							onChange={(e) => setAnnouncement({...announcement, message: e.target.value})}
+							rows={3}
+							placeholder="Describe the update, new feature, or announcement..."
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+						/>
+					</div>
+
+					<button
+						onClick={handleAnnouncement}
+						className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+					>
+						Post Announcement
+					</button>
+				</div>
+			</div>
 		</div>
 	)
 }
