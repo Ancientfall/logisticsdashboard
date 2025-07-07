@@ -52,7 +52,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     {
       id: 'drilling',
       title: 'Drilling Operations',
-      description: 'Track Thunder Horse & Mad Dog drilling activities with intelligent cost allocation',
+      description: 'Track all drilling activities with intelligent cost allocation',
       icon: Anchor,
       gradient: 'from-blue-500 to-cyan-600',
       features: ['Well-specific tracking', 'LC-based allocation', 'Real-time monitoring', 'Cost analysis'],
@@ -379,7 +379,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
             <div className="col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
@@ -397,22 +397,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             </div>
             
             <div>
-              <h4 className="font-semibold mb-4">Platform</h4>
+              <h4 className="font-semibold mb-4">Analytics Dashboards</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><span className="hover:text-white transition-colors cursor-pointer">Features</span></li>
-                <li><span className="hover:text-white transition-colors cursor-pointer">Analytics</span></li>
-                <li><span className="hover:text-white transition-colors cursor-pointer">Security</span></li>
-                <li><span className="hover:text-white transition-colors cursor-pointer">Pricing</span></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><span className="hover:text-white transition-colors cursor-pointer">About</span></li>
-                <li><span className="hover:text-white transition-colors cursor-pointer">Contact</span></li>
-                <li><span className="hover:text-white transition-colors cursor-pointer">Support</span></li>
-                <li><span className="hover:text-white transition-colors cursor-pointer">Careers</span></li>
+                <li><span className="hover:text-white transition-colors cursor-pointer">Drilling Operations</span></li>
+                <li><span className="hover:text-white transition-colors cursor-pointer">Production Analytics</span></li>
+                <li><span className="hover:text-white transition-colors cursor-pointer">Voyage Intelligence</span></li>
+                <li><span className="hover:text-white transition-colors cursor-pointer">Cost Allocation</span></li>
+                <li><span className="hover:text-white transition-colors cursor-pointer">Comparison Analytics</span></li>
               </ul>
             </div>
           </div>
