@@ -1342,7 +1342,7 @@ Note: ENHANCED with cost allocation validation and vessel codes classification`;
               })()
             },
             {
-              title: "Logistics Cost",
+              title: "Logistics Vessel Cost",
               value: formatSmartCurrency((() => {
                 // Calculate production-only logistics cost - only include vessel costs for production assets
                 const productionLCNumbers = ['9999','9779','10027','10039','10070','10082','10106','9361','10103','10096','10071','10115','9359','9364','9367','10098','10080','10051','10021','10017','9360','10099','10081','10074','10052','9358','10097','10084','10072','10067'];
@@ -1468,7 +1468,7 @@ Note: ENHANCED with cost allocation validation and vessel codes classification`;
 
                 // Create a well-formatted tooltip with proper line breaks and spacing
                 const createTooltipContent = (location: string, records: number, days: number, rate: number, isAllLocations: boolean) => {
-                  return `💰 EXACT LOGISTICS COST
+                  return `💰 EXACT LOGISTICS VESSEL COST
 
 $${exactCost.toLocaleString()} USD
 
@@ -1490,7 +1490,7 @@ Source: Cost allocation data (production LC numbers)
 Period: ${filters.selectedMonth}
 Location: ${filters.selectedLocation}
 
-Note: Excludes fuel costs, vessel charter only`;
+Note: Vessel charter cost only - does not include fuel costs`;
                 };
 
                 return createTooltipContent(
@@ -1559,17 +1559,6 @@ Source: Vessel manifests RT Lifts field`;
             isPositive={productionMetrics.bulk.productionChemicalVolume >= previousPeriodMetrics.bulk.totalBulkVolume}
             color="blue"
             contextualHelp="Total production chemical volume offloaded to platforms. Calculated from bulk actions with anti-double-counting (load/offload pair deduplication). Includes production chemicals, utilities, and specialized fluids. Filtered for platform destinations only."
-          />
-          <KPICard 
-            title="Data Quality" 
-            value={`${Math.round((productionMetrics.hours as any).vesselCodesCoverage || 0)}`}
-            variant="compact"
-            unit="%"
-            trend={(previousPeriodMetrics.hours as any).vesselCodesCoverage > 0 ? 
-              (((productionMetrics.hours as any).vesselCodesCoverage - (previousPeriodMetrics.hours as any).vesselCodesCoverage) / (previousPeriodMetrics.hours as any).vesselCodesCoverage) * 100 : 0}
-            isPositive={(productionMetrics.hours as any).vesselCodesCoverage >= 80} // 80%+ is good data quality
-            color="orange"
-            contextualHelp={`ENHANCED: Data quality score based on vessel codes classification coverage for PRODUCTION operations. Current coverage: ${(productionMetrics.hours as any).vesselCodesCoverage?.toFixed(1) || 'N/A'}%. Cost allocation validation: ${(productionMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. High coverage ensures accurate productive/non-productive classification using authoritative vessel codes rather than hardcoded patterns.`}
           />
           <KPICard 
             title="Production Voyages" 

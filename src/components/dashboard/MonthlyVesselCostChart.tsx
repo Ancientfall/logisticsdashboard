@@ -23,12 +23,12 @@ const MonthlyVesselCostChart: React.FC<MonthlyVesselCostChartProps> = ({
 }) => {
   
   const monthlyData = useMemo(() => {
-    // Get current date and calculate last 6 months
+    // Get current date and calculate last 12 months
     const now = new Date();
     const months: MonthlyData[] = [];
     
-    // Generate last 6 months (including current month)
-    for (let i = 5; i >= 0; i--) {
+    // Generate last 12 months (including current month)
+    for (let i = 11; i >= 0; i--) {
       const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthKey = targetDate.toLocaleString('en-US', { month: 'long' });
       const year = targetDate.getFullYear();
@@ -423,10 +423,10 @@ const MonthlyVesselCostChart: React.FC<MonthlyVesselCostChartProps> = ({
                 {selectedLocation === 'All Locations' 
                   ? `Total production vessel costs across all facilities showing ${
                       isPositiveTrend ? 'an increase' : 'a decrease'
-                    } of ${Math.abs(trendPercentage).toFixed(1)}% over the last 6 months. `
+                    } of ${Math.abs(trendPercentage).toFixed(1)}% over the last 12 months. `
                   : `${selectedLocation} facility costs showing ${
                       isPositiveTrend ? 'an increase' : 'a decrease'
-                    } of ${Math.abs(trendPercentage).toFixed(1)}% over the last 6 months. `
+                    } of ${Math.abs(trendPercentage).toFixed(1)}% over the last 12 months. `
                 }
                 Average monthly cost: ${(avgMonthlyCost / 1000000).toFixed(2)}M with total allocated vessel days of {Math.round(monthlyData.reduce((sum, d) => sum + d.days, 0))}.
               </p>

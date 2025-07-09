@@ -2071,7 +2071,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
               title: "Outbound Tonnage",
               value: Math.round(drillingMetrics.cargo.totalCargoTons).toLocaleString(),
               unit: "tons",
-              target: filters.selectedLocation === 'All Locations' ? 14000 : 3000,
               trend: previousPeriodMetrics.cargo.totalCargoTons > 0 ? 
                 ((drillingMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
               isPositive: drillingMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
@@ -2261,22 +2260,20 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 `ENHANCED: Operational efficiency specific to ${filters.selectedLocation}. Uses vessel codes to identify cargo operations and cost allocation for location validation. LC validation: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Excludes weather, waiting, and non-operational time per vessel codes classification.`
             },
             {
-              title: "Vessel Logistics Cost",
+              title: "Logistics Vessel Cost",
               value: formatSmartCurrency(drillingMetrics.costs.totalVesselCost),
               unit: "",
-              target: filters.selectedLocation === 'All Locations' ? 11000000 : 1000000,
               trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
                 ((drillingMetrics.costs.totalVesselCost - (previousPeriodMetrics.costs?.totalVesselCost || 0)) / (previousPeriodMetrics.costs?.totalVesselCost || 1)) * 100 : 0,
               isPositive: drillingMetrics.costs.totalVesselCost <= (previousPeriodMetrics.costs?.totalVesselCost || 0), // Lower cost is positive
               contextualHelp: filters.selectedLocation === 'All Locations' ?
-                "Total logistics cost for all GoA drilling operations. Calculated from cost allocation data including vessel rates, fuel, and operational expenses. Represents comprehensive drilling support cost across all locations." :
-                `Logistics cost specific to ${filters.selectedLocation}. Includes vessel charter, fuel, and operational costs allocated to this drilling location. Based on cost allocation percentages and actual vessel utilization.`
+                "Total vessel charter cost for all GoA drilling operations. Calculated from cost allocation data including vessel day rates and operational time. Does not include fuel costs. Represents comprehensive drilling vessel support cost across all locations." :
+                `Vessel charter cost specific to ${filters.selectedLocation}. Includes vessel day rates and operational time allocated to this drilling location. Does not include fuel costs. Based on cost allocation percentages and actual vessel utilization.`
             },
             {
               title: "Fluid Volume",
               value: Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString(),
               unit: "bbls",
-              target: filters.selectedLocation === 'All Locations' ? 25000 : 5000,
               trend: previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
                 ((drillingMetrics.bulk.totalBulkVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0,
               isPositive: drillingMetrics.bulk.totalBulkVolume >= previousPeriodMetrics.bulk.totalBulkVolume,
@@ -3171,7 +3168,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     {/* Enhanced Vessel Cards with Visit Frequency */}
                     {vesselMetrics.length > 0 && (
                       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {vesselMetrics.map((vessel: any, index) => {
+                        {vesselMetrics.map((vessel: any) => {
                           // Use the correct visit count (actual voyages)
                           const totalVisits = vessel.totalVisits; // Actual voyage count to the location
                           const averageCargoPerVisit = vessel.avgCargoPerVisit;
@@ -3408,6 +3405,94 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                       {Math.round(parentEventHours['Maneuvering'] || 0).toLocaleString()}h
                     </div>
                     <div className="text-xs text-purple-600 mt-1">Positioning operations</div>
+                  </div>
+                </div>
+
+                {/* Pie Chart for Parent Event Distribution */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4">Parent Event Time Distribution</h4>
+                  <div className="flex items-center justify-center">
+                    {(() => {
+                      const cargoOps = parentEventHours['Cargo Ops'] || 0;
+                      const waitingOnInstallation = parentEventHours['Waiting on Installation'] || 0;
+                      const transit = drillingMetrics.utilization.transitTimeHours || 0;
+                      const maneuvering = parentEventHours['Maneuvering'] || 0;
+                      
+                      const total = cargoOps + waitingOnInstallation + transit + maneuvering;
+                      
+                      if (total === 0) {
+                        return <div className="text-gray-500 text-sm">No data available</div>;
+                      }
+                      
+                      const data = [
+                        { name: 'Cargo Ops', value: cargoOps, color: '#10b981' },
+                        { name: 'Waiting on Installation', value: waitingOnInstallation, color: '#f59e0b' },
+                        { name: 'Transit', value: transit, color: '#06b6d4' },
+                        { name: 'Maneuvering', value: maneuvering, color: '#8b5cf6' }
+                      ].filter(item => item.value > 0);
+                      
+                      let currentAngle = 0;
+                      const radius = 80;
+                      const center = 100;
+                      
+                      const paths = data.map((segment, index) => {
+                        const angle = (segment.value / total) * 360;
+                        const startAngle = currentAngle;
+                        const endAngle = currentAngle + angle;
+                        
+                        const x1 = center + radius * Math.cos((startAngle * Math.PI) / 180);
+                        const y1 = center + radius * Math.sin((startAngle * Math.PI) / 180);
+                        const x2 = center + radius * Math.cos((endAngle * Math.PI) / 180);
+                        const y2 = center + radius * Math.sin((endAngle * Math.PI) / 180);
+                        
+                        const largeArcFlag = angle > 180 ? 1 : 0;
+                        
+                        const pathData = [
+                          `M ${center} ${center}`,
+                          `L ${x1} ${y1}`,
+                          `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                          'Z'
+                        ].join(' ');
+                        
+                        currentAngle += angle;
+                        
+                        return (
+                          <path
+                            key={index}
+                            d={pathData}
+                            fill={segment.color}
+                            stroke="white"
+                            strokeWidth="2"
+                            className="hover:opacity-80 transition-opacity"
+                          />
+                        );
+                      });
+                      
+                      return (
+                        <div className="flex items-center gap-6">
+                          <svg width="200" height="200" viewBox="0 0 200 200">
+                            {paths}
+                          </svg>
+                          <div className="space-y-2">
+                            {data.map((segment, index) => (
+                              <div key={index} className="flex items-center gap-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full" 
+                                  style={{ backgroundColor: segment.color }}
+                                ></div>
+                                <span className="text-sm text-gray-700">{segment.name}</span>
+                                <span className="text-sm font-medium text-gray-900">
+                                  {Math.round(segment.value).toLocaleString()}h
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  ({((segment.value / total) * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
