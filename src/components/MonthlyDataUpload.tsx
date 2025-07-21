@@ -6,7 +6,7 @@
  * the existing processors to handle the updated data.
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Button, Card, CardBody, CardHeader, Progress, Chip } from '@nextui-org/react';
 import { 
   Upload, 
@@ -59,7 +59,7 @@ const MonthlyDataUpload: React.FC = () => {
   }, []);
 
   // File mapping patterns to determine target files
-  const FILE_MAPPINGS: FileMapping[] = [
+  const FILE_MAPPINGS: FileMapping[] = useMemo(() => [
     {
       pattern: /voyage.*event/i,
       targetFile: 'Voyage Events.xlsx',
@@ -85,11 +85,11 @@ const MonthlyDataUpload: React.FC = () => {
       targetFile: 'Voyage List.xlsx',
       description: 'Voyage List - Voyage summaries and routes'
     }
-  ];
+  ], []);
 
   const identifyTargetFile = useCallback((fileName: string): FileMapping | null => {
     return FILE_MAPPINGS.find(mapping => mapping.pattern.test(fileName)) || null;
-  }, []);
+  }, [FILE_MAPPINGS]);
 
   const processFiles = useCallback(async (files: File[]) => {
     setIsUploading(true);
@@ -175,7 +175,7 @@ const MonthlyDataUpload: React.FC = () => {
     } finally {
       setIsUploading(false);
     }
-  }, [addNotification, uploadStatus]);
+  }, [addNotification, uploadStatus, identifyTargetFile]);
 
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);

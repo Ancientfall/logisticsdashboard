@@ -265,7 +265,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     });
 
     return calculatedMetrics;
-  }, [ytdVoyageEvents, ytdVesselManifests, ytdCostAllocation, ytdVoyageList, ytdBulkActions, authoritativeCostMetrics, isDataReady, currentMonth, currentYear, drillingCost, productionCost, totalCost, logisticsCost]);
+  }, [ytdVoyageEvents, ytdVesselManifests, ytdVoyageList, ytdBulkActions, authoritativeCostMetrics, isDataReady, currentMonth, currentYear, drillingCost, productionCost, totalCost, logisticsCost, costAllocation]);
 
   // Calculate rotating location highlights (YTD only)
   const topLocations = useMemo(() => {
@@ -295,16 +295,16 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     const slides: TVKPISlide[] = [];
 
     // Helper function to safely get metric value
-    const getMetricValue = (obj: any, path: string, defaultValue: number = 0): number => {
-      const value = path.split('.').reduce((o, key) => o?.[key], obj);
-      return typeof value === 'number' ? value : defaultValue;
-    };
+    // const getMetricValue = (obj: any, path: string, defaultValue: number = 0): number => {
+    //   const value = path.split('.').reduce((o, key) => o?.[key], obj);
+    //   return typeof value === 'number' ? value : defaultValue;
+    // };
 
     // Helper function to safely get string value
-    const getStringValue = (obj: any, path: string, defaultValue: string = '0'): string => {
-      const value = path.split('.').reduce((o, key) => o?.[key], obj);
-      return value != null ? String(value) : defaultValue;
-    };
+    // const getStringValue = (obj: any, path: string, defaultValue: string = '0'): string => {
+    //   const value = path.split('.').reduce((o, key) => o?.[key], obj);
+    //   return value != null ? String(value) : defaultValue;
+    // };
 
     // Helper function to format numbers with comma separators
     const formatNumber = (value: number | string): string => {
@@ -474,7 +474,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         costAllocationDrillingLCs: costAllocation.filter(ca => ca.isDrilling).map(ca => ca.lcNumber).slice(0, 5)
       });
       
-      const drillingCostFormatted = formatSmartCurrency(drillingCost);
+      // const drillingCostFormatted = formatSmartCurrency(drillingCost);
       
       slides.push({
         id: 'drilling-operations',
@@ -538,7 +538,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     if (showCategories.includes('production')) {
       // Use the authoritative metrics from dashboard calculations with correct field names
       const fluidVolume = (allMetrics.fluids as any)?.totalVolume || 0;
-      const fluidVolumeGals = fluidVolume * 42; // Convert bbls to gallons (1 bbl = 42 gals)
+      // const fluidVolumeGals = fluidVolume * 42; // Convert bbls to gallons (1 bbl = 42 gals)
       const productionCargoTons = (allMetrics.production as any)?.totalDeckTons || 0;
       const productionUtilization = (allMetrics.production as any)?.vesselUtilizationRate || 0;
       
@@ -1221,7 +1221,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
 
     console.log('📊 TV DISPLAY: Created slides:', slides.map(s => ({ id: s.id, category: s.category, cardCount: s.cards.length })));
     return slides;
-  }, [allMetrics, showCategories, voyageEvents, voyageList, authoritativeCostMetrics, drillingCost, productionCost, totalCost, currentYear]);
+  }, [allMetrics, showCategories, voyageEvents, voyageList, authoritativeCostMetrics, drillingCost, productionCost, totalCost, currentYear, costAllocation, ytdVoyageEvents]);
 
   // Auto-rotation effect for slides
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, Target, Clock, Ship, Info, HelpCircle, DollarSign, Calendar } from 'lucide-react';
+import { BarChart3, TrendingUp, AlertTriangle, Target, Ship, Info, HelpCircle, DollarSign, Calendar } from 'lucide-react';
 import { VarianceAnalysis } from '../../utils/statisticalVariance';
 
 // Currency formatting helper function

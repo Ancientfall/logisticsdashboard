@@ -304,7 +304,9 @@ export const generateDuplicateReport = (result: DuplicateDetectionResult): strin
   return lines.join('\n');
 };
 
-export default {
+const duplicateDetectionUtils = {
   detectDuplicates,
   generateDuplicateReport
 };
+
+export default duplicateDetectionUtils;

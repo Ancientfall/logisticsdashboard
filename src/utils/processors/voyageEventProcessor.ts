@@ -90,7 +90,8 @@ export const processVoyageEvents = (
       );
 
       // Create an event for each LC allocation
-      lcAllocations.forEach((allocation, allocIndex) => {
+      // eslint-disable-next-line no-loop-func
+      const createAllocationEvent = (allocation: any, allocIndex: number) => {
         const finalHours = hours * (allocation.percentage / 100);
         const eventDate = from || new Date(2024, 0, 1); // Default to Jan 1, 2024
         
@@ -181,7 +182,10 @@ export const processVoyageEvents = (
           vesselHourlyRate: vesselCostInfo.hourlyRate,
           vesselCostRateDescription: vesselCostInfo.rateDescription
         });
-      });
+      };
+      
+      // Process all LC allocations for this event
+      lcAllocations.forEach(createAllocationEvent);
     } catch (error) {
       console.error('Error processing voyage event:', error, event);
     }
