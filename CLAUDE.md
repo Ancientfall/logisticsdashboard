@@ -641,11 +641,12 @@ npm run build
 # 2. Create deployment package
 tar -czf bp-dashboard-deployment-$(date +%Y%m%d_%H%M%S).tar.gz -C build .
 
-# 3. Deploy using sshpass script
+# 3. Deploy React app using sshpass script
 chmod +x deploy-with-sshpass.sh && ./deploy-with-sshpass.sh
 
-# 4. Restart PM2 process to pick up changes
-sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
+# 4. Deploy server file and restart PM2 (CRITICAL STEP)
+source .env && sshpass -p "$VPS_SSH_PASSWORD" scp vps-server.js $VPS_SSH_USER@$VPS_SERVER_IP:$VPS_SERVER_PATH/
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "cd $VPS_SERVER_PATH && pm2 restart bp-logistics-dashboard"
 
 # 5. Verify deployment
 curl -s -o /dev/null -w "%{http_code}" https://bpsolutionsdashboard.com
@@ -653,14 +654,17 @@ curl -s -o /dev/null -w "%{http_code}" https://bpsolutionsdashboard.com
 
 **Quick Server Management**:
 ```bash
-# Check PM2 status
-sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 list"
+# Load environment variables and check PM2 status
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 list"
 
 # View server logs
-sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 logs bp-logistics-dashboard --lines 20"
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 logs bp-logistics-dashboard --lines 20"
 
 # Restart server
-sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
+
+# Install/update server dependencies (if needed)
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "cd $VPS_SERVER_PATH && npm install"
 
 # Check Nginx status
 sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "sudo systemctl status nginx"
@@ -699,10 +703,26 @@ curl -s "https://bpsolutionsdashboard.com/api/excel-files" | head -20
 **1. Site Returns 404/502**:
 ```bash
 # Check PM2 process status
-sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 list"
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 list"
 
 # If stopped, restart PM2
-sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
+
+# Check server logs for errors
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 logs bp-logistics-dashboard"
+```
+
+**0. PM2 Process Shows 'errored' Status**:
+```bash
+# Common cause: Missing Node.js dependencies
+# Check if package.json and node_modules exist
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "ls -la $VPS_SERVER_PATH/package.json $VPS_SERVER_PATH/node_modules"
+
+# If missing, install dependencies
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "cd $VPS_SERVER_PATH && npm install"
+
+# Then restart PM2
+source .env && sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 restart bp-logistics-dashboard"
 
 # Check server logs for errors
 sshpass -p "$VPS_SSH_PASSWORD" ssh $VPS_SSH_USER@$VPS_SERVER_IP "pm2 logs bp-logistics-dashboard"

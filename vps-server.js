@@ -75,7 +75,7 @@ app.get('/cache-buster', (req, res) => {
 // Version check endpoint
 app.get('/version', (req, res) => {
     res.json({ 
-        version: '2.1.1',
+        version: '2.1.2',
         buildTimestamp: new Date().toISOString(),
         serverTimestamp: new Date().toISOString(),
         nodeVersion: process.version,
