@@ -71,26 +71,70 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
   const currentMonth = undefined;  // YTD = all months in current year
   const currentYear = now.getFullYear();
 
-  // Filter ALL data sources to YTD
-  const ytdVoyageEvents = useMemo(() => 
-    voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear), 
-    [voyageEvents, currentYear]
-  );
+  // Filter ALL data sources to YTD with enhanced debugging
+  const ytdVoyageEvents = useMemo(() => {
+    const filtered = voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear);
+    console.log('🎯 TV DISPLAY: YTD Voyage Events Filtering:', {
+      currentYear,
+      totalVoyageEvents: voyageEvents.length,
+      ytdVoyageEvents: filtered.length,
+      sampleDates: filtered.slice(0, 5).map(v => ({
+        date: v.eventDate?.toISOString?.()?.split('T')?.[0],
+        vessel: v.vessel,
+        location: v.location
+      })),
+      dateRange: filtered.length > 0 ? {
+        earliest: Math.min(...filtered.map(v => v.eventDate?.getTime?.() || 0)),
+        latest: Math.max(...filtered.map(v => v.eventDate?.getTime?.() || 0))
+      } : 'No data'
+    });
+    return filtered;
+  }, [voyageEvents, currentYear]);
   
-  const ytdVesselManifests = useMemo(() => 
-    vesselManifests.filter(m => m.manifestDate && m.manifestDate.getFullYear() === currentYear), 
-    [vesselManifests, currentYear]
-  );
+  const ytdVesselManifests = useMemo(() => {
+    const filtered = vesselManifests.filter(m => m.manifestDate && m.manifestDate.getFullYear() === currentYear);
+    console.log('🎯 TV DISPLAY: YTD Vessel Manifests Filtering:', {
+      currentYear,
+      totalManifests: vesselManifests.length,
+      ytdManifests: filtered.length,
+      sampleManifests: filtered.slice(0, 3).map(m => ({
+        date: m.manifestDate?.toISOString?.()?.split('T')?.[0],
+        vessel: m.vessel,
+        cargoTons: m.cargoTons
+      }))
+    });
+    return filtered;
+  }, [vesselManifests, currentYear]);
   
-  const ytdBulkActions = useMemo(() => 
-    bulkActions.filter(b => b.startDate && b.startDate.getFullYear() === currentYear), 
-    [bulkActions, currentYear]
-  );
+  const ytdBulkActions = useMemo(() => {
+    const filtered = bulkActions.filter(b => b.startDate && b.startDate.getFullYear() === currentYear);
+    console.log('🎯 TV DISPLAY: YTD Bulk Actions Filtering:', {
+      currentYear,
+      totalBulkActions: bulkActions.length,
+      ytdBulkActions: filtered.length,
+      sampleActions: filtered.slice(0, 3).map(b => ({
+        date: b.startDate?.toISOString?.()?.split('T')?.[0],
+        type: b.bulkType,
+        volume: b.qty
+      }))
+    });
+    return filtered;
+  }, [bulkActions, currentYear]);
   
-  const ytdVoyageList = useMemo(() => 
-    voyageList.filter(v => v.voyageDate && v.voyageDate.getFullYear() === currentYear), 
-    [voyageList, currentYear]
-  );
+  const ytdVoyageList = useMemo(() => {
+    const filtered = voyageList.filter(v => v.voyageDate && v.voyageDate.getFullYear() === currentYear);
+    console.log('🎯 TV DISPLAY: YTD Voyage List Filtering:', {
+      currentYear,
+      totalVoyageList: voyageList.length,
+      ytdVoyageList: filtered.length,
+      sampleVoyages: filtered.slice(0, 3).map(v => ({
+        date: v.voyageDate?.toISOString?.()?.split('T')?.[0],
+        vessel: v.vessel,
+        voyageNumber: v.voyageNumber
+      }))
+    });
+    return filtered;
+  }, [voyageList, currentYear]);
 
   const ytdCostAllocation = useFilteredCostAllocation(costAllocation, 'YTD', 'All Locations', 'All Types');
   const authoritativeCostMetrics = useCostAnalysisRedesigned(ytdCostAllocation, ytdVoyageEvents, ytdVesselManifests, ytdVoyageList);
@@ -151,17 +195,32 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     };
 
     console.log('📊 TV DISPLAY: Calculated metrics summary:', {
+      dataReadiness: isDataReady,
+      currentYear,
+      ytdDataCounts: {
+        voyageEvents: ytdVoyageEvents.length,
+        vesselManifests: ytdVesselManifests.length,
+        bulkActions: ytdBulkActions.length,
+        voyageList: ytdVoyageList.length
+      },
       drilling: {
         totalCargoTons: calculatedMetrics.drilling.totalCargoTons,
         totalDeckTons: calculatedMetrics.drilling.totalDeckTons,
         totalLifts: calculatedMetrics.drilling.totalLifts,
         productiveHours: calculatedMetrics.drilling.productiveHours,
-        totalVesselCost: calculatedMetrics.drilling.totalVesselCost
+        totalVesselCost: calculatedMetrics.drilling.totalVesselCost,
+        vesselUtilizationRate: calculatedMetrics.drilling.vesselUtilizationRate
       },
       production: {
         totalCargoTons: calculatedMetrics.production.totalCargoTons,
         totalDeckTons: calculatedMetrics.production.totalDeckTons,
-        totalVesselCost: calculatedMetrics.production.totalVesselCost
+        totalVesselCost: calculatedMetrics.production.totalVesselCost,
+        vesselUtilizationRate: calculatedMetrics.production.vesselUtilizationRate
+      },
+      voyage: {
+        totalOffshoreTime: calculatedMetrics.voyage.totalOffshoreTime,
+        averageTripDuration: calculatedMetrics.voyage.averageTripDuration,
+        vesselUtilizationRate: calculatedMetrics.voyage.vesselUtilizationRate
       },
       fluids: calculatedMetrics.fluids,
       cost: calculatedMetrics.cost
@@ -372,11 +431,22 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     });
 
     if (showCategories.includes('drilling')) {
-      // Use the authoritative metrics from dashboard calculations
-      const cargoTons = (allMetrics.drilling as any)?.totalDeckTons || (allMetrics.drilling as any)?.totalCargoTons || 0;
-      const totalLifts = (allMetrics.drilling as any)?.totalCargoLifts || (allMetrics.drilling as any)?.totalLifts || 0;
+      // Use the authoritative metrics from dashboard calculations with correct field names
+      const cargoTons = (allMetrics.drilling as any)?.totalDeckTons || 0;
+      const totalLifts = (allMetrics.drilling as any)?.totalLifts || 0;
       const productiveHours = (allMetrics.drilling as any)?.productiveHours || 0;
       const vesselUtilization = (allMetrics.drilling as any)?.vesselUtilizationRate || 0;
+      
+      // DEBUG: Log actual field names available in drilling metrics
+      console.log('🔍 TV DISPLAY: Available drilling metric fields:', {
+        availableFields: Object.keys(allMetrics.drilling || {}),
+        cargoTons,
+        totalLifts,
+        productiveHours,
+        vesselUtilization,
+        totalDeckTons: (allMetrics.drilling as any)?.totalDeckTons,
+        totalRTTons: (allMetrics.drilling as any)?.totalRTTons
+      });
       
       // DEBUG: Log TV Display utilization calculation to identify 5713.6% source
       console.error('🚨 TV DISPLAY UTILIZATION DEBUG:', {
@@ -466,15 +536,25 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
     }
 
     if (showCategories.includes('production')) {
-      // Use the authoritative metrics from dashboard calculations
+      // Use the authoritative metrics from dashboard calculations with correct field names
       const fluidVolume = (allMetrics.fluids as any)?.totalVolume || 0;
       const fluidVolumeGals = fluidVolume * 42; // Convert bbls to gallons (1 bbl = 42 gals)
-      const productionCargoTons = (allMetrics.production as any)?.totalDeckTons || (allMetrics.production as any)?.totalCargoTons || 0;
+      const productionCargoTons = (allMetrics.production as any)?.totalDeckTons || 0;
       const productionUtilization = (allMetrics.production as any)?.vesselUtilizationRate || 0;
       
       // Calculate Lifts per Hour for production using enhanced calculations
       const productionLifts = (allMetrics.production as any)?.totalLifts || 0;
       const productionProductiveHours = (allMetrics.production as any)?.productiveHours || 0;
+      
+      // DEBUG: Log actual field names available in production metrics
+      console.log('🔍 TV DISPLAY: Available production metric fields:', {
+        availableFields: Object.keys(allMetrics.production || {}),
+        productionCargoTons,
+        productionLifts,
+        productionProductiveHours,
+        productionUtilization,
+        fluidsTotal: fluidVolume
+      });
       const productionLiftsPerHour = productionProductiveHours > 0 ? productionLifts / productionProductiveHours : 0;
       
       // Get Shared Visits and RT Lifts from enhanced manifest metrics
