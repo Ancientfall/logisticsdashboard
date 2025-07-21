@@ -1,0 +1,48 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with BP green gradient -->
+  <circle cx="16" cy="16" r="16" fill="url(#bgGradient)"/>
+  
+  <!-- Define gradients -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00754F;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#004d33;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="shipGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e0e0e0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Ship hull (simplified offshore vessel shape) -->
+  <path d="M 6 20 Q 6 18 8 18 L 24 18 Q 26 18 26 20 L 26 22 Q 26 24 24 24 L 8 24 Q 6 24 6 22 Z" fill="url(#shipGradient)" stroke="#cccccc" stroke-width="0.5"/>
+  
+  <!-- Ship superstructure/bridge -->
+  <rect x="10" y="14" width="12" height="4" rx="1" fill="url(#shipGradient)" stroke="#cccccc" stroke-width="0.5"/>
+  
+  <!-- Crane/derrick (logistics equipment) -->
+  <line x1="14" y1="14" x2="14" y2="8" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="18" y1="14" x2="18" y2="8" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <!-- Crane boom -->
+  <line x1="14" y1="10" x2="20" y2="12" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+  <line x1="18" y1="10" x2="12" y2="12" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+  
+  <!-- Analytics chart elements (small bars to represent data/KPIs) -->
+  <rect x="8" y="11" width="1" height="2" fill="#6EC800" opacity="0.8"/>
+  <rect x="10" y="10" width="1" height="3" fill="#6EC800" opacity="0.8"/>
+  <rect x="12" y="9" width="1" height="4" fill="#6EC800" opacity="0.8"/>
+  
+  <rect x="19" y="11" width="1" height="2" fill="#6EC800" opacity="0.8"/>
+  <rect x="21" y="10" width="1" height="3" fill="#6EC800" opacity="0.8"/>
+  <rect x="23" y="9" width="1" height="4" fill="#6EC800" opacity="0.8"/>
+  
+  <!-- Small dots representing data points -->
+  <circle cx="9" cy="8" r="0.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="11" cy="7" r="0.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="13" cy="6" r="0.5" fill="#ffffff" opacity="0.7"/>
+  
+  <circle cx="19" cy="8" r="0.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="21" cy="7" r="0.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="23" cy="6" r="0.5" fill="#ffffff" opacity="0.7"/>
+</svg>

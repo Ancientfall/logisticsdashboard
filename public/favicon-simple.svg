@@ -1,0 +1,23 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- BP Green background -->
+  <rect width="16" height="16" fill="#00754F" rx="2"/>
+  
+  <!-- White ship silhouette -->
+  <path d="M 2 12 Q 2 11 3 11 L 13 11 Q 14 11 14 12 L 14 13 Q 14 14 13 14 L 3 14 Q 2 14 2 13 Z" fill="#ffffff"/>
+  
+  <!-- Ship bridge -->
+  <rect x="5" y="8" width="6" height="3" rx="0.5" fill="#ffffff"/>
+  
+  <!-- Crane masts -->
+  <line x1="6" y1="8" x2="6" y2="4" stroke="#ffffff" stroke-width="0.8"/>
+  <line x1="10" y1="8" x2="10" y2="4" stroke="#ffffff" stroke-width="0.8"/>
+  
+  <!-- Analytics bars (KPI representation) -->
+  <rect x="3" y="6" width="0.5" height="1" fill="#6EC800"/>
+  <rect x="4" y="5" width="0.5" height="2" fill="#6EC800"/>
+  <rect x="11.5" y="6" width="0.5" height="1" fill="#6EC800"/>
+  <rect x="12.5" y="5" width="0.5" height="2" fill="#6EC800"/>
+  
+  <!-- BP text indicator -->
+  <text x="8" y="10" font-family="Arial, sans-serif" font-size="3" font-weight="bold" text-anchor="middle" fill="#00754F">BP</text>
+</svg>
