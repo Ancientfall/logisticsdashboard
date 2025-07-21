@@ -160,6 +160,47 @@ This is a BP Logistics Analytics Dashboard built with React 19, TypeScript, and 
 - Use TypeScript interfaces extensively for type safety
 - Business rules are centralized in utility functions for reusability
 
+## Monthly Data Upload System
+
+### Data Appending System ⏺ ✅ Cumulative Monthly Updates!
+
+The monthly data upload system provides a way to append new monthly data from Kabal exports to existing Excel files, building up historical data over time.
+
+🎯 **Key Features:**
+- **Data Appending**: Upload Kabal Excel files to append new data to existing server files
+- **Duplicate Prevention**: Intelligent duplicate detection prevents adding the same data twice
+- **Automatic File Detection**: Recognizes file types based on filename patterns
+- **Backup System**: Creates backups of existing files before modification
+- **Progress Tracking**: Real-time upload progress with status indicators
+- **Upload Logging**: Tracks all uploads with timestamps, append statistics, and duplicate counts
+- **Integration**: Works seamlessly with existing processors and LC integration
+
+📁 **Supported Files:**
+- **Voyage Events**: `voyage*event*` → `Voyage Events.xlsx`
+- **Vessel Manifests**: `manifest` or `cargo` → `Vessel Manifests.xlsx`
+- **Bulk Actions**: `bulk*action` or `bulk*transfer` → `Bulk Actions.xlsx`
+- **Cost Allocation**: `cost*allocation` → `Cost Allocation.xlsx`
+- **Voyage List**: `voyage*list` → `Voyage List.xlsx`
+
+🔧 **Technical Implementation:**
+- **Frontend**: `MonthlyDataUpload.tsx` - Simple upload interface
+- **Backend**: Upload API integrated into `simple-excel-server.js`
+- **API Endpoints**: 
+  - `POST /api/upload-monthly-data` - Upload files
+  - `GET /api/upload-logs` - View upload history
+  - `GET /api/excel-files-status` - Check current files
+- **Navigation**: "Monthly" button in dashboard header → `/monthly-upload`
+
+🚀 **User Workflow:**
+1. Export data from Kabal (monthly)
+2. Navigate to `/monthly-upload`
+3. Upload files via drag & drop or file selector
+4. Files automatically append new data to existing server files
+5. Duplicate detection prevents adding the same data twice
+6. Refresh dashboard to see combined historical and new data
+
+The system is designed to be cumulative and intelligent - it appends new data to existing Excel files with duplicate prevention, building up historical trends while letting the existing dashboard processors handle all the complex data processing, LC integration, and analytics automatically.
+
 ## Implementation Memories
 
 ### Excel Server Integration & Upload Streamlining ⏺ ✅ Streamlined Data Loading Workflow!
@@ -637,12 +678,12 @@ curl -s "https://bpsolutionsdashboard.com/api/excel-files" | head -20
 - **Auto-Detection**: Dashboard automatically checks for server files on load
 
 **File Status (Current Deployment)**:
-- ✅ **Bulk Actions.xlsx** (346KB) - Transfer tracking and fluid analysis
+- ✅ **Bulk Actions.xlsx** (364KB) - Transfer tracking and fluid analysis
 - ✅ **Cost Allocation.xlsx** (31KB) - Master LC mapping and cost data  
 - ✅ **Vessel Classifications.xlsx** (11KB) - Vessel activity classification
-- ✅ **Vessel Manifests.xlsx** (278KB) - Cargo manifest data
+- ✅ **Vessel Manifests.xlsx** (310KB) - Cargo manifest data
 - ✅ **Voyage Events.xlsx** (3.8MB) - Complete voyage event tracking
-- ✅ **Voyage List.xlsx** (78KB) - Voyage summary and route data
+- ✅ **Voyage List.xlsx** (81KB) - Voyage summary and route data
 
 **User Experience Flow**:
 1. **Visit Landing Page** → https://bpsolutionsdashboard.com
@@ -747,10 +788,10 @@ npm install express@4.18.2 path-to-regexp@6.2.1
 
 ### Current Production Status
 
-**Latest Deployment**: June 22, 2025 at 12:00 PM (UTC)
-- **Build Hash**: `main.deba3ccc.js`
-- **Commit**: `9c25294` - TV Kiosk Display with rotating KPI analytics
-- **Features**: Production Support Variance Analysis, Enhanced currency formatting, Fixed Logistics Cost KPI filtering
+**Latest Deployment**: July 21, 2025 at 12:30 PM (UTC)
+- **Data Update**: Updated all 6 Excel files with June 2025 operational data
+- **Files**: All Excel files refreshed from VPS production server with latest business data
+- **Features**: Complete 6-file deployment with Vessel Classifications, enhanced data accuracy
 
 **Operational Capabilities**:
 - ✅ **Zero-Setup User Experience**: Automatic Excel file loading from server

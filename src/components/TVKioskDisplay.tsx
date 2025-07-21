@@ -182,7 +182,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       },
       departmentBreakdown: authoritativeCostMetrics.departmentBreakdown,
       costAllocationSource: 'useCostAnalysisRedesigned (same as Cost Allocation Dashboard)',
-      ytdFilterApplied: 'Jan 1, 2025 - May 31, 2025'
+      ytdFilterApplied: 'Jan 1, 2025 - June 30, 2025'
     });
 
     console.log('🎯 TV DISPLAY: Authoritative KPI Values for Dashboard Alignment:', {
@@ -772,7 +772,7 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       );
 
       console.log('💰 TV DISPLAY: Cost Allocation Analysis (YTD):', {
-        dateRange: 'Jan 2025 - May 2025',
+        dateRange: 'Jan 2025 - June 2025',
         eventBreakdown: {
           totalEvents: ytdVoyageEvents.length,
           drillingEvents: drillingEvents.length,
@@ -968,12 +968,12 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
 
     // Add Operational Intelligence slide with location and vessel insights (YTD only)
     if (showCategories.includes('drilling') || showCategories.includes('production')) {
-      // Calculate vessel usage statistics using actual voyages (Jan 2025 - May 2025 only)
+      // Calculate vessel usage statistics using actual voyages (Jan 2025 - June 2025 only)
       const ytdVoyageListForVessel = voyageList.filter(v => {
         if (!v.voyageDate) return false;
         const voyageYear = v.voyageDate.getFullYear();
         const voyageMonth = v.voyageDate.getMonth() + 1;
-        return voyageYear === 2025 && voyageMonth >= 1 && voyageMonth <= 5;
+        return voyageYear === 2025 && voyageMonth >= 1 && voyageMonth <= 6;
       });
       const vesselUsage = ytdVoyageListForVessel.reduce((acc, voyage) => {
         acc[voyage.vessel] = (acc[voyage.vessel] || 0) + 1;
@@ -984,8 +984,8 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       const mostUsedVessel = topVessel ? topVessel[0] : 'N/A';
       const vesselVoyages = topVessel ? topVessel[1] : 0;
 
-      console.log('🚢 TV DISPLAY: Most Active Vessel Calculation (Jan 2025 - May 2025):', {
-        dateRange: 'Jan 2025 - May 2025',
+      console.log('🚢 TV DISPLAY: Most Active Vessel Calculation (Jan 2025 - June 2025):', {
+        dateRange: 'Jan 2025 - June 2025',
         filteredVoyages: ytdVoyageListForVessel.length,
         vesselBreakdown: Object.entries(vesselUsage)
           .sort(([,a], [,b]) => b - a)
@@ -994,13 +994,13 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         topVessel: { name: mostUsedVessel, voyages: vesselVoyages }
       });
 
-      // Calculate location activity (Jan 2025 - May 2025 only) - exclude Fourchon base port
+      // Calculate location activity (Jan 2025 - June 2025 only) - exclude Fourchon base port
       const ytdLocationEvents = ytdVoyageEvents.filter(event => {
         if (!event.eventDate) return false;
         const eventYear = event.eventDate.getFullYear();
         const eventMonth = event.eventDate.getMonth() + 1; // getMonth() returns 0-11
-        // Only include Jan 2025 (1) through May 2025 (5)
-        return eventYear === 2025 && eventMonth >= 1 && eventMonth <= 5;
+        // Only include Jan 2025 (1) through June 2025 (6)
+        return eventYear === 2025 && eventMonth >= 1 && eventMonth <= 6;
       });
 
       const locationActivity = ytdLocationEvents.reduce((acc, event) => {
@@ -1016,8 +1016,8 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       const busiestLocation = topLocation ? topLocation[0] : 'N/A';
       const locationEvents = topLocation ? topLocation[1] : 0;
 
-      console.log('📍 TV DISPLAY: Busiest Location Calculation (Jan 2025 - May 2025):', {
-        dateRange: 'Jan 2025 - May 2025',
+      console.log('📍 TV DISPLAY: Busiest Location Calculation (Jan 2025 - June 2025):', {
+        dateRange: 'Jan 2025 - June 2025',
         totalYtdEvents: ytdVoyageEvents.length,
         filteredLocationEvents: ytdLocationEvents.length,
         locationBreakdown: Object.entries(locationActivity)
@@ -1027,17 +1027,17 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         topLocation: { name: busiestLocation, events: locationEvents }
       });
 
-      // Calculate unique vessel count (Jan 2025 - May 2025 only)
+      // Calculate unique vessel count (Jan 2025 - June 2025 only)
       const ytdUniqueVesselEvents = ytdVoyageEvents.filter(event => {
         if (!event.eventDate) return false;
         const eventYear = event.eventDate.getFullYear();
         const eventMonth = event.eventDate.getMonth() + 1;
-        return eventYear === 2025 && eventMonth >= 1 && eventMonth <= 5;
+        return eventYear === 2025 && eventMonth >= 1 && eventMonth <= 6;
       });
       const uniqueVessels = new Set(ytdUniqueVesselEvents.map(v => v.vessel)).size;
 
-      console.log('🚢 TV DISPLAY: Active Fleet Calculation (Jan 2025 - May 2025):', {
-        dateRange: 'Jan 2025 - May 2025',
+      console.log('🚢 TV DISPLAY: Active Fleet Calculation (Jan 2025 - June 2025):', {
+        dateRange: 'Jan 2025 - June 2025',
         totalYtdEvents: ytdVoyageEvents.length,
         filteredVesselEvents: ytdUniqueVesselEvents.length,
         uniqueVessels: uniqueVessels,

@@ -12,7 +12,8 @@ import {
   Layers,
   Target,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Upload
 } from 'lucide-react';
 // import { useServerFileLoader } from '../hooks/useServerFileLoader';
 
@@ -175,6 +176,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               </div>
             </div>
             <div className={`flex items-center gap-4 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
+              <a
+                href="/monthly-upload"
+                className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2.5 rounded-lg font-medium hover:bg-blue-200 transition-all duration-300 shadow-sm hover:shadow-md"
+              >
+                <Upload size={16} />
+                Monthly Upload
+              </a>
               <button 
                 onClick={onViewDashboard}
                 className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg"

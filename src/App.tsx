@@ -22,6 +22,7 @@ import LandingPage from './components/LandingPage'
 import AdminDashboard from './components/admin/AdminDashboard'
 import ReferenceDataManager from './components/admin/ReferenceDataManager'
 import TVKioskDisplay from './components/TVKioskDisplay'
+import MonthlyDataUpload from './components/MonthlyDataUpload'
 
 import './index.css'
 
@@ -58,6 +59,12 @@ function App() {
 								<Route path="/upload" element={
 									<DashboardLayout>
 										<EnhancedFileUploadWithServer />
+									</DashboardLayout>
+								} />
+								
+								<Route path="/monthly-upload" element={
+									<DashboardLayout>
+										<MonthlyDataUpload />
 									</DashboardLayout>
 								} />
 								
