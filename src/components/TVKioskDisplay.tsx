@@ -99,8 +99,8 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       ytdManifests: filtered.length,
       sampleManifests: filtered.slice(0, 3).map(m => ({
         date: m.manifestDate?.toISOString?.()?.split('T')?.[0],
-        vessel: m.vessel,
-        cargoTons: m.cargoTons
+        vessel: m.transporter,
+        cargoTons: m.deckTons
       }))
     });
     return filtered;
