@@ -13,10 +13,11 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
     
     // Cache control headers to prevent stale content
-    res.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0')
     res.header('Pragma', 'no-cache')
-    res.header('Expires', '0')
-    res.header('ETag', `"v2.1.0-${Date.now()}"`)
+    res.header('Expires', '-1')
+    res.header('Last-Modified', new Date().toUTCString())
+    res.header('ETag', `"v2.1.2-${Date.now()}"`)
     
     // Security headers that help with categorization
     res.header('X-Content-Type-Options', 'nosniff')
@@ -272,6 +273,31 @@ app.get('/api/excel-files/:filename', (req, res) => {
             message: 'Error serving file',
             error: error.message
         })
+    }
+})
+
+// Aggressive favicon serving with cache-busting
+app.get('/favicon.ico', (req, res) => {
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
+    res.header('Pragma', 'no-cache')
+    res.header('Expires', '-1')
+    res.header('Last-Modified', new Date().toUTCString())
+    res.header('ETag', `"favicon-v2.1.2-${Date.now()}"`)
+    res.sendFile(path.join(__dirname, 'favicon.ico'))
+})
+
+// Alternative favicon endpoints for cache-busting
+app.get('/favicon-*.ico', (req, res) => {
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
+    res.header('Pragma', 'no-cache')
+    res.header('Expires', '-1')
+    res.header('Last-Modified', new Date().toUTCString())
+    res.header('ETag', `"favicon-alt-v2.1.2-${Date.now()}"`)
+    const filename = req.path.substring(1) // Remove leading slash
+    if (fs.existsSync(path.join(__dirname, filename))) {
+        res.sendFile(path.join(__dirname, filename))
+    } else {
+        res.sendFile(path.join(__dirname, 'favicon.ico'))
     }
 })
 
