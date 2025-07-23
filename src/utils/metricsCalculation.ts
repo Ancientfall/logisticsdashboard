@@ -65,23 +65,43 @@ export const calculateEnhancedManifestMetrics = (
     // Enhanced location filtering for drilling vs production locations
     let locationCostAllocations: any[] = [];
     
-    // Handle specific drilling location filters
+    // Handle specific drilling location filters using proper classification
     if (locationFilter === 'Thunder Horse (Drilling)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isDrilling && ca.isThunderHorse
+      // Get ONLY drilling cost allocations for Thunder Horse
+      const drillingCostAllocations = getDrillingCostAllocations(costAllocation);
+      locationCostAllocations = drillingCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('thunder horse') ||
+        ca.rigLocation?.toLowerCase().includes('thunder horse') ||
+        ca.description?.toLowerCase().includes('thunder horse')
       );
+      console.log(`🎯 THUNDER HORSE DRILLING FILTER: ${locationCostAllocations.length} drilling-only LCs found`);
     } else if (locationFilter === 'Mad Dog (Drilling)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isDrilling && ca.isMadDog
+      // Get ONLY drilling cost allocations for Mad Dog
+      const drillingCostAllocations = getDrillingCostAllocations(costAllocation);
+      locationCostAllocations = drillingCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('mad dog') ||
+        ca.rigLocation?.toLowerCase().includes('mad dog') ||
+        ca.description?.toLowerCase().includes('mad dog')
       );
+      console.log(`🎯 MAD DOG DRILLING FILTER: ${locationCostAllocations.length} drilling-only LCs found`);
     } else if (locationFilter === 'Thunder Horse (Production)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isThunderHorse && !ca.isDrilling
+      // Get ONLY production cost allocations for Thunder Horse
+      const productionCostAllocations = getProductionCostAllocations(costAllocation);
+      locationCostAllocations = productionCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('thunder horse') ||
+        ca.rigLocation?.toLowerCase().includes('thunder horse') ||
+        ca.description?.toLowerCase().includes('thunder horse')
       );
+      console.log(`🎯 THUNDER HORSE PRODUCTION FILTER: ${locationCostAllocations.length} production-only LCs found`);
     } else if (locationFilter === 'Mad Dog (Production)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isMadDog && !ca.isDrilling
+      // Get ONLY production cost allocations for Mad Dog
+      const productionCostAllocations = getProductionCostAllocations(costAllocation);
+      locationCostAllocations = productionCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('mad dog') ||
+        ca.rigLocation?.toLowerCase().includes('mad dog') ||
+        ca.description?.toLowerCase().includes('mad dog')
       );
+      console.log(`🎯 MAD DOG PRODUCTION FILTER: ${locationCostAllocations.length} production-only LCs found`);
     } else {
       // Fallback to text-based matching for other locations
       locationCostAllocations = costAllocation.filter(ca => 
@@ -299,23 +319,43 @@ export const calculateEnhancedVoyageEventMetrics = (
     // Enhanced location filtering for drilling vs production locations
     let locationCostAllocations: any[] = [];
     
-    // Handle specific drilling location filters
+    // Handle specific drilling location filters using proper classification
     if (locationFilter === 'Thunder Horse (Drilling)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isDrilling && ca.isThunderHorse
+      // Get ONLY drilling cost allocations for Thunder Horse
+      const drillingCostAllocations = getDrillingCostAllocations(costAllocation);
+      locationCostAllocations = drillingCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('thunder horse') ||
+        ca.rigLocation?.toLowerCase().includes('thunder horse') ||
+        ca.description?.toLowerCase().includes('thunder horse')
       );
+      console.log(`🎯 THUNDER HORSE DRILLING FILTER: ${locationCostAllocations.length} drilling-only LCs found`);
     } else if (locationFilter === 'Mad Dog (Drilling)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isDrilling && ca.isMadDog
+      // Get ONLY drilling cost allocations for Mad Dog
+      const drillingCostAllocations = getDrillingCostAllocations(costAllocation);
+      locationCostAllocations = drillingCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('mad dog') ||
+        ca.rigLocation?.toLowerCase().includes('mad dog') ||
+        ca.description?.toLowerCase().includes('mad dog')
       );
+      console.log(`🎯 MAD DOG DRILLING FILTER: ${locationCostAllocations.length} drilling-only LCs found`);
     } else if (locationFilter === 'Thunder Horse (Production)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isThunderHorse && !ca.isDrilling
+      // Get ONLY production cost allocations for Thunder Horse
+      const productionCostAllocations = getProductionCostAllocations(costAllocation);
+      locationCostAllocations = productionCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('thunder horse') ||
+        ca.rigLocation?.toLowerCase().includes('thunder horse') ||
+        ca.description?.toLowerCase().includes('thunder horse')
       );
+      console.log(`🎯 THUNDER HORSE PRODUCTION FILTER: ${locationCostAllocations.length} production-only LCs found`);
     } else if (locationFilter === 'Mad Dog (Production)') {
-      locationCostAllocations = costAllocation.filter(ca => 
-        ca.isMadDog && !ca.isDrilling
+      // Get ONLY production cost allocations for Mad Dog
+      const productionCostAllocations = getProductionCostAllocations(costAllocation);
+      locationCostAllocations = productionCostAllocations.filter(ca => 
+        ca.locationReference?.toLowerCase().includes('mad dog') ||
+        ca.rigLocation?.toLowerCase().includes('mad dog') ||
+        ca.description?.toLowerCase().includes('mad dog')
       );
+      console.log(`🎯 MAD DOG PRODUCTION FILTER: ${locationCostAllocations.length} production-only LCs found`);
     } else {
       // Fallback to text-based matching for other locations
       locationCostAllocations = costAllocation.filter(ca => 

@@ -23,6 +23,10 @@ import {
   VesselUtilizationVarianceDashboard 
 } from './VarianceAnalysisComponents';
 import { formatSmartCurrency } from '../../utils/formatters';
+import { 
+  getThunderHorseDrillingVoyages, 
+  getMadDogDrillingVoyages
+} from '../../utils/thunderHorseMadDogClassification';
 
 interface DrillingDashboardProps {
   onNavigateToUpload?: () => void;
@@ -792,6 +796,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       }
       // If 'All Months' selected, filterMonth and filterYear remain undefined
 
+      // Enhanced KPI calculations with drilling department focus (kept for legacy compatibility)
+      // const enhancedKPIs = calculateEnhancedKPIMetrics(...) - replaced with fixedKPIs using enhanced calculation
+
       // Run comprehensive data integrity validation
       const integrityReport = validateDataIntegrity(
         voyageEvents,
@@ -802,9 +809,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       );
       
       console.log(`📊 Data Integrity Score: ${Math.round(integrityReport.overallScore)}%`);
-      
-      // Enhanced KPI calculations with drilling department focus (kept for legacy compatibility)
-      // const enhancedKPIs = calculateEnhancedKPIMetrics(...) - replaced with fixedKPIs using enhanced calculation
 
       // Enhanced manifest metrics with filtering
       const manifestMetrics = calculateEnhancedManifestMetrics(
@@ -868,32 +872,49 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           );
           
           if (selectedFacility) {
-            // Enhanced location matching using facility definitions
-            drillingVoyages = filteredVoyages.filter(voyage => {
-              if (!voyage.locations) return false;
+            // Special manifest-based classification for Thunder Horse and Mad Dog
+            if (filters.selectedLocation === 'Thunder Horse (Drilling)') {
+              // Use manifest classification to get drilling-only voyages
+              const thunderHorseVoyages = filteredVoyages.filter(voyage => 
+                voyage.locations?.toLowerCase().includes('thunder horse')
+              );
+              drillingVoyages = getThunderHorseDrillingVoyages(thunderHorseVoyages, vesselManifests);
               
-              const locations = voyage.locations.toLowerCase();
-              const facilityLocationName = selectedFacility.locationName.toLowerCase();
-              const facilityDisplayName = selectedFacility.displayName.toLowerCase();
-              const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
+              console.log('🎯 THUNDER HORSE DRILLING - MANIFEST CLASSIFICATION:', {
+                totalThunderHorseVoyages: thunderHorseVoyages.length,
+                drillingOnlyVoyages: drillingVoyages,
+                productionVoyages: thunderHorseVoyages.length - drillingVoyages
+              });
               
-              // Comprehensive location matching
-              return locations.includes(facilityLocationName) ||
-                     locations.includes(facilityNameCore) ||
-                     facilityLocationName.includes(locations) ||
-                     // Special handling for name variations
-                     (facilityNameCore.includes('thunder horse') && (
-                       locations.includes('thunder horse') || 
-                       locations.includes('thunderhorse') ||
-                       locations.includes('thr') ||
-                       locations.includes('thunder_horse')
-                     )) ||
-                     (facilityNameCore.includes('mad dog') && (
-                       locations.includes('mad dog') || 
-                       locations.includes('maddog') ||
-                       locations.includes('mad_dog')
-                     ));
-            }).length;
+            } else if (filters.selectedLocation === 'Mad Dog (Drilling)') {
+              // Use manifest classification to get drilling-only voyages
+              const madDogVoyages = filteredVoyages.filter(voyage => 
+                voyage.locations?.toLowerCase().includes('mad dog')
+              );
+              drillingVoyages = getMadDogDrillingVoyages(madDogVoyages, vesselManifests);
+              
+              console.log('🎯 MAD DOG DRILLING - MANIFEST CLASSIFICATION:', {
+                totalMadDogVoyages: madDogVoyages.length,
+                drillingOnlyVoyages: drillingVoyages,
+                productionVoyages: madDogVoyages.length - drillingVoyages
+              });
+              
+            } else {
+              // Use existing logic for other drilling locations
+              drillingVoyages = filteredVoyages.filter(voyage => {
+                if (!voyage.locations) return false;
+                
+                const locations = voyage.locations.toLowerCase();
+                const facilityLocationName = selectedFacility.locationName.toLowerCase();
+                const facilityDisplayName = selectedFacility.displayName.toLowerCase();
+                const facilityNameCore = facilityDisplayName.replace(/\s*\([^)]*\)/, '').trim(); // Remove parentheses
+                
+                // Comprehensive location matching
+                return locations.includes(facilityLocationName) ||
+                       locations.includes(facilityNameCore) ||
+                       facilityLocationName.includes(locations);
+              }).length;
+            }
             
             console.log('🔍 VOYAGE FILTERING DEBUG:', {
               selectedLocation: filters.selectedLocation,
@@ -1744,6 +1765,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         }
       };
     }
+
 
     // Determine time filtering parameters
     let filterMonth: number | undefined;
