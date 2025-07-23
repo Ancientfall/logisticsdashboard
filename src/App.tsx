@@ -23,6 +23,7 @@ import AdminDashboard from './components/admin/AdminDashboard'
 import ReferenceDataManager from './components/admin/ReferenceDataManager'
 import TVKioskDisplay from './components/TVKioskDisplay'
 import MonthlyDataUpload from './components/MonthlyDataUpload'
+import AviationDashboard from './components/aviation/AviationDashboard'
 
 import './index.css'
 
@@ -126,6 +127,9 @@ function App() {
 								
 								{/* TV Kiosk Display - fullscreen mode for large displays */}
 								<Route path="/tv-display" element={<TVKioskDisplay />} />
+								
+								{/* Aviation Dashboard - standalone dashboard */}
+								<Route path="/aviation" element={<AviationDashboard />} />
 								
 								{/* Catch all - redirect to home */}
 								<Route path="*" element={<Navigate to="/" replace />} />
