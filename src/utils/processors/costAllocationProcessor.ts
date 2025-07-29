@@ -714,8 +714,9 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
   // Determine final rig location
   let finalRigLocation = rigLocation || rigReference || locationReference || '';
   
-  // Debug logging for Thunder Horse and Mad Dog LC numbers
-  if (thunderHorseProductionLCs.includes(lcNumber) || madDogProductionLCs.includes(lcNumber)) {
+  // Debug logging for Thunder Horse, Mad Dog, and Deepwater Invictus LC numbers
+  const deepwaterInvictusLCs = ['10140', '10133'];
+  if (thunderHorseProductionLCs.includes(lcNumber) || madDogProductionLCs.includes(lcNumber) || deepwaterInvictusLCs.includes(lcNumber)) {
     console.log(`🔍 Processing LC ${lcNumber}:`);
     console.log(`   - Rig Location: "${rigLocation}"`);
     console.log(`   - Location Reference: "${locationReference}"`);
@@ -726,7 +727,54 @@ const processRigLocation = (costAlloc: RawCostAllocation, lcNumber: string): {
     console.log(`   - Department: ${department}`);
   }
   
-  if (isThunderHorse) {
+  // PRIORITY FIX: Check for explicit rig reference first before applying text-based logic
+  // If Rig Reference explicitly specifies a location, prioritize it over description text matching
+  if (rigReference && rigReference.trim() !== '') {
+    const rigRefLower = rigReference.toLowerCase().trim();
+    
+    // Check for explicit Deepwater Invictus
+    if (rigRefLower.includes('deepwater invictus') || rigRefLower.includes('invictus')) {
+      finalRigLocation = 'Deepwater Invictus';
+      console.log(`   ✅ LC ${lcNumber} assigned to Deepwater Invictus (Explicit Rig Reference)`);
+    }
+    // Check for explicit Stena IceMAX
+    else if (rigRefLower.includes('stena icemax') || rigRefLower.includes('steana icemax')) {
+      finalRigLocation = 'Stena IceMAX';
+      console.log(`   ✅ LC ${lcNumber} assigned to Stena IceMAX (Explicit Rig Reference)`);
+    }
+    // Check for explicit Island Venture
+    else if (rigRefLower.includes('island venture')) {
+      finalRigLocation = 'Island Venture';
+      console.log(`   ✅ LC ${lcNumber} assigned to Island Venture (Explicit Rig Reference)`);
+    }
+    // For Thunder Horse and Mad Dog, still apply the existing logic since they have complex integrated operations
+    else if (isThunderHorse) {
+      // Use production LC list to determine if it's production or drilling
+      if (thunderHorseProductionLCs.includes(lcNumber)) {
+        finalRigLocation = 'Thunder Horse Prod';
+        console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Prod (Production LC)`);
+      } else {
+        finalRigLocation = 'Thunder Horse Drilling';
+        console.log(`   ✅ LC ${lcNumber} assigned to Thunder Horse Drilling (Not a Production LC)`);
+      }
+    } else if (isMadDog) {
+      // Use production LC list to determine if it's production or drilling
+      if (madDogProductionLCs.includes(lcNumber)) {
+        finalRigLocation = 'Mad Dog Prod';
+        console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Prod (Production LC)`);
+      } else {
+        finalRigLocation = 'Mad Dog Drilling';
+        console.log(`   ✅ LC ${lcNumber} assigned to Mad Dog Drilling (Not a Production LC)`);
+      }
+    }
+    // If rig reference exists but doesn't match known patterns, use it as-is
+    else {
+      finalRigLocation = rigReference;
+      console.log(`   ✅ LC ${lcNumber} assigned to "${rigReference}" (Direct Rig Reference)`);
+    }
+  }
+  // Fall back to existing text-based logic only when no explicit rig reference
+  else if (isThunderHorse) {
     // Use production LC list to determine if it's production or drilling
     if (thunderHorseProductionLCs.includes(lcNumber)) {
       finalRigLocation = 'Thunder Horse Prod';

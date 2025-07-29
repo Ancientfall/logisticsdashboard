@@ -762,7 +762,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           cargo: { totalCargoTons: 0, cargoTonnagePerVisit: 0, rtPercentage: 0, outboundPercentage: 0 },
           lifts: { totalLifts: 0, liftsPerHour: 0, vesselVisits: 0 },
           hours: { totalOSVHours: 0, totalProductiveHours: 0, productiveHoursPercentage: 0, averageTripDuration: 0 },
-          costs: { totalVesselCost: 0, costPerTon: 0, costPerHour: 0 },
+          costs: { totalVesselCost: 0, costPerHour: 0 },
           utilization: { vesselUtilization: 0, transitTimeHours: 0, atLocationHours: 0 },
           bulk: { totalBulkVolume: 0, uniqueBulkTypes: 0, drillingFluidVolume: 0 },
           integrityScore: 0,
@@ -1607,7 +1607,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
         // Cost metrics from LC-based cost allocation calculation
         costs: {
           totalVesselCost: Number(rigLocationCostAnalysis?.summary?.totalCost || 0),
-          costPerTon: fixedKPIs.cargoTons.totalCargoTons > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / fixedKPIs.cargoTons.totalCargoTons : 0,
           costPerHour: fixedKPIs.productiveHours.totalOSVHours > 0 ? Number(rigLocationCostAnalysis?.summary?.totalCost || 0) / fixedKPIs.productiveHours.totalOSVHours : 0
         },
         
@@ -1665,7 +1664,6 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
       };
 
       console.log('✅ ENHANCED DRILLING METRICS CALCULATED:', {
-        cargoTons: `${metrics.cargo.totalCargoTons.toLocaleString()} tons (${metrics.cargo.validationRate.toFixed(1)}% validation)`,
         lifts: `${metrics.lifts.totalLifts.toLocaleString()} lifts @ ${metrics.lifts.liftsPerHour.toFixed(2)} lifts/hr`,
         productiveHours: `${metrics.hours.totalProductiveHours.toLocaleString()} hrs (${metrics.hours.productiveHoursPercentage.toFixed(1)}%)`,
         vesselUtilization: `${metrics.utilization.vesselUtilization.toFixed(1)}% (${metrics.utilization.utilizationConfidence} confidence)`,
@@ -1738,7 +1736,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
           },
-          costPerTonVariance: {
+          costPerHourVariance: {
             mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
@@ -1830,7 +1828,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
           },
-          costPerTonVariance: {
+          costPerHourVariance: {
             mean: 0, variance: 0, standardDeviation: 0, coefficientOfVariation: 0,
             median: 0, quartile1: 0, quartile3: 0, interQuartileRange: 0,
             outliers: [], min: 0, max: 0, count: 0
@@ -2086,20 +2084,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           overallStatus={
             drillingMetrics.integrityScore < 80 ? 'poor' :
             drillingMetrics.hours.totalProductiveHours < dynamicTargets.productiveHours ? 'fair' : 
-            drillingMetrics.cargo.totalCargoTons < dynamicTargets.cargoTons ? 'good' : 'excellent'
+            drillingMetrics.lifts.liftsPerHour < 2.5 ? 'good' : 'excellent'
           }
           heroMetrics={[
-            {
-              title: "Outbound Tonnage",
-              value: Math.round(drillingMetrics.cargo.totalCargoTons).toLocaleString(),
-              unit: "tons",
-              trend: previousPeriodMetrics.cargo.totalCargoTons > 0 ? 
-                ((drillingMetrics.cargo.totalCargoTons - previousPeriodMetrics.cargo.totalCargoTons) / previousPeriodMetrics.cargo.totalCargoTons) * 100 : 0,
-              isPositive: drillingMetrics.cargo.totalCargoTons >= previousPeriodMetrics.cargo.totalCargoTons,
-              contextualHelp: filters.selectedLocation === 'All Locations' ? 
-                `ENHANCED: Total outbound tonnage delivered from base to all drilling rigs across GoA. Uses CostAllocation.xlsx as authoritative master data source for drilling-only filtering. Validation rate: ${(drillingMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Includes deck cargo, tubulars, and drilling supplies validated against drilling LC numbers.` :
-                `ENHANCED: Outbound tonnage specific to ${filters.selectedLocation}. Filtered using cost allocation LC numbers as master data source. Validation rate: ${(drillingMetrics.cargo as any).validationRate?.toFixed(1) || 'N/A'}%. Only includes manifests validated against authoritative drilling cost allocation data.`
-            },
             {
               title: filters.selectedLocation === 'All Locations' ? "Avg Visits/Week" : "Visits per Week",
               value: (() => {
@@ -3563,9 +3550,9 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                 {/* Enhanced Vessel Metrics */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">{Math.round(drillingMetrics.cargo.totalCargoTons).toLocaleString()}</div>
-                    <div className="text-sm text-gray-600">Total Cargo</div>
-                    <div className="text-xs text-green-600 mt-1">LC Validated</div>
+                    <div className="text-2xl font-bold text-gray-900">{Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString()}</div>
+                    <div className="text-sm text-gray-600">Fluid Volume</div>
+                    <div className="text-xs text-green-600 mt-1">bbls</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">{drillingMetrics.lifts.totalLifts.toLocaleString()}</div>
@@ -3573,14 +3560,14 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
                     <div className="text-xs text-green-600 mt-1">Enhanced tracking</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">${Math.round(drillingMetrics.costs.costPerTon).toLocaleString()}</div>
-                    <div className="text-sm text-gray-600">Cost per Ton</div>
-                    <div className="text-xs text-green-600 mt-1">Cost allocation</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">${Math.round(drillingMetrics.costs.costPerHour).toLocaleString()}</div>
                     <div className="text-sm text-gray-600">Cost per Hour</div>
-                    <div className="text-xs text-green-600 mt-1">Enhanced calc</div>
+                    <div className="text-xs text-green-600 mt-1">$/hr</div>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="text-2xl font-bold text-gray-900">{drillingMetrics.lifts.vesselVisits.toLocaleString()}</div>
+                    <div className="text-sm text-gray-600">Vessel Visits</div>
+                    <div className="text-xs text-green-600 mt-1">Total voyages</div>
                   </div>
                 </div>
               </div>

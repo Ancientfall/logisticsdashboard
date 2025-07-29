@@ -105,6 +105,27 @@ export const parseCostAllocationMonthYear = (monthYearStr: string | number | Dat
       'dec': 12, 'december': 12
     };
     
+    // Try MM-YY format (06-25, 12-24, etc.) - NUMERIC MONTH FORMAT
+    const numericMonthMatch = trimmed.match(/^(\d{1,2})-(\d{2})$/);
+    if (numericMonthMatch) {
+      const month = parseInt(numericMonthMatch[1], 10);
+      const yearStr = numericMonthMatch[2];
+      const year = 2000 + parseInt(yearStr, 10);
+      
+      // Validate month
+      if (month >= 1 && month <= 12) {
+        console.log(`✅ Parsed numeric MM-YY format: ${trimmed} to ${month}/${year}`);
+        return {
+          year,
+          month,
+          monthYear: `${String(month).padStart(2, '0')}-${yearStr}`,
+          costAllocationDate: new Date(year, month - 1, 15)
+        };
+      } else {
+        console.warn(`⚠️ Invalid month in MM-YY format: ${month} (from "${trimmed}")`);
+      }
+    }
+    
     // Try Mon-YY format (Jan-24, Feb-24, etc.)
     const monthNameMatch = trimmed.match(/^([a-zA-Z]{3,})-(\d{2})$/i);
     if (monthNameMatch) {

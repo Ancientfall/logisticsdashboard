@@ -174,7 +174,7 @@ export const masterFacilitiesData: FacilityClassification[] = [
     region: 'Gulf of Mexico',
     isActive: true,
     sortOrder: 150,
-    drillingLCs: '',  // NOTE: Drilling activities are identified by location mapping, not specific LC numbers
+    drillingLCs: '10140,10133',  // FIXED: Added Deepwater Invictus drilling LC numbers to resolve June 2025 tonnage calculation
     isProductionCapable: false,
     isDrillingCapable: true,
     category: 'Drilling Rigs',
