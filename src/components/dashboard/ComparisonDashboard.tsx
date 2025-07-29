@@ -14,34 +14,38 @@ import {
   ChevronRight,
   Clock,
   Activity,
-  Anchor,
   Factory,
   Package,
   Cloud
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
-import { formatLargeCurrency, formatDaysWhole } from '../../utils/formatters';
+import { formatDaysWhole, formatSmartCurrency } from '../../utils/formatters';
+import { calculateAllEnhancedKPIs } from '../../utils/enhancedKPICalculation';
+import { calculateEnhancedBulkFluidMetrics } from '../../utils/metricsCalculation';
 
 interface ComparisonDashboardProps {
   onNavigateToUpload?: () => void;
 }
 
 type ComparisonType = 'months' | 'locations' | 'departments' | 'projectTypes';
-type MetricType = 'totalCost' | 'vesselDays' | 'utilization' | 'waitingTime' | 'productiveTime' | 'avgVoyageDuration' | 'drillingDays' | 'productionDays' | 'cargoOps' | 'weatherDowntime';
+type MetricType = 'logisticsCost' | 'cargoTons' | 'liftsPerHour' | 'vesselVisits' | 'utilization' | 'fluidVolume' | 'sharedVisitsPercent' | 'roundTrippedLifts' | 'totalOSVHours' | 'productiveHours' | 'waitingTime' | 'weatherDowntime';
 
 interface ComparisonData {
   label: string;
-  totalCost: number;
-  vesselDays: number;
+  logisticsCost: number;
+  cargoTons: number;
+  liftsPerHour: number;
+  vesselVisits: number;
   utilization: number;
-  voyageCount: number;
-  waitingTime: number;
-  productiveTime: number;
-  avgVoyageDuration: number;
-  drillingDays: number;
-  productionDays: number;
-  cargoOps: number;
-  weatherDowntime: number;
+  fluidVolume: number;
+  sharedVisitsPercent: number;
+  roundTrippedLifts: number;
+  totalOSVHours: number;
+  productiveHours: number;
+  waitingTime: number; // in days for display
+  waitingTimeHours: number; // in hours for calculations
+  weatherDowntime: number; // in days for display
+  weatherDowntimeHours: number; // in hours for calculations
   monthlyTrend?: Array<{
     month: string;
     value: number;
@@ -49,11 +53,50 @@ interface ComparisonData {
 }
 
 const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToUpload }) => {
-  const { costAllocation, voyageEvents, voyageList, isDataReady } = useData();
+  const { costAllocation, voyageEvents, voyageList, vesselManifests, bulkActions, isDataReady } = useData();
   
   const [comparisonType, setComparisonType] = useState<ComparisonType>('months');
-  const [selectedMetric, setSelectedMetric] = useState<MetricType>('totalCost');
+  const [selectedMetric, setSelectedMetric] = useState<MetricType>('logisticsCost');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  
+  // Time filtering states
+  const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
+  const [filterMonth, setFilterMonth] = useState<number | undefined>(undefined);
+  const [isYTD, setIsYTD] = useState<boolean>(true);
+
+  // Get available years from actual data
+  const availableYears = useMemo(() => {
+    if (!costAllocation || costAllocation.length === 0) return [];
+    
+    const years = [...new Set(costAllocation
+      .filter(cost => cost.costAllocationDate instanceof Date)
+      .map(cost => cost.costAllocationDate!.getFullYear())
+    )].sort((a, b) => b - a); // Most recent first
+    
+    return years;
+  }, [costAllocation]);
+
+  // Get available months for selected year
+  const availableMonths = useMemo(() => {
+    if (!costAllocation || costAllocation.length === 0) return [];
+    
+    const months = [...new Set(costAllocation
+      .filter(cost => 
+        cost.costAllocationDate instanceof Date && 
+        cost.costAllocationDate.getFullYear() === filterYear
+      )
+      .map(cost => cost.costAllocationDate!.getMonth())
+    )].sort((a, b) => a - b);
+    
+    return months;
+  }, [costAllocation, filterYear]);
+
+  // Set default year to the most recent year with data
+  React.useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(filterYear)) {
+      setFilterYear(availableYears[0]);
+    }
+  }, [availableYears, filterYear]);
 
   // Get available options based on comparison type
   const availableOptions = useMemo(() => {
@@ -94,110 +137,163 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
 
   // Calculate comparison data
   const comparisonData = useMemo(() => {
-    if (!costAllocation || selectedItems.length === 0) return [];
+    if (!costAllocation || selectedItems.length === 0 || !voyageEvents || !vesselManifests || !bulkActions) return [];
 
     return selectedItems.map(item => {
-      let filteredData = costAllocation;
-
-      switch (comparisonType) {
-        case 'months':
-          filteredData = costAllocation.filter(cost => {
-            if (!cost.costAllocationDate) return false;
-            const monthYear = `${cost.costAllocationDate.toLocaleString('en-US', { month: 'long' })} ${cost.costAllocationDate.getFullYear()}`;
-            return monthYear === item;
-          });
-          break;
+      // Determine time and location filters based on comparison type
+      let timeMonth = undefined;
+      let timeYear = undefined;
+      let locationFilter = undefined;
+      let filteredCostAllocation = costAllocation;
+      
+      if (comparisonType === 'months') {
+        // For month comparison, parse the month/year from the item
+        const [monthName, yearStr] = item.split(' ');
+        const monthIndex = new Date(`${monthName} 1, 2000`).getMonth();
+        timeMonth = monthIndex;
+        timeYear = parseInt(yearStr);
         
-        case 'locations':
-          filteredData = costAllocation.filter(cost => 
-            cost.rigLocation === item || cost.locationReference === item
-          );
-          break;
+        // Filter cost allocation to match the selected month
+        filteredCostAllocation = costAllocation.filter(cost => {
+          if (!cost.costAllocationDate) return false;
+          const monthYear = `${cost.costAllocationDate.toLocaleString('en-US', { month: 'long' })} ${cost.costAllocationDate.getFullYear()}`;
+          return monthYear === item;
+        });
+      } else {
+        // For location/department/project comparisons, use global time filters
+        timeMonth = isYTD ? undefined : filterMonth;
+        timeYear = filterYear;
         
-        case 'departments':
-          filteredData = costAllocation.filter(cost => cost.department === item);
-          break;
+        // Apply time filtering to cost allocation
+        filteredCostAllocation = costAllocation.filter(cost => {
+          if (!cost.costAllocationDate) return false;
+          
+          // Apply time filter
+          let timeMatch = true;
+          if (isYTD) {
+            timeMatch = cost.costAllocationDate.getFullYear() === filterYear;
+          } else if (filterMonth !== undefined) {
+            timeMatch = cost.costAllocationDate.getFullYear() === filterYear && 
+                      cost.costAllocationDate.getMonth() === filterMonth;
+          }
+          
+          if (!timeMatch) return false;
+          
+          // Apply comparison type filter
+          switch (comparisonType) {
+            case 'locations':
+              return cost.rigLocation === item || cost.locationReference === item;
+            case 'departments':
+              return cost.department === item;
+            case 'projectTypes':
+              return cost.projectType === item;
+            default:
+              return true;
+          }
+        });
         
-        case 'projectTypes':
-          filteredData = costAllocation.filter(cost => cost.projectType === item);
-          break;
+        // Set location filter for KPI functions
+        if (comparisonType === 'locations') {
+          locationFilter = item === 'All Locations' ? undefined : item;
+        }
       }
 
-      const totalCost = filteredData.reduce((sum, cost) => sum + (cost.budgetedVesselCost || cost.totalCost || 0), 0);
-      const vesselDays = filteredData.reduce((sum, cost) => sum + (cost.totalAllocatedDays || 0), 0);
-      const rawUtilization = filteredData.length > 0 ? (vesselDays / (filteredData.length * 30)) * 100 : 0;
-      const utilization = Math.min(rawUtilization, 100); // Cap at 100%
+      console.log(`🔍 KPI Calculation for ${item}:`, {
+        comparisonType,
+        timeMonth,
+        timeYear,
+        locationFilter,
+        filteredCostAllocationCount: filteredCostAllocation.length,
+        isYTD,
+        filterMonth,
+        filterYear,
+        sampleCostAllocation: filteredCostAllocation.slice(0, 2).map(cost => ({
+          costAllocationDate: cost.costAllocationDate,
+          rigLocation: cost.rigLocation,
+          department: cost.department,
+          projectType: cost.projectType,
+          totalCost: cost.totalCost
+        }))
+      });
 
-      // Calculate drilling and production days from cost allocation
-      const drillingDays = filteredData
-        .filter(cost => cost.department === 'Drilling' || cost.projectType === 'Drilling')
-        .reduce((sum, cost) => sum + (cost.totalAllocatedDays || 0), 0);
+      // Calculate drilling metrics using the same function as DrillingDashboard
+      const drillingKPIs = calculateAllEnhancedKPIs(
+        voyageEvents,
+        vesselManifests,
+        filteredCostAllocation, // Use filtered cost allocation
+        'Drilling',
+        timeMonth,
+        timeYear,
+        locationFilter
+      );
+
+      // Calculate production metrics using the same function as ProductionDashboard
+      const productionKPIs = calculateAllEnhancedKPIs(
+        voyageEvents,
+        vesselManifests,
+        filteredCostAllocation, // Use filtered cost allocation
+        'Production',
+        timeMonth,
+        timeYear,
+        locationFilter
+      );
+
+      // Calculate bulk fluid metrics separately (not included in main KPIs)
+      const drillingBulkMetrics = calculateEnhancedBulkFluidMetrics(
+        bulkActions,
+        timeMonth,
+        timeYear,
+        'Drilling',
+        locationFilter
+      );
+
+      const productionBulkMetrics = calculateEnhancedBulkFluidMetrics(
+        bulkActions,
+        timeMonth,
+        timeYear,
+        'Production',
+        locationFilter
+      );
+
+      // Combine metrics from both drilling and production where applicable
+      // Note: Cost calculation needs to be done separately as the KPI functions don't return cost data
+      let combinedLogisticsCost = 0; // Will need to calculate from cost allocation directly
       
-      const productionDays = filteredData
-        .filter(cost => cost.department === 'Production' || cost.projectType === 'Production')
-        .reduce((sum, cost) => sum + (cost.totalAllocatedDays || 0), 0);
-
-      // Calculate operational metrics from voyage events
-      let waitingTime = 0;
-      let productiveTime = 0;
-      let cargoOps = 0;
-      let weatherDowntime = 0;
-      let totalVoyageDuration = 0;
-
-      // Get related voyage events for this filtered data by matching LC numbers
-      const relatedLCNumbers = [...new Set(filteredData.map(cost => cost.lcNumber).filter(Boolean))];
-      const relatedVoyages = voyageEvents.filter(voyage => 
-        voyage.lcNumber && relatedLCNumbers.includes(voyage.lcNumber)
+      const combinedCargoTons = (drillingKPIs.cargoTons?.totalCargoTons || 0) + (productionKPIs.cargoTons?.totalCargoTons || 0);
+      const combinedFluidVolume = (drillingBulkMetrics.totalFluidVolume || 0) + (productionBulkMetrics.totalFluidVolume || 0);
+      const combinedOSVHours = (drillingKPIs.productiveHours?.totalOSVHours || 0) + (productionKPIs.productiveHours?.totalOSVHours || 0);
+      const combinedProductiveHours = (drillingKPIs.productiveHours?.productiveHours || 0) + (productionKPIs.productiveHours?.productiveHours || 0);
+      
+      // Calculate vessel visits from filtered cost allocation data
+      // Each cost allocation record roughly represents vessel activity
+      const combinedVesselVisits = filteredCostAllocation.length;
+      
+      // Calculate averages for rate-based metrics (simple average since we can't easily weight by department)
+      const combinedLiftsPerHour = ((drillingKPIs.liftsPerHour?.liftsPerHour || 0) + (productionKPIs.liftsPerHour?.liftsPerHour || 0)) / 2;
+      const combinedUtilization = ((drillingKPIs.utilization?.vesselUtilization || 0) + (productionKPIs.utilization?.vesselUtilization || 0)) / 2;
+        
+      // Calculate cost from cost allocation data
+      combinedLogisticsCost = filteredCostAllocation.reduce((sum, cost) => 
+        sum + (cost.budgetedVesselCost || cost.totalCost || 0), 0
       );
 
-      relatedVoyages.forEach(voyage => {
-        // Calculate productive vs non-productive time based on activity category
-        if (voyage.activityCategory === 'Productive') {
-          productiveTime += voyage.hours || 0;
-        } else if (voyage.activityCategory === 'Non-Productive') {
-          waitingTime += voyage.hours || 0;
-        }
-
-        // Identify specific event types
-        const parentEventUpper = voyage.parentEvent?.toUpperCase() || '';
-        
-        // Weather-related downtime
-        if (parentEventUpper.includes('WEATHER') || parentEventUpper.includes('WOW')) {
-          weatherDowntime += voyage.hours || 0;
-        }
-        
-        // Cargo operations
-        if (parentEventUpper.includes('CARGO') || parentEventUpper.includes('LOAD') || 
-            parentEventUpper.includes('DISCHARGE') || parentEventUpper.includes('BACKLOAD')) {
-          cargoOps += voyage.hours || 0;
-        }
-        
-        // General waiting events
-        const waitingEvents = ['WAITING', 'WAIT', 'STANDBY'];
-        if (waitingEvents.some(w => parentEventUpper.includes(w)) && !parentEventUpper.includes('WEATHER')) {
-          waitingTime += voyage.hours || 0;
-        }
+      // Calculate waiting time and weather downtime from KPI results (keep in hours)
+      const waitingTimeHours = (drillingKPIs.waitingTime?.waitingTimeOffshore || 0) + (productionKPIs.waitingTime?.waitingTimeOffshore || 0);
+      const weatherDowntimeHours = (drillingKPIs.waitingTime?.weatherExcludedHours || 0) + (productionKPIs.waitingTime?.weatherExcludedHours || 0);
+      
+      // Convert to days only for display purposes
+      const waitingTime = waitingTimeHours / 24;
+      const weatherDowntime = weatherDowntimeHours / 24;
+      
+      console.log(`⏱️ Time Calculation for ${item}:`, {
+        drillingWaitingHours: drillingKPIs.waitingTime?.waitingTimeOffshore || 0,
+        productionWaitingHours: productionKPIs.waitingTime?.waitingTimeOffshore || 0,
+        totalWaitingHours: waitingTimeHours,
+        totalWaitingDays: waitingTime,
+        drillingProductiveHours: drillingKPIs.productiveHours?.productiveHours || 0,
+        productionProductiveHours: productionKPIs.productiveHours?.productiveHours || 0,
+        totalProductiveHours: combinedProductiveHours
       });
-
-      // Get voyage-level information from voyageList
-      const relatedVoyageNumbers = [...new Set(relatedVoyages.map(v => v.voyageNumber).filter(Boolean))];
-      const relatedVoyageListItems = voyageList.filter(v => 
-        relatedVoyageNumbers.includes(v.voyageNumber.toString())
-      );
-
-      relatedVoyageListItems.forEach(voyage => {
-        // Calculate average voyage duration
-        if (voyage.durationHours) {
-          totalVoyageDuration += voyage.durationHours;
-        }
-      });
-
-      // Convert hours to days
-      waitingTime = waitingTime / 24;
-      productiveTime = productiveTime / 24;
-      cargoOps = cargoOps / 24;
-      weatherDowntime = weatherDowntime / 24;
-      const avgVoyageDuration = relatedVoyageListItems.length > 0 ? (totalVoyageDuration / 24) / relatedVoyageListItems.length : 0;
 
       // Calculate 6-month trend if needed
       let monthlyTrend: Array<{ month: string; value: number }> = [];
@@ -278,38 +374,39 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
             // Add value based on selected metric
             let valueToAdd = 0;
             switch (selectedMetric) {
-              case 'totalCost':
+              case 'logisticsCost':
                 valueToAdd = cost.budgetedVesselCost || cost.totalCost || 0;
                 break;
-              case 'vesselDays':
+              case 'cargoTons':
+              case 'vesselVisits':
+              case 'fluidVolume':
+                // These require complex calculations from vessel data
+                // Use allocated days as a proxy for now
                 valueToAdd = cost.totalAllocatedDays || 0;
                 break;
-              case 'drillingDays':
-              case 'productionDays':
-                valueToAdd = cost.totalAllocatedDays || 0;
-                break;
-              case 'waitingTime':
-              case 'productiveTime':
-              case 'cargoOps':
-              case 'weatherDowntime':
-                // These need to be calculated from voyage events
-                // For now, use a placeholder calculation
-                valueToAdd = (cost.totalAllocatedDays || 0) * 0.2; // 20% estimate
+              case 'liftsPerHour':
+                // Rate-based metric - use a base rate approximation
+                valueToAdd = (cost.totalAllocatedDays || 0) * 1.5; // Approximate lifts per day
                 break;
               case 'utilization':
                 valueToAdd = cost.totalAllocatedDays || 0; // Will calculate percentage later
                 break;
-              case 'avgVoyageDuration':
-                valueToAdd = cost.totalAllocatedDays || 0;
+              case 'sharedVisitsPercent':
+              case 'roundTrippedLifts':
+                // Production-specific metrics
+                if (cost.department === 'Production' || cost.projectType === 'Production') {
+                  valueToAdd = (cost.totalAllocatedDays || 0) * 0.3; // Estimate
+                }
                 break;
-            }
-            
-            // Apply filters for specific metrics
-            if (selectedMetric === 'drillingDays' && !(cost.department === 'Drilling' || cost.projectType === 'Drilling')) {
-              valueToAdd = 0;
-            }
-            if (selectedMetric === 'productionDays' && !(cost.department === 'Production' || cost.projectType === 'Production')) {
-              valueToAdd = 0;
+              case 'totalOSVHours':
+              case 'productiveHours':
+                valueToAdd = (cost.totalAllocatedDays || 0) * 24; // Days to hours
+                break;
+              case 'waitingTime':
+              case 'weatherDowntime':
+                // Use a smaller percentage for downtime
+                valueToAdd = (cost.totalAllocatedDays || 0) * 0.1; // 10% estimate
+                break;
             }
             
             monthlyData.set(monthKey, currentValue + valueToAdd);
@@ -339,21 +436,24 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
 
       return {
         label: item,
-        totalCost,
-        vesselDays,
-        utilization,
-        voyageCount: filteredData.length,
+        logisticsCost: combinedLogisticsCost,
+        cargoTons: combinedCargoTons,
+        liftsPerHour: combinedLiftsPerHour,
+        vesselVisits: combinedVesselVisits,
+        utilization: combinedUtilization,
+        fluidVolume: combinedFluidVolume,
+        sharedVisitsPercent: 0, // Placeholder - would need separate calculation
+        roundTrippedLifts: productionKPIs.cargoTons?.totalRTTons || 0,
+        totalOSVHours: combinedOSVHours,
+        productiveHours: combinedProductiveHours,
         waitingTime,
-        productiveTime,
-        avgVoyageDuration,
-        drillingDays,
-        productionDays,
-        cargoOps,
+        waitingTimeHours, // Keep hours version for calculations
         weatherDowntime,
+        weatherDowntimeHours, // Keep hours version for calculations
         monthlyTrend
       };
     });
-  }, [costAllocation, voyageEvents, voyageList, comparisonType, selectedItems, selectedMetric]);
+  }, [costAllocation, voyageEvents, voyageList, vesselManifests, bulkActions, comparisonType, selectedItems, selectedMetric, filterYear, filterMonth, isYTD]);
 
   // Toggle item selection
   const toggleItemSelection = (item: string) => {
@@ -370,24 +470,28 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
   // Get metric value
   const getMetricValue = (data: ComparisonData) => {
     switch (selectedMetric) {
-      case 'totalCost':
-        return data.totalCost;
-      case 'vesselDays':
-        return data.vesselDays;
+      case 'logisticsCost':
+        return data.logisticsCost;
+      case 'cargoTons':
+        return data.cargoTons;
+      case 'liftsPerHour':
+        return data.liftsPerHour;
+      case 'vesselVisits':
+        return data.vesselVisits;
       case 'utilization':
         return data.utilization;
+      case 'fluidVolume':
+        return data.fluidVolume;
+      case 'sharedVisitsPercent':
+        return data.sharedVisitsPercent;
+      case 'roundTrippedLifts':
+        return data.roundTrippedLifts;
+      case 'totalOSVHours':
+        return data.totalOSVHours;
+      case 'productiveHours':
+        return data.productiveHours;
       case 'waitingTime':
         return data.waitingTime;
-      case 'productiveTime':
-        return data.productiveTime;
-      case 'avgVoyageDuration':
-        return data.avgVoyageDuration;
-      case 'drillingDays':
-        return data.drillingDays;
-      case 'productionDays':
-        return data.productionDays;
-      case 'cargoOps':
-        return data.cargoOps;
       case 'weatherDowntime':
         return data.weatherDowntime;
       default:
@@ -398,19 +502,27 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
   // Format metric value
   const formatMetricValue = (value: number) => {
     switch (selectedMetric) {
-      case 'totalCost':
-        return formatLargeCurrency(value);
-      case 'vesselDays':
+      case 'logisticsCost':
+        return formatSmartCurrency(value);
+      case 'cargoTons':
+        return `${Math.round(value).toLocaleString()} tons`;
+      case 'liftsPerHour':
+        return `${value.toFixed(2)} lifts/hr`;
+      case 'vesselVisits':
+        return `${Math.round(value).toLocaleString()} visits`;
+      case 'utilization':
+      case 'sharedVisitsPercent':
+        return `${value.toFixed(1)}%`;
+      case 'fluidVolume':
+        return `${Math.round(value).toLocaleString()} bbls`;
+      case 'roundTrippedLifts':
+        return `${Math.round(value).toLocaleString()} lifts`;
+      case 'totalOSVHours':
+      case 'productiveHours':
+        return `${Math.round(value).toLocaleString()} hrs`;
       case 'waitingTime':
-      case 'productiveTime':
-      case 'avgVoyageDuration':
-      case 'drillingDays':
-      case 'productionDays':
-      case 'cargoOps':
       case 'weatherDowntime':
         return formatDaysWhole(value);
-      case 'utilization':
-        return `${value.toFixed(1)}%`;
       default:
         return value.toString();
     }
@@ -419,23 +531,26 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
   // Get metric icon
   const getMetricIcon = () => {
     switch (selectedMetric) {
-      case 'totalCost':
+      case 'logisticsCost':
         return <DollarSign className="w-4 h-4" />;
-      case 'vesselDays':
-      case 'avgVoyageDuration':
+      case 'cargoTons':
+        return <Package className="w-4 h-4" />;
+      case 'liftsPerHour':
+        return <TrendingUp className="w-4 h-4" />;
+      case 'vesselVisits':
         return <Ship className="w-4 h-4" />;
+      case 'utilization':
+      case 'sharedVisitsPercent':
+        return <Percent className="w-4 h-4" />;
+      case 'fluidVolume':
+        return <Factory className="w-4 h-4" />;
+      case 'roundTrippedLifts':
+        return <TrendingDown className="w-4 h-4" />;
+      case 'totalOSVHours':
+      case 'productiveHours':
+        return <Activity className="w-4 h-4" />;
       case 'waitingTime':
         return <Clock className="w-4 h-4" />;
-      case 'productiveTime':
-        return <Activity className="w-4 h-4" />;
-      case 'utilization':
-        return <Percent className="w-4 h-4" />;
-      case 'drillingDays':
-        return <Anchor className="w-4 h-4" />;
-      case 'productionDays':
-        return <Factory className="w-4 h-4" />;
-      case 'cargoOps':
-        return <Package className="w-4 h-4" />;
       case 'weatherDowntime':
         return <Cloud className="w-4 h-4" />;
       default:
@@ -513,7 +628,7 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
 
         {/* Controls */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Comparison Type */}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Compare By</label>
@@ -543,21 +658,93 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
               </div>
             </div>
 
+            {/* Time Filtering - Only show when not comparing by months */}
+            {comparisonType !== 'months' && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Time Period</label>
+                <div className="space-y-2">
+                  {/* Year Selection */}
+                  <div>
+                    <select 
+                      value={filterYear} 
+                      onChange={(e) => setFilterYear(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {availableYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* YTD vs Monthly Toggle */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setIsYTD(true);
+                        setFilterMonth(undefined);
+                      }}
+                      className={`flex-1 px-3 py-2 text-xs rounded-md border transition-all ${
+                        isYTD 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                      }`}
+                    >
+                      YTD
+                    </button>
+                    <button
+                      onClick={() => setIsYTD(false)}
+                      className={`flex-1 px-3 py-2 text-xs rounded-md border transition-all ${
+                        !isYTD 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                  </div>
+                  
+                  {/* Month Selection - Only show when not YTD */}
+                  {!isYTD && (
+                    <select 
+                      value={filterMonth ?? ''} 
+                      onChange={(e) => setFilterMonth(e.target.value ? Number(e.target.value) : undefined)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select Month</option>
+                      {availableMonths.map(monthValue => {
+                        const monthNames = [
+                          'January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December'
+                        ];
+                        return (
+                          <option key={monthValue} value={monthValue}>
+                            {monthNames[monthValue]}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Metric Selection */}
             <div className="col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-2 block">Metric to Compare</label>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 {[
-                  { metric: 'totalCost' as MetricType, label: 'Total Cost' },
-                  { metric: 'vesselDays' as MetricType, label: 'Vessel Days' },
-                  { metric: 'drillingDays' as MetricType, label: 'Drilling Days' },
-                  { metric: 'productionDays' as MetricType, label: 'Production Days' },
+                  { metric: 'logisticsCost' as MetricType, label: 'Logistics Cost' },
+                  { metric: 'cargoTons' as MetricType, label: 'Cargo Tons' },
+                  { metric: 'liftsPerHour' as MetricType, label: 'Lifts/Hour' },
+                  { metric: 'vesselVisits' as MetricType, label: 'Vessel Visits' },
                   { metric: 'utilization' as MetricType, label: 'Utilization' },
+                  { metric: 'fluidVolume' as MetricType, label: 'Fluid Volume' },
+                  { metric: 'sharedVisitsPercent' as MetricType, label: 'Shared Visits %' },
+                  { metric: 'roundTrippedLifts' as MetricType, label: 'RT Lifts' },
+                  { metric: 'totalOSVHours' as MetricType, label: 'OSV Hours' },
+                  { metric: 'productiveHours' as MetricType, label: 'Productive Hours' },
                   { metric: 'waitingTime' as MetricType, label: 'Waiting Time' },
-                  { metric: 'productiveTime' as MetricType, label: 'Productive Time' },
-                  { metric: 'cargoOps' as MetricType, label: 'Cargo Ops' },
-                  { metric: 'weatherDowntime' as MetricType, label: 'Weather Delay' },
-                  { metric: 'avgVoyageDuration' as MetricType, label: 'Avg Voyage' }
+                  { metric: 'weatherDowntime' as MetricType, label: 'Weather Delay' }
                 ].map(({ metric, label }) => (
                   <button
                     key={metric}
@@ -628,27 +815,27 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <span className="text-gray-500">Cost</span>
-                          <p className="font-bold text-gray-900">{formatLargeCurrency(data.totalCost)}</p>
+                          <p className="font-bold text-gray-900">{formatSmartCurrency(data.logisticsCost)}</p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Vessel Days</span>
-                          <p className="font-bold text-gray-900">{formatDaysWhole(data.vesselDays)}</p>
+                          <span className="text-gray-500">Cargo</span>
+                          <p className="font-bold text-gray-900">{Math.round(data.cargoTons).toLocaleString()}t</p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Drilling</span>
-                          <p className="font-bold text-gray-900">{formatDaysWhole(data.drillingDays)}</p>
+                          <span className="text-gray-500">Lifts/Hr</span>
+                          <p className="font-bold text-gray-900">{data.liftsPerHour.toFixed(2)}</p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Production</span>
-                          <p className="font-bold text-gray-900">{formatDaysWhole(data.productionDays)}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Wait Time</span>
-                          <p className="font-bold text-gray-900">{formatDaysWhole(data.waitingTime)}</p>
+                          <span className="text-gray-500">Visits</span>
+                          <p className="font-bold text-gray-900">{Math.round(data.vesselVisits).toLocaleString()}</p>
                         </div>
                         <div>
                           <span className="text-gray-500">Utilization</span>
                           <p className="font-bold text-gray-900">{data.utilization.toFixed(1)}%</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Fluid Vol</span>
+                          <p className="font-bold text-gray-900">{Math.round(data.fluidVolume).toLocaleString()}b</p>
                         </div>
                       </div>
                     </div>
@@ -663,15 +850,17 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                 <div className="flex items-center gap-3">
                   {getMetricIcon()}
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {selectedMetric === 'totalCost' ? 'Total Cost' :
-                     selectedMetric === 'vesselDays' ? 'Vessel Days' :
-                     selectedMetric === 'utilization' ? 'Utilization Rate' :
+                    {selectedMetric === 'logisticsCost' ? 'Logistics Cost' :
+                     selectedMetric === 'cargoTons' ? 'Cargo Tonnage' :
+                     selectedMetric === 'liftsPerHour' ? 'Lifts per Hour' :
+                     selectedMetric === 'vesselVisits' ? 'Vessel Visits' :
+                     selectedMetric === 'utilization' ? 'Vessel Utilization' :
+                     selectedMetric === 'fluidVolume' ? 'Fluid Volume' :
+                     selectedMetric === 'sharedVisitsPercent' ? 'Shared Visits %' :
+                     selectedMetric === 'roundTrippedLifts' ? 'Round-Tripped Lifts' :
+                     selectedMetric === 'totalOSVHours' ? 'Total OSV Hours' :
+                     selectedMetric === 'productiveHours' ? 'Productive Hours' :
                      selectedMetric === 'waitingTime' ? 'Waiting Time' :
-                     selectedMetric === 'productiveTime' ? 'Productive Time' :
-                     selectedMetric === 'avgVoyageDuration' ? 'Average Voyage Duration' :
-                     selectedMetric === 'drillingDays' ? 'Drilling Days' :
-                     selectedMetric === 'productionDays' ? 'Production Days' :
-                     selectedMetric === 'cargoOps' ? 'Cargo Operations' :
                      'Weather Downtime'} Comparison
                   </h3>
                 </div>
@@ -721,16 +910,20 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">6-Month Trend Analysis</h3>
                   <span className="text-sm text-gray-500">
-                    {selectedMetric === 'totalCost' ? 'Monthly Cost' :
-                     selectedMetric === 'vesselDays' ? 'Monthly Vessel Days' :
-                     selectedMetric === 'drillingDays' ? 'Monthly Drilling Days' :
-                     selectedMetric === 'productionDays' ? 'Monthly Production Days' :
+                    {selectedMetric === 'logisticsCost' ? 'Monthly Cost' :
+                     selectedMetric === 'cargoTons' ? 'Monthly Cargo Tons' :
+                     selectedMetric === 'liftsPerHour' ? 'Monthly Lifts/Hr' :
+                     selectedMetric === 'vesselVisits' ? 'Monthly Visits' :
+                     selectedMetric === 'utilization' ? 'Monthly Utilization' :
+                     selectedMetric === 'fluidVolume' ? 'Monthly Fluid Volume' :
+                     selectedMetric === 'totalOSVHours' ? 'Monthly OSV Hours' :
+                     selectedMetric === 'productiveHours' ? 'Monthly Productive Hours' :
                      'Monthly Values'}
                   </span>
                 </div>
                 
                 
-                <div className="h-64 relative mb-8">
+                <div className="h-72 relative mb-8">
                   {/* Y-axis labels */}
                   <div className="absolute left-0 top-0 bottom-0 w-20 flex flex-col justify-between text-xs text-gray-500">
                     {[100, 75, 50, 25, 0].map((percent) => {
@@ -757,60 +950,85 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                       ))}
                     </div>
                     
-                    {/* Line chart */}
+                    {/* Bar chart */}
                     <div className="relative h-full">
-                      {comparisonData.map((data, index) => {
-                        if (!data.monthlyTrend || data.monthlyTrend.length === 0) return null;
-                        
-                        const colors = ['blue', 'green', 'purple', 'orange'];
-                        const color = colors[index % colors.length];
+                      {/* Get max value across all data */}
+                      {(() => {
                         const maxValue = Math.max(...comparisonData.flatMap(d => d.monthlyTrend?.map(t => t.value) || [0]), 1);
-                        
-                        // Check if we have valid data
-                        const hasData = data.monthlyTrend.some(point => point.value > 0);
-                        if (!hasData) {
-                          console.log(`⚠️ No data for ${data.label} trend`);
-                        }
+                        const monthCount = comparisonData[0]?.monthlyTrend?.length || 6;
+                        const barGroupWidth = 100 / monthCount; // Percentage width per month group
+                        const barWidth = barGroupWidth / comparisonData.length * 0.8; // Width per bar within group
                         
                         return (
-                          <div key={data.label} className="absolute inset-0">
-                            {/* Line path */}
-                            <svg className="absolute inset-0 w-full h-full" style={{ overflow: 'visible' }}>
-                              <polyline
-                                fill="none"
-                                stroke={color === 'blue' ? '#3b82f6' : color === 'green' ? '#10b981' : color === 'purple' ? '#8b5cf6' : '#f59e0b'}
-                                strokeWidth="2"
-                                points={data.monthlyTrend.map((point, i) => {
-                                  const x = data.monthlyTrend!.length > 1 ? (i / (data.monthlyTrend!.length - 1)) * 100 : 50;
-                                  const y = maxValue > 0 ? 100 - ((point.value / maxValue) * 100) : 100;
-                                  return `${x}%,${y}%`;
-                                }).join(' ')}
-                              />
-                              {/* Data points */}
-                              {data.monthlyTrend.map((point, i) => {
-                                const x = data.monthlyTrend!.length > 1 ? (i / (data.monthlyTrend!.length - 1)) * 100 : 50;
-                                const y = maxValue > 0 ? 100 - ((point.value / maxValue) * 100) : 100;
-                                return (
-                                  <circle
-                                    key={i}
-                                    cx={`${x}%`}
-                                    cy={`${y}%`}
-                                    r="4"
-                                    fill={color === 'blue' ? '#3b82f6' : color === 'green' ? '#10b981' : color === 'purple' ? '#8b5cf6' : '#f59e0b'}
-                                    className="hover:r-6"
-                                  />
-                                );
-                              })}
-                            </svg>
+                          <div className="absolute inset-0">
+                            {/* Render bars for each month */}
+                            {comparisonData[0]?.monthlyTrend?.map((_, monthIndex) => (
+                              <div key={monthIndex} className="absolute bottom-0 flex items-end" style={{
+                                left: `${monthIndex * barGroupWidth}%`,
+                                width: `${barGroupWidth}%`,
+                                height: '100%'
+                              }}>
+                                {/* Bars for each data series in this month */}
+                                {comparisonData.map((data, dataIndex) => {
+                                  if (!data.monthlyTrend || !data.monthlyTrend[monthIndex]) return null;
+                                  
+                                  const colors = ['blue', 'green', 'purple', 'orange'];
+                                  const color = colors[dataIndex % colors.length];
+                                  const colorClasses: Record<string, string> = {
+                                    blue: 'bg-blue-500 hover:bg-blue-600',
+                                    green: 'bg-green-500 hover:bg-green-600', 
+                                    purple: 'bg-purple-500 hover:bg-purple-600',
+                                    orange: 'bg-orange-500 hover:bg-orange-600'
+                                  };
+                                  
+                                  const value = data.monthlyTrend[monthIndex].value;
+                                  const heightPercent = maxValue > 0 ? (value / maxValue) * 100 : 0;
+                                  
+                                  console.log(`📊 Bar chart - ${data.label} Month ${monthIndex}:`, {
+                                    value,
+                                    maxValue,
+                                    heightPercent
+                                  });
+                                  
+                                  return (
+                                    <div
+                                      key={`${data.label}-${monthIndex}`}
+                                      className={`transition-all duration-300 ${colorClasses[color]} rounded-t-sm mx-0.5 group relative`}
+                                      style={{
+                                        width: `${barWidth}%`,
+                                        height: `${Math.max(heightPercent, 2)}%`,
+                                        minHeight: value > 0 ? '2px' : '0px'
+                                      }}
+                                      title={`${data.label}: ${formatMetricValue(value)}`}
+                                    >
+                                      {/* Value label on hover */}
+                                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                        {formatMetricValue(value)}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
                           </div>
                         );
-                      })}
+                      })()}
                     </div>
                     
                     {/* X-axis labels */}
-                    <div className="absolute -bottom-8 left-0 right-0 flex justify-between text-xs text-gray-500">
+                    <div className="absolute -bottom-20 left-0 right-0 flex justify-between text-xs text-gray-500">
                       {comparisonData[0]?.monthlyTrend?.map((point, i) => (
-                        <div key={i} className="text-center" style={{ transform: 'rotate(-45deg)', transformOrigin: 'center' }}>
+                        <div 
+                          key={i} 
+                          className="text-center whitespace-nowrap overflow-hidden" 
+                          style={{ 
+                            transform: 'rotate(-45deg)', 
+                            transformOrigin: 'center',
+                            maxWidth: '70px',
+                            fontSize: '10px',
+                            lineHeight: '1.2'
+                          }}
+                        >
                           {point.month}
                         </div>
                       ))}
@@ -819,7 +1037,7 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                 </div>
                 
                 {/* Legend */}
-                <div className="flex items-center gap-4 mt-6 justify-center">
+                <div className="flex items-center gap-4 mt-24 justify-center">
                   {comparisonData.map((data, index) => {
                     const colors = ['blue', 'green', 'purple', 'orange'];
                     const color = colors[index % colors.length];
@@ -838,14 +1056,22 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
             })()}
 
             {/* Operational Metrics Breakdown - Shows when looking at time-based metrics */}
-            {['waitingTime', 'productiveTime', 'avgVoyageDuration'].includes(selectedMetric) && (
+            {['waitingTime', 'productiveHours', 'totalOSVHours'].includes(selectedMetric) && (
               <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-6 border border-blue-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Operational Performance Breakdown</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {comparisonData.map((data, index) => {
                     const colors = ['blue', 'green', 'purple', 'orange'];
                     const color = colors[index % colors.length];
-                    const totalTime = data.waitingTime + data.productiveTime;
+                    const totalTime = data.waitingTimeHours + data.productiveHours; // Both already in hours
+                    
+                    console.log(`📊 Operational Breakdown for ${data.label}:`, {
+                      waitingTimeHours: data.waitingTimeHours,
+                      productiveHours: data.productiveHours,
+                      totalTime,
+                      productivePercentage: totalTime > 0 ? ((data.productiveHours / totalTime) * 100).toFixed(1) : 0,
+                      waitingPercentage: totalTime > 0 ? ((data.waitingTimeHours / totalTime) * 100).toFixed(1) : 0
+                    });
                     
                     return (
                       <div key={data.label} className="bg-white rounded-lg p-4 shadow-sm">
@@ -853,34 +1079,34 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-xs text-gray-500">Total Time</span>
-                            <span className="text-sm font-bold">{formatDaysWhole(totalTime)}</span>
+                            <span className="text-sm font-bold">{Math.round(totalTime).toLocaleString()} hrs</span>
                           </div>
                           <div className="relative w-full bg-gray-100 rounded-full h-6 overflow-hidden">
                             <div 
                               className={`absolute left-0 top-0 h-full bg-green-500 transition-all duration-500`}
-                              style={{ width: `${totalTime > 0 ? (data.productiveTime / totalTime) * 100 : 0}%` }}
+                              style={{ width: `${totalTime > 0 ? (data.productiveHours / totalTime) * 100 : 0}%` }}
                             />
                             <div 
                               className={`absolute top-0 h-full bg-orange-500 transition-all duration-500`}
                               style={{ 
-                                left: `${totalTime > 0 ? (data.productiveTime / totalTime) * 100 : 0}%`,
-                                width: `${totalTime > 0 ? (data.waitingTime / totalTime) * 100 : 0}%` 
+                                left: `${totalTime > 0 ? (data.productiveHours / totalTime) * 100 : 0}%`,
+                                width: `${totalTime > 0 ? (data.waitingTimeHours / totalTime) * 100 : 0}%` 
                               }}
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <span className="text-xs font-medium text-gray-700">
-                                {totalTime > 0 ? ((data.productiveTime / totalTime) * 100).toFixed(0) : 0}% productive
+                                {totalTime > 0 ? ((data.productiveHours / totalTime) * 100).toFixed(0) : 0}% productive
                               </span>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <div className="flex items-center gap-1">
                               <div className="w-3 h-3 bg-green-500 rounded"></div>
-                              <span className="text-gray-600">Productive: {formatDaysWhole(data.productiveTime)}</span>
+                              <span className="text-gray-600">Productive: {Math.round(data.productiveHours).toLocaleString()}h</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <div className="w-3 h-3 bg-orange-500 rounded"></div>
-                              <span className="text-gray-600">Waiting: {formatDaysWhole(data.waitingTime)}</span>
+                              <span className="text-gray-600">Waiting: {Math.round(data.waitingTimeHours).toLocaleString()}h</span>
                             </div>
                           </div>
                         </div>
@@ -899,10 +1125,11 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                   {comparisonData.slice(1).map((data, index) => {
                     const baseData = comparisonData[0];
                     const variance = getMetricValue(data) - getMetricValue(baseData);
-                    const percentageChange = baseData.totalCost > 0 
-                      ? ((getMetricValue(data) - getMetricValue(baseData)) / getMetricValue(baseData)) * 100 
+                    const baseValue = getMetricValue(baseData);
+                    const percentageChange = baseValue > 0 
+                      ? ((getMetricValue(data) - baseValue) / baseValue) * 100 
                       : 0;
-                    const isPositive = selectedMetric === 'totalCost' ? variance < 0 : variance > 0;
+                    const isPositive = selectedMetric === 'logisticsCost' ? variance < 0 : variance > 0;
                     
                     return (
                       <div key={data.label} className="bg-white rounded-lg p-4 shadow-sm">
@@ -919,15 +1146,17 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ onNavigateToU
                           {variance > 0 ? '+' : ''}{formatMetricValue(Math.abs(variance))}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {selectedMetric === 'totalCost' ? 'Cost ' : 
-                           selectedMetric === 'vesselDays' ? 'Days ' :
+                          {selectedMetric === 'logisticsCost' ? 'Cost ' : 
+                           selectedMetric === 'cargoTons' ? 'Cargo ' :
+                           selectedMetric === 'liftsPerHour' ? 'Efficiency ' :
+                           selectedMetric === 'vesselVisits' ? 'Visits ' :
                            selectedMetric === 'utilization' ? 'Utilization ' :
+                           selectedMetric === 'fluidVolume' ? 'Fluid volume ' :
+                           selectedMetric === 'sharedVisitsPercent' ? 'Shared visits ' :
+                           selectedMetric === 'roundTrippedLifts' ? 'RT lifts ' :
+                           selectedMetric === 'totalOSVHours' ? 'OSV hours ' :
+                           selectedMetric === 'productiveHours' ? 'Productive time ' :
                            selectedMetric === 'waitingTime' ? 'Wait time ' :
-                           selectedMetric === 'productiveTime' ? 'Productive time ' :
-                           selectedMetric === 'avgVoyageDuration' ? 'Duration ' :
-                           selectedMetric === 'drillingDays' ? 'Drilling days ' :
-                           selectedMetric === 'productionDays' ? 'Production days ' :
-                           selectedMetric === 'cargoOps' ? 'Cargo ops ' :
                            'Weather delay '}
                           difference
                         </div>

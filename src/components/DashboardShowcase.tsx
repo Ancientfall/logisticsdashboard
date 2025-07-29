@@ -12,7 +12,8 @@ import {
   Settings,
   Database,
   Zap,
-  Monitor
+  Monitor,
+  Calculator
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
@@ -91,6 +92,16 @@ const DashboardShowcase: React.FC = () => {
       gradient: 'from-cyan-500 to-blue-600',
       features: ['Transfer Tracking', 'Fluid Type Analysis', 'Route Performance', 'Volume Analytics'],
       stats: { transfers: '234', volume: '67K', routes: '18' }
+    },
+    {
+      id: 'vessel-requirements',
+      title: 'Vessel Requirements',
+      description: 'Calculate optimal PSV fleet size using whiteboard formula: vessels required = (voyages × 7 days) ÷ 24 hours',
+      icon: Calculator,
+      route: '/vessel-requirements',
+      gradient: 'from-teal-500 to-cyan-600',
+      features: ['Fleet Optimization', 'Rig-by-Rig Analysis', 'Utilization Metrics', 'Voyage Patterns'],
+      stats: { rigs: '15+', vessels: '8', utilization: '72%' }
     },
     {
       id: 'tv-display',

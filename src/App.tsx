@@ -24,6 +24,7 @@ import ReferenceDataManager from './components/admin/ReferenceDataManager'
 import TVKioskDisplay from './components/TVKioskDisplay'
 import MonthlyDataUpload from './components/MonthlyDataUpload'
 import AviationDashboard from './components/aviation/AviationDashboard'
+import VesselRequirementDashboard from './components/dashboard/VesselRequirementDashboard'
 
 import './index.css'
 
@@ -110,6 +111,12 @@ function App() {
 								<Route path="/bulk" element={
 									<DashboardLayout>
 										<BulkActionsDashboard />
+									</DashboardLayout>
+								} />
+								
+								<Route path="/vessel-requirements" element={
+									<DashboardLayout>
+										<VesselRequirementDashboard />
 									</DashboardLayout>
 								} />
 								
