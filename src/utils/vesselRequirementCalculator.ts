@@ -921,6 +921,33 @@ export const calculateContractBasedRequirements = (
 /**
  * Calculate vessel requirements based on actual delivery capacity demand
  * This uses real operational data instead of theoretical contract estimates
+ * 
+ * IMPORTANT: VESSEL SHARING EFFICIENCY INHERENTLY CAPTURED
+ * ========================================================
+ * This calculation does NOT explicitly apply vessel sharing efficiency reduction because:
+ * 
+ * 1. INPUT DATA ALREADY REFLECTS SHARING:
+ *    - totalDeliveryCapability = actual offshore port calls (benefits from multi-location voyages)
+ *    - actualVoyageCount = actual unique voyages (already optimized through vessel sharing)
+ *    - The ratio between these two metrics inherently captures sharing efficiency
+ * 
+ * 2. SHARING IS BUILT INTO OPERATIONAL REALITY:
+ *    - Multi-location voyages naturally reduce vessel requirements
+ *    - Vessels serving multiple rigs per trip are already counted once in actualVoyageCount
+ *    - totalDeliveryCapability includes all deliveries made by those shared voyages
+ * 
+ * 3. AVOIDING DOUBLE-COUNTING:
+ *    - Applying additional sharing efficiency would REDUCE requirements below actual demand
+ *    - This would create unrealistic vessel needs that couldn't meet operational reality
+ *    - The delivery capacity approach is inherently more efficient than contract-based estimates
+ * 
+ * 4. COMPARISON WITH CONTRACT-BASED:
+ *    - Contract-based: Uses theoretical minimums + applies sharing efficiency reduction
+ *    - Delivery capacity-based: Uses actual operational demand (sharing already optimized)
+ *    - Result: Delivery capacity approach typically shows higher but more realistic requirements
+ * 
+ * This approach ensures vessel calculations match actual operational demand patterns
+ * where vessel sharing has already been naturally optimized through operational planning.
  */
 export const calculateDeliveryCapacityBasedRequirements = (
   totalDeliveryCapability: number,
