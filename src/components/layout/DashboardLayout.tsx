@@ -27,7 +27,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     if (path === '/cost') return 'cost';
     if (path === '/bulk') return 'bulk';
     if (path === '/upload') return 'upload';
-    if (path === '/monthly-upload') return 'monthly-upload';
     if (path === '/dashboard') return 'dashboard';
     return 'selector';
   };
@@ -162,13 +161,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 >
                   <Upload size={16} />
                   <span className="text-sm">Upload</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/monthly-upload')}
-                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 rounded-lg transition-colors text-gray-300 hover:text-white"
-                >
-                  <Clock size={16} />
-                  <span className="text-sm">Monthly</span>
                 </button>
                 <button 
                   onClick={() => navigate('/tv-display')}

@@ -22,7 +22,6 @@ import LandingPage from './components/LandingPage'
 import AdminDashboard from './components/admin/AdminDashboard'
 import ReferenceDataManager from './components/admin/ReferenceDataManager'
 import TVKioskDisplay from './components/TVKioskDisplay'
-import MonthlyDataUpload from './components/MonthlyDataUpload'
 import AviationDashboard from './components/aviation/AviationDashboard'
 import VesselRequirementDashboard from './components/dashboard/VesselRequirementDashboard'
 
@@ -64,11 +63,6 @@ function App() {
 									</DashboardLayout>
 								} />
 								
-								<Route path="/monthly-upload" element={
-									<DashboardLayout>
-										<MonthlyDataUpload />
-									</DashboardLayout>
-								} />
 								
 								<Route path="/dashboards" element={<DashboardShowcase />} />
 								

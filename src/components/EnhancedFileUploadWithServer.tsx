@@ -243,7 +243,7 @@ const EnhancedFileUploadWithServer: React.FC = () => {
       
       // Navigate to dashboard after successful loading
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/dashboards');
       }, 1500);
       
     } catch (error) {
@@ -334,7 +334,7 @@ const EnhancedFileUploadWithServer: React.FC = () => {
       
       // Navigate to dashboard after successful loading
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/dashboards');
       }, 1500);
     } catch (error) {
       console.error('Error processing local files:', error);
@@ -513,10 +513,10 @@ const EnhancedFileUploadWithServer: React.FC = () => {
             ← Back to Home
           </button>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/dashboards')}
             className="text-blue-600 hover:text-blue-800 flex items-center gap-2 transition-colors"
           >
-            Skip to Dashboard →
+            Skip to Analytics →
           </button>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-3">BP Logistics Data Center</h1>

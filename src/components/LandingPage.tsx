@@ -12,10 +12,9 @@ import {
   Layers,
   Target,
   ChevronRight,
-  Sparkles,
-  Upload
+  Sparkles
 } from 'lucide-react';
-// import { useServerFileLoader } from '../hooks/useServerFileLoader';
+import { useServerFileLoader } from '../hooks/useServerFileLoader';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -28,10 +27,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   const [isVisible, setIsVisible] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
-  // Server file loading (simplified for direct navigation)
-  // const { 
-  //   isLoadingFromServer
-  // } = useServerFileLoader();
+  // Server file loading with automatic navigation
+  const { 
+    isLoadingFromServer,
+    serverFilesAvailable,
+    loadFromServer,
+    checkServerFiles
+  } = useServerFileLoader();
 
   // Track mouse position for interactive gradient
   useEffect(() => {
@@ -131,18 +133,46 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     return () => clearInterval(interval);
   }, [stats.length]);
 
-  // Check for server files on mount only - DISABLED to prevent polling
-  // useEffect(() => {
-  //   console.log('🔍 LandingPage mounted - Checking for data:', { hasData });
-  //   checkServerFiles();
-  // }, []); // Empty dependency array to run only once on mount
+  // Check for server files on mount only
+  useEffect(() => {
+    console.log('🔍 LandingPage mounted - Checking for server files:', { hasData });
+    checkServerFiles();
+  }, [checkServerFiles, hasData]); // Include dependencies
 
-  // Handle "View Analytics" button click (simplified for direct navigation)
-  // const handleViewAnalytics = async () => {
-  //   if (isLoadingFromServer) return;
-  //   // Navigate directly to dashboard showcase
-  //   onViewDashboard();
-  // };
+  // Handle "View Analytics" button click with automatic server loading
+  const handleViewAnalytics = async () => {
+    if (isLoadingFromServer) return;
+    
+    try {
+      // If we already have data, navigate directly
+      if (hasData) {
+        onViewDashboard();
+        return;
+      }
+      
+      // If server files are available, load them automatically
+      if (serverFilesAvailable) {
+        console.log('🚀 Auto-loading server files...');
+        await loadFromServer();
+        // Navigate to analytics dashboard after successful load
+        onViewDashboard();
+      } else {
+        // No server files available, check again and then navigate
+        const filesAvailable = await checkServerFiles();
+        if (filesAvailable) {
+          await loadFromServer();
+          onViewDashboard();
+        } else {
+          // No data available, still navigate but user will see empty state
+          onViewDashboard();
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading server files:', error);
+      // Navigate anyway, user can manually load data if needed
+      onViewDashboard();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 overflow-hidden">
@@ -176,18 +206,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               </div>
             </div>
             <div className={`flex items-center gap-4 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-              <a
-                href="/monthly-upload"
-                className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2.5 rounded-lg font-medium hover:bg-blue-200 transition-all duration-300 shadow-sm hover:shadow-md"
-              >
-                <Upload size={16} />
-                Monthly Upload
-              </a>
               <button 
-                onClick={onViewDashboard}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg"
+                onClick={handleViewAnalytics}
+                disabled={isLoadingFromServer}
+                className={`bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-md hover:shadow-lg ${isLoadingFromServer ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                View Analytics
+                {isLoadingFromServer ? 'Loading Data...' : 'View Analytics'}
               </button>
             </div>
           </nav>
@@ -216,12 +240,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
                 <button 
-                  onClick={onViewDashboard}
-                  className="group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
+                  onClick={handleViewAnalytics}
+                  disabled={isLoadingFromServer}
+                  className={`group bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center ${isLoadingFromServer ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <BarChart3 size={20} />
-                  View Analytics Dashboard
-                  <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
+                  {isLoadingFromServer ? 'Loading Data...' : 'View Analytics Dashboard'}
+                  {!isLoadingFromServer && <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />}
                 </button>
               </div>
             </div>
@@ -373,12 +398,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
           </p>
           <div className="flex justify-center">
             <button 
-              onClick={onViewDashboard}
-              className="bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center"
+              onClick={handleViewAnalytics}
+              disabled={isLoadingFromServer}
+              className={`bg-white text-green-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center gap-3 justify-center ${isLoadingFromServer ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               <BarChart3 size={20} />
-              Access Analytics Dashboard
-              <ArrowRight size={20} />
+              {isLoadingFromServer ? 'Loading Data...' : 'Access Analytics Dashboard'}
+              {!isLoadingFromServer && <ArrowRight size={20} />}
             </button>
           </div>
         </div>
