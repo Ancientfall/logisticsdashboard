@@ -11,6 +11,9 @@ dist/
 # Dependencies
 node_modules/
 
+# Scripts (Node.js files, not React components)
+scripts/
+
 # Production
 *.min.js
 *.min.css

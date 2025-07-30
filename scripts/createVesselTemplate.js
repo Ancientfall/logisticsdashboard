@@ -6,7 +6,6 @@
  */
 
 const XLSX = require('xlsx');
-const path = require('path');
 
 function createTemplate() {
   console.log('📊 Creating vessel classification Excel template...');
