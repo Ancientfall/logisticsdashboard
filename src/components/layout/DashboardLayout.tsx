@@ -3,6 +3,7 @@ import { BarChart2, Factory, GitBranch, Ship, DollarSign, Settings2, Bell, Clock
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { BreadcrumbNavigation } from '../navigation/BreadcrumbNavigation';
 import NotificationPanel from '../notifications/NotificationPanel';
 
 interface DashboardLayoutProps {
@@ -231,6 +232,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         />
       )}
 
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNavigation />
+      
       {/* Main Content */}
       <main className="max-w-screen-2xl mx-auto px-6 py-8">
         {children}

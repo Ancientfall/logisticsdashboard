@@ -125,12 +125,70 @@ const VesselRequirementDashboard: React.FC<VesselRequirementDashboardProps> = ({
   // Calculate record counts for filter bar
   const recordCounts = useMemo(() => {
     const totalRecords = voyageList.length + vesselManifests.length + voyageEvents.length;
-    // TODO: Implement filtered record count based on current filters
+    
+    // Apply filters to calculate filtered record count
+    let filteredVoyages = voyageList;
+    let filteredManifests = vesselManifests;
+    let filteredEvents = voyageEvents;
+
+    // Filter by month
+    if (filters.selectedMonth && filters.selectedMonth !== 'All Months') {
+      const isYTD = filters.selectedMonth === 'YTD';
+      const currentYear = new Date().getFullYear();
+      
+      if (isYTD) {
+        filteredVoyages = voyageList.filter(voyage => 
+          voyage.startDate && voyage.startDate.getFullYear() === currentYear
+        );
+        filteredManifests = vesselManifests.filter(manifest => 
+          manifest.manifestDate && manifest.manifestDate.getFullYear() === currentYear
+        );
+        filteredEvents = voyageEvents.filter(event => 
+          event.eventDate && event.eventDate.getFullYear() === currentYear
+        );
+      } else {
+        // Parse month from format "January 2024"
+        const [monthName, yearStr] = filters.selectedMonth.split(' ');
+        const year = parseInt(yearStr);
+        const month = new Date(`${monthName} 1, ${year}`).getMonth();
+        
+        filteredVoyages = voyageList.filter(voyage => {
+          if (!voyage.startDate) return false;
+          return voyage.startDate.getFullYear() === year && voyage.startDate.getMonth() === month;
+        });
+        
+        filteredManifests = vesselManifests.filter(manifest => {
+          if (!manifest.manifestDate) return false;
+          return manifest.manifestDate.getFullYear() === year && manifest.manifestDate.getMonth() === month;
+        });
+        
+        filteredEvents = voyageEvents.filter(event => {
+          if (!event.eventDate) return false;
+          return event.eventDate.getFullYear() === year && event.eventDate.getMonth() === month;
+        });
+      }
+    }
+
+    // Filter by location
+    if (filters.selectedLocation && filters.selectedLocation !== 'All Locations') {
+      filteredVoyages = filteredVoyages.filter(voyage => 
+        voyage.locationList.some(loc => loc && loc.toLowerCase().includes(filters.selectedLocation.toLowerCase()))
+      );
+      filteredManifests = filteredManifests.filter(manifest => 
+        manifest.offshoreLocation && manifest.offshoreLocation.toLowerCase().includes(filters.selectedLocation.toLowerCase())
+      );
+      filteredEvents = filteredEvents.filter(event => 
+        event.location && event.location.toLowerCase().includes(filters.selectedLocation.toLowerCase())
+      );
+    }
+
+    const filteredRecords = filteredVoyages.length + filteredManifests.length + filteredEvents.length;
+    
     return {
       totalRecords,
-      filteredRecords: totalRecords
+      filteredRecords
     };
-  }, [voyageList, vesselManifests, voyageEvents]);
+  }, [voyageList, vesselManifests, voyageEvents, filters]);
 
   // Export functions
   const handleExportReport = () => {

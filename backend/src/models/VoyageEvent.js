@@ -215,8 +215,10 @@ const VoyageEvent = sequelize.define('VoyageEvent', {
 		{ fields: ['mission'] },
 		{ fields: ['vessel'] },
 		{ fields: ['voyageNumber'] }
-		// Removed unique constraint temporarily due to existing duplicates
-		// TODO: Clean data and re-add unique constraint later
+		// Unique constraint removed temporarily due to existing duplicates
+		// Use cleanVoyageEventDuplicates.js script to clean data and re-add constraint:
+		// node src/scripts/cleanVoyageEventDuplicates.js --dry-run (to preview)
+		// node src/scripts/cleanVoyageEventDuplicates.js (to execute)
 	]
 })
 

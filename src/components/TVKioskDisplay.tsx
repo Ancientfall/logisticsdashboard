@@ -7,6 +7,7 @@ import {
 } from '../utils/metricsCalculation';
 import { deduplicateBulkActions, getDrillingFluidMovements, getProductionFluidMovements } from '../utils/bulkFluidDeduplicationEngine';
 import { formatSmartCurrency } from '../utils/formatters';
+import { logDebug } from '../utils/logger';
 import { TrendingUp, TrendingDown, Clock, Ship, BarChart3, Droplet, Fuel, Target, Gauge, MapPin, Users, DollarSign } from 'lucide-react';
 import { useCostAnalysisRedesigned } from './dashboard/cost-allocation/hooks/useCostAnalysis';
 import { useFilteredCostAllocation } from './dashboard/cost-allocation/hooks/useFilteredCostAllocation';
@@ -59,7 +60,10 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       if (e.code === 'Space') {
         e.preventDefault();
         setIsPaused(prev => !prev);
-        console.log('🔄 TV DISPLAY: Paused =', !isPaused);
+        logDebug('TV Display paused state changed', { 
+          component: 'tv-display', 
+          data: { paused: !isPaused } 
+        });
       }
     };
     window.addEventListener('keydown', handleKeyPress);
@@ -71,67 +75,44 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
   const currentMonth = undefined;  // YTD = all months in current year
   const currentYear = now.getFullYear();
 
-  // Filter ALL data sources to YTD with enhanced debugging
+  // Filter ALL data sources to YTD
   const ytdVoyageEvents = useMemo(() => {
     const filtered = voyageEvents.filter(v => v.eventDate && v.eventDate.getFullYear() === currentYear);
-    console.log('🎯 TV DISPLAY: YTD Voyage Events Filtering:', {
-      currentYear,
-      totalVoyageEvents: voyageEvents.length,
-      ytdVoyageEvents: filtered.length,
-      sampleDates: filtered.slice(0, 5).map(v => ({
-        date: v.eventDate?.toISOString?.()?.split('T')?.[0],
-        vessel: v.vessel,
-        location: v.location
-      })),
-      dateRange: filtered.length > 0 ? {
-        earliest: Math.min(...filtered.map(v => v.eventDate?.getTime?.() || 0)),
-        latest: Math.max(...filtered.map(v => v.eventDate?.getTime?.() || 0))
-      } : 'No data'
+    logDebug('YTD Voyage Events filtered', {
+      component: 'tv-display',
+      function: 'ytdVoyageEvents',
+      data: {
+        currentYear,
+        totalVoyageEvents: voyageEvents.length,
+        ytdVoyageEvents: filtered.length
+      }
     });
     return filtered;
   }, [voyageEvents, currentYear]);
   
   const ytdVesselManifests = useMemo(() => {
     const filtered = vesselManifests.filter(m => m.manifestDate && m.manifestDate.getFullYear() === currentYear);
-    console.log('🎯 TV DISPLAY: YTD Vessel Manifests Filtering:', {
-      currentYear,
-      totalManifests: vesselManifests.length,
-      ytdManifests: filtered.length,
-      sampleManifests: filtered.slice(0, 3).map(m => ({
-        date: m.manifestDate?.toISOString?.()?.split('T')?.[0],
-        vessel: m.transporter,
-        cargoTons: m.deckTons
-      }))
+    logDebug('YTD Vessel Manifests filtered', {
+      component: 'tv-display',
+      data: { total: vesselManifests.length, ytd: filtered.length }
     });
     return filtered;
   }, [vesselManifests, currentYear]);
   
   const ytdBulkActions = useMemo(() => {
     const filtered = bulkActions.filter(b => b.startDate && b.startDate.getFullYear() === currentYear);
-    console.log('🎯 TV DISPLAY: YTD Bulk Actions Filtering:', {
-      currentYear,
-      totalBulkActions: bulkActions.length,
-      ytdBulkActions: filtered.length,
-      sampleActions: filtered.slice(0, 3).map(b => ({
-        date: b.startDate?.toISOString?.()?.split('T')?.[0],
-        type: b.bulkType,
-        volume: b.qty
-      }))
+    logDebug('YTD Bulk Actions filtered', {
+      component: 'tv-display',
+      data: { total: bulkActions.length, ytd: filtered.length }
     });
     return filtered;
   }, [bulkActions, currentYear]);
   
   const ytdVoyageList = useMemo(() => {
     const filtered = voyageList.filter(v => v.voyageDate && v.voyageDate.getFullYear() === currentYear);
-    console.log('🎯 TV DISPLAY: YTD Voyage List Filtering:', {
-      currentYear,
-      totalVoyageList: voyageList.length,
-      ytdVoyageList: filtered.length,
-      sampleVoyages: filtered.slice(0, 3).map(v => ({
-        date: v.voyageDate?.toISOString?.()?.split('T')?.[0],
-        vessel: v.vessel,
-        voyageNumber: v.voyageNumber
-      }))
+    logDebug('YTD Voyage List filtered', {
+      component: 'tv-display', 
+      data: { total: voyageList.length, ytd: filtered.length }
     });
     return filtered;
   }, [voyageList, currentYear]);
@@ -448,14 +429,13 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
         totalRTTons: (allMetrics.drilling as any)?.totalRTTons
       });
       
-      // DEBUG: Log TV Display utilization calculation to identify 5713.6% source
-      console.error('🚨 TV DISPLAY UTILIZATION DEBUG:', {
-        rawVesselUtilizationRate: (allMetrics.drilling as any)?.vesselUtilizationRate,
-        cappedVesselUtilization: Math.min(vesselUtilization, 100),
-        allDrillingMetrics: allMetrics.drilling,
-        utilizationKeys: Object.keys(allMetrics.drilling || {}).filter(key => key.includes('utilization') || key.includes('Utilization')),
-        timestamp: new Date().toISOString()
-      });
+      // Monitor utilization calculations
+      if (vesselUtilization > 100) {
+        logDebug('Vessel utilization capped', {
+          component: 'tv-display',
+          data: { raw: vesselUtilization, capped: Math.min(vesselUtilization, 100) }
+        });
+      }
       
       const liftsPerHour = totalLifts && productiveHours ? totalLifts / productiveHours : 0;
       
@@ -564,14 +544,13 @@ const TVKioskDisplay: React.FC<TVKioskDisplayProps> = ({
       // Calculate Logistics Cost using facility-specific targets
       const productionCostFormatted = formatSmartCurrency(productionCost);
       
-      // DEBUG: Log TV Display production utilization calculation 
-      console.error('🚨 TV DISPLAY PRODUCTION UTILIZATION DEBUG:', {
-        rawProductionUtilizationRate: (allMetrics.production as any)?.vesselUtilizationRate,
-        cappedProductionUtilization: Math.min(productionUtilization, 100),
-        allProductionMetrics: allMetrics.production,
-        utilizationKeys: Object.keys(allMetrics.production || {}).filter(key => key.includes('utilization') || key.includes('Utilization')),
-        timestamp: new Date().toISOString()
-      });
+      // Monitor production utilization calculations
+      if (productionUtilization > 100) {
+        logDebug('Production utilization capped', {
+          component: 'tv-display',
+          data: { raw: productionUtilization, capped: Math.min(productionUtilization, 100) }
+        });
+      }
       
       console.log('🏭 TV DISPLAY: Production voyages details:', {
         currentYear,

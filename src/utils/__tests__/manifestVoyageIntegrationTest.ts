@@ -1,5 +1,7 @@
-// Test utility for manifest-voyage integration
-// Run this after data is loaded to validate the integration improvements
+/**
+ * Manifest-Voyage Integration Tests
+ * Tests the integration between vessel manifests and voyage data
+ */
 
 import { VesselManifest, VoyageList, VoyageSegment } from '../../types';
 import { 
@@ -202,4 +204,84 @@ ${results.sampleImprovedMatches.length > 0 ?
   ).join('\n') : 
   'No department improvements found with high confidence'}
 `;
+}
+
+// Jest Tests
+describe('Manifest-Voyage Integration', () => {
+  const mockManifests: VesselManifest[] = [
+    {
+      id: '1',
+      manifestNumber: 'M001',
+      voyageId: 'V001',
+      standardizedVoyageId: 'V001_STD',
+      vesselName: 'Test Vessel',
+      manifestDate: new Date('2024-01-01'),
+      offshoreLocation: 'Thunder Horse',
+      finalDepartment: 'Drilling',
+      manifestType: 'Outbound',
+      cargoItems: [],
+      totalManifestTons: 100,
+      totalCost: 5000
+    }
+  ];
+
+  const mockVoyages: VoyageList[] = [
+    {
+      id: '1',
+      uniqueVoyageId: 'V001',
+      standardizedVoyageId: 'V001_STD',
+      vesselName: 'Test Vessel',
+      voyageNumber: 'V001',
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-01-02'),
+      status: 'Completed',
+      destinations: ['Thunder Horse'],
+      totalDistance: 100,
+      estimatedDuration: 24
+    }
+  ];
+
+  test('should run integration test without errors', () => {
+    expect(() => {
+      runIntegrationTest(mockManifests, mockVoyages);
+    }).not.toThrow();
+  });
+
+  test('should return valid integration results', () => {
+    const results = runIntegrationTest(mockManifests, mockVoyages);
+    
+    expect(results).toHaveProperty('totalManifests');
+    expect(results).toHaveProperty('totalVoyages');
+    expect(results).toHaveProperty('matchResults');
+    expect(results.totalManifests).toBe(1);
+    expect(results.totalVoyages).toBe(1);
+  });
+
+  test('should format integration results correctly', () => {
+    const mockResults: IntegrationTestResults = {
+      totalManifests: 10,
+      totalVoyages: 5,
+      totalSegments: 15,
+      matchResults: {
+        exact: 5,
+        fuzzy: 3,
+        temporal: 1,
+        voyageOnly: 1,
+        none: 0
+      },
+      averageConfidence: 85,
+      departmentMismatches: 2,
+      locationMismatches: 1,
+      topIssues: [{ issue: 'Date mismatch', count: 3 }],
+      sampleImprovedMatches: []
+    };
+
+    const formatted = formatIntegrationTestResults(mockResults);
+    
+    expect(formatted).toContain('Total Manifests');
+    expect(formatted).toContain('10');
+    expect(formatted).toContain('Match Rate');
+    expect(formatted).toContain('80.0%'); // (5+3)/10 * 100
+  });
+});
 }

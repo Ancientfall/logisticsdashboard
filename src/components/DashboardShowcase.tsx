@@ -16,12 +16,24 @@ import {
   Calculator
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { DashboardSkeleton, useLoadingState } from './ui/LoadingSystem';
 
 const DashboardShowcase: React.FC = () => {
   const navigate = useNavigate();
-  const { isDataReady, voyageEvents } = useData();
+  const { isDataReady, voyageEvents, isLoading } = useData();
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const { state: loadingState, isLoading: isInitialLoading, setLoading } = useLoadingState();
+
+  // Simulate progressive loading for better UX
+  useEffect(() => {
+    if (isLoading || !isDataReady) {
+      setLoading('loading', 'Loading dashboard information...');
+    } else {
+      setLoading('success', 'Dashboard ready!');
+      setTimeout(() => setLoading('idle'), 1000);
+    }
+  }, [isLoading, isDataReady, setLoading]);
 
   // Track mouse position for interactive effects
   useEffect(() => {
@@ -223,8 +235,12 @@ const DashboardShowcase: React.FC = () => {
 
       {/* Dashboard Grid */}
       <div className="relative max-w-7xl mx-auto px-6 pb-24">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {dashboards.map((dashboard) => {
+        {/* Show skeleton loading while data is loading */}
+        {isInitialLoading ? (
+          <DashboardSkeleton cards={10} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {dashboards.map((dashboard) => {
             const Icon = dashboard.icon;
             const isHovered = hoveredCard === dashboard.id;
             
@@ -298,7 +314,8 @@ const DashboardShowcase: React.FC = () => {
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="mt-16 bg-white rounded-2xl shadow-lg p-8">
