@@ -3,7 +3,6 @@ import { useData } from '../../context/DataContext';
 import { getAllDrillingCapableLocations } from '../../data/masterFacilities';
 import { Clock, Ship, BarChart3, Droplet } from 'lucide-react';
 import KPICard from './KPICard';
-import StatusDashboard from './StatusDashboard';
 import SmartFilterBar from './SmartFilterBar';
 import { 
   calculateEnhancedKPIMetrics,
@@ -2077,230 +2076,172 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           filteredRecords={recordCounts.filteredRecords}
         />
 
-        {/* Enhanced Status Dashboard */}
-        <StatusDashboard
-          title="GoA Wells Performance" 
-          subtitle="Real-time Drilling Operations & Logistics Dashboard - Enhanced with Data Integrity"
-          overallStatus={
-            drillingMetrics.integrityScore < 80 ? 'poor' :
-            drillingMetrics.hours.totalProductiveHours < dynamicTargets.productiveHours ? 'fair' : 
-            drillingMetrics.lifts.liftsPerHour < 2.5 ? 'good' : 'excellent'
-          }
-          heroMetrics={[
-            {
-              title: filters.selectedLocation === 'All Locations' ? "Avg Visits/Week" : "Visits per Week",
-              value: (() => {
-                // Calculate number of weeks in the current period
-                let weeks = 1;
-                if (filters.selectedMonth === 'YTD') {
-                  // YTD: calculate weeks from start of year to now (accounting for 1 month lag)
-                  const now = new Date();
-                  const currentYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-                  const startOfYear = new Date(currentYear, 0, 1);
-                  const endDate = now.getMonth() === 0 ? new Date(currentYear, 11, 31) : now;
-                  weeks = Math.ceil((endDate.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
-                } else if (filters.selectedMonth !== 'All Months') {
-                  // Specific month: exactly 4 weeks for cleaner calculation
-                  weeks = 4;
-                } else {
-                  // All Months: calculate actual weeks from data span
-                  const availableMonths = filterOptions.months.length - 2; // Exclude 'All Months' and 'YTD'
-                  weeks = Math.max(availableMonths * 4, 4); // Use actual months * 4 weeks, minimum 4 weeks
-                  
-                  console.log('🔍 WEEKS CALCULATION DEBUG:', {
-                    totalFilterOptions: filterOptions.months.length,
-                    availableMonths,
-                    calculatedWeeks: weeks,
-                    filterOptionsMonths: filterOptions.months
-                  });
-                }
+        {/* Simple Header - No Status Dashboard */}
+        <div className="bg-white rounded-xl shadow-lg border p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <BarChart3 className="w-8 h-8 text-blue-600" />
+                Drilling Operations Dashboard
+              </h1>
+              <p className="text-gray-600 mt-2">Real-time drilling operations and logistics performance analytics</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Hero KPI Cards Row - Key Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <KPICard 
+            title={filters.selectedLocation === 'All Locations' ? "Avg Visits/Week" : "Visits per Week"}
+            value={(() => {
+              // Calculate number of weeks in the current period
+              let weeks = 1;
+              if (filters.selectedMonth === 'YTD') {
+                // YTD: calculate weeks from start of year to now (accounting for 1 month lag)
+                const now = new Date();
+                const currentYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                const startOfYear = new Date(currentYear, 0, 1);
+                const endDate = now.getMonth() === 0 ? new Date(currentYear, 11, 31) : now;
+                weeks = Math.ceil((endDate.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
+              } else if (filters.selectedMonth !== 'All Months') {
+                // Specific month: exactly 4 weeks for cleaner calculation
+                weeks = 4;
+              } else {
+                // All Months: calculate actual weeks from data span
+                const availableMonths = filterOptions.months.length - 2; // Exclude 'All Months' and 'YTD'
+                weeks = Math.max(availableMonths * 4, 4); // Use actual months * 4 weeks, minimum 4 weeks
+              }
+              
+              if (filters.selectedLocation === 'All Locations') {
+                // Dynamically calculate active drilling locations for the selected period
+                const totalVisits = drillingMetrics.lifts.vesselVisits;
                 
-                // For debug: calculate active drilling locations count
-                const debugActiveDrillingLocations = new Set<string>();
-                costAllocation.forEach(allocation => {
+                // Get active drilling locations from cost allocation data for the selected period
+                let activeDrillingLocations = new Set<string>();
+                
+                // Filter cost allocation by the same period logic as the metrics
+                const filteredCostAllocation = costAllocation.filter(allocation => {
+                  if (!allocation.costAllocationDate) return false;
+                  
+                  const allocDate = new Date(allocation.costAllocationDate);
+                  
+                  // Apply same filtering logic as used in metrics
+                  if (filters.selectedMonth === 'YTD') {
+                    const currentYear = allocDate.getMonth() === 0 ? allocDate.getFullYear() - 1 : allocDate.getFullYear();
+                    return allocDate.getFullYear() === currentYear;
+                  } else if (filters.selectedMonth !== 'All Months') {
+                    const [monthName, year] = filters.selectedMonth.split(' ');
+                    if (monthName && year) {
+                      const filterMonth = new Date(`${monthName} 1, ${year}`).getMonth();
+                      const filterYear = parseInt(year);
+                      return allocDate.getMonth() === filterMonth && allocDate.getFullYear() === filterYear;
+                    }
+                  }
+                  return true; // For 'All Months'
+                });
+                
+                // Extract unique DRILLING locations that had cost allocation in the period (exclude production)
+                const drillingLocationNames = getAllDrillingCapableLocations()
+                  .filter(loc => loc.facilityType === 'Drilling') // Only drilling rigs, not production
+                  .map(loc => loc.locationName.toLowerCase());
+                
+                filteredCostAllocation.forEach(allocation => {
                   if (allocation.locationReference && allocation.locationReference.trim() !== '') {
-                    debugActiveDrillingLocations.add(allocation.locationReference.trim());
+                    const locationRef = allocation.locationReference.trim().toLowerCase();
+                    
+                    // Check if this location matches a drilling rig (not production)
+                    const isDrillingLocation = drillingLocationNames.some(drillingLoc => 
+                      locationRef.includes(drillingLoc) || 
+                      drillingLoc.includes(locationRef)
+                    ) ||
+                    // Handle specific drilling locations by name pattern (exclude C-Constructor and Island Intervention)
+                    (locationRef.includes('drilling') && !locationRef.includes('prod')) ||
+                    locationRef.includes('stena icemax') ||
+                    locationRef.includes('steana icemax') ||
+                    locationRef.includes('ocean black') ||
+                    locationRef.includes('deepwater') ||
+                    locationRef.includes('island venture') ||
+                    locationRef.includes('auriga');
+                    
+                    // Explicitly exclude C-Constructor and Island Intervention
+                    const isExcluded = locationRef.includes('c-constructor') || 
+                                      locationRef.includes('island intervention');
+                    
+                    if (isDrillingLocation && !isExcluded) {
+                      activeDrillingLocations.add(allocation.locationReference.trim());
+                    }
                   }
                 });
                 
-                console.log('🔍 WEEKLY VISITS DEBUG:', {
-                  selectedMonth: filters.selectedMonth,
-                  selectedLocation: filters.selectedLocation,
-                  totalVesselVisits: drillingMetrics.lifts.vesselVisits,
-                  activeDrillingLocationsPeriod: 'Will be calculated below',
-                  totalDrillingLocationsEver: debugActiveDrillingLocations.size,
-                  filterLocationsFound: filterOptions.locations.length - 1,
-                  calculatedWeeks: weeks,
-                  
-                  // Debug the source of vessel visits
-                  vesselVisitsSource: {
-                    drillingMetricsLifts: drillingMetrics.lifts,
-                    voyageListTotal: voyageList ? voyageList.length : 0,
-                    voyageEventsTotal: voyageEvents ? voyageEvents.length : 0,
-                    vesselManifestsTotal: vesselManifests ? vesselManifests.length : 0
-                  },
-                  
-                  note: 'Active locations calculated dynamically based on selected period - CHECK IF TOTAL VISITS IS TOO LOW'
-                });
+                const numActiveDrillingLocations = Math.max(activeDrillingLocations.size, 1);
+                const avgVisitsPerLocationPerWeek = totalVisits / numActiveDrillingLocations / weeks;
                 
-                if (filters.selectedLocation === 'All Locations') {
-                  // Dynamically calculate active drilling locations for the selected period
-                  const totalVisits = drillingMetrics.lifts.vesselVisits;
-                  
-                  // Get active drilling locations from cost allocation data for the selected period
-                  let activeDrillingLocations = new Set<string>();
-                  
-                  // Filter cost allocation by the same period logic as the metrics
-                  const filteredCostAllocation = costAllocation.filter(allocation => {
-                    if (!allocation.costAllocationDate) return false;
-                    
-                    const allocDate = new Date(allocation.costAllocationDate);
-                    
-                    // Apply same filtering logic as used in metrics
-                    if (filters.selectedMonth === 'YTD') {
-                      const currentYear = allocDate.getMonth() === 0 ? allocDate.getFullYear() - 1 : allocDate.getFullYear();
-                      return allocDate.getFullYear() === currentYear;
-                    } else if (filters.selectedMonth !== 'All Months') {
-                      const [monthName, year] = filters.selectedMonth.split(' ');
-                      if (monthName && year) {
-                        const filterMonth = new Date(`${monthName} 1, ${year}`).getMonth();
-                        const filterYear = parseInt(year);
-                        return allocDate.getMonth() === filterMonth && allocDate.getFullYear() === filterYear;
-                      }
-                    }
-                    return true; // For 'All Months'
-                  });
-                  
-                  // Extract unique DRILLING locations that had cost allocation in the period (exclude production)
-                  const drillingLocationNames = getAllDrillingCapableLocations()
-                    .filter(loc => loc.facilityType === 'Drilling') // Only drilling rigs, not production
-                    .map(loc => loc.locationName.toLowerCase());
-                  
-                  filteredCostAllocation.forEach(allocation => {
-                    if (allocation.locationReference && allocation.locationReference.trim() !== '') {
-                      const locationRef = allocation.locationReference.trim().toLowerCase();
-                      
-                      // Check if this location matches a drilling rig (not production)
-                      const isDrillingLocation = drillingLocationNames.some(drillingLoc => 
-                        locationRef.includes(drillingLoc) || 
-                        drillingLoc.includes(locationRef)
-                      ) ||
-                      // Handle specific drilling locations by name pattern (exclude C-Constructor and Island Intervention)
-                      (locationRef.includes('drilling') && !locationRef.includes('prod')) ||
-                      locationRef.includes('stena icemax') ||
-                      locationRef.includes('steana icemax') ||
-                      locationRef.includes('ocean black') ||
-                      locationRef.includes('deepwater') ||
-                      locationRef.includes('island venture') ||
-                      locationRef.includes('auriga');
-                      
-                      // Explicitly exclude C-Constructor and Island Intervention
-                      const isExcluded = locationRef.includes('c-constructor') || 
-                                        locationRef.includes('island intervention');
-                      
-                      if (isDrillingLocation && !isExcluded) {
-                        activeDrillingLocations.add(allocation.locationReference.trim());
-                      }
-                    }
-                  });
-                  
-                  const numActiveDrillingLocations = Math.max(activeDrillingLocations.size, 1);
-                  const avgVisitsPerLocationPerWeek = totalVisits / numActiveDrillingLocations / weeks;
-                  
-                  console.log('📊 AVG VISITS/WEEK BREAKDOWN:', {
-                    totalVisits,
-                    numActiveDrillingLocations,
-                    activeDrillingLocationsList: Array.from(activeDrillingLocations),
-                    weeks,
-                    avgVisitsPerLocationPerWeek,
-                    expectedMinimum: 2.0,
-                    selectedPeriod: filters.selectedMonth,
-                    
-                    // Detailed breakdown for debugging
-                    calculation: {
-                      step1_totalVisits: totalVisits,
-                      step2_divideByLocations: totalVisits / numActiveDrillingLocations,
-                      step3_divideByWeeks: (totalVisits / numActiveDrillingLocations) / weeks,
-                      expectedWith80Voyages: {
-                        if80VoyagesAnd4Locations: (80 / 4) / weeks,
-                        if80VoyagesAnd6Locations: (80 / 6) / weeks,
-                        if80VoyagesAnd8Locations: (80 / 8) / weeks
-                      }
-                    },
-                    
-                    costAllocationInfo: {
-                      totalCostAllocRecords: costAllocation.length,
-                      filteredCostAllocRecords: filteredCostAllocation.length,
-                      costAllocSample: filteredCostAllocation.slice(0, 3).map(a => ({
-                        locationReference: a.locationReference,
-                        date: a.costAllocationDate,
-                        projectType: a.projectType
-                      }))
-                    },
-                    
-                    note: 'Using dynamic count of active drilling locations from cost allocation data'
-                  });
-                  
-                  return avgVisitsPerLocationPerWeek.toFixed(1);
-                } else {
-                  // Visits per week for specific location
-                  return (drillingMetrics.lifts.vesselVisits / weeks).toFixed(1);
-                }
-              })(),
-              unit: "visits/week",
-              target: 3,
-              trend: previousPeriodMetrics.lifts.vesselVisits > 0 ? 
-                ((drillingMetrics.lifts.vesselVisits - previousPeriodMetrics.lifts.vesselVisits) / previousPeriodMetrics.lifts.vesselVisits) * 100 : 0,
-              isPositive: drillingMetrics.lifts.vesselVisits >= previousPeriodMetrics.lifts.vesselVisits,
-              contextualHelp: filters.selectedLocation === 'All Locations' ?
-                "Average vessel visits per drilling location per week across GoA operations. Calculated as (total drilling voyages ÷ active drilling locations with cost allocation in period) ÷ weeks in period. Only counts locations that were on-hire/active during the selected timeframe. Helps assess weekly operational tempo and logistics efficiency." :
-                `Average vessel visits per week to ${filters.selectedLocation}. Calculated as total visits divided by weeks in the selected time period. Each round trip voyage counts as one visit. Useful for planning weekly logistics capacity.`
-            },
-            {
-              title: "Lifts per Hour",
-              value: (Math.round(drillingMetrics.lifts.liftsPerHour * 100) / 100).toString(),
-              unit: "lifts/hr",
-              target: 3,
-              trend: previousPeriodMetrics.lifts.liftsPerHour > 0 ? 
-                ((drillingMetrics.lifts.liftsPerHour - previousPeriodMetrics.lifts.liftsPerHour) / previousPeriodMetrics.lifts.liftsPerHour) * 100 : 0,
-              isPositive: drillingMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour,
-              contextualHelp: filters.selectedLocation === 'All Locations' ?
-                `ENHANCED: Average operational efficiency across all GoA drilling locations. Uses vessel codes classification for precise cargo operation identification and cost allocation LC validation for drilling-only filtering. LC validation rate: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Cargo ops hours: ${(drillingMetrics.lifts as any).cargoOperationHours?.toFixed(1) || 'N/A'} hrs.` :
-                `ENHANCED: Operational efficiency specific to ${filters.selectedLocation}. Uses vessel codes to identify cargo operations and cost allocation for location validation. LC validation: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Excludes weather, waiting, and non-operational time per vessel codes classification.`
-            },
-            {
-              title: "Logistics Vessel Cost",
-              value: formatSmartCurrency(drillingMetrics.costs.totalVesselCost),
-              unit: "",
-              trend: (previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
-                ((drillingMetrics.costs.totalVesselCost - (previousPeriodMetrics.costs?.totalVesselCost || 0)) / (previousPeriodMetrics.costs?.totalVesselCost || 1)) * 100 : 0,
-              isPositive: drillingMetrics.costs.totalVesselCost <= (previousPeriodMetrics.costs?.totalVesselCost || 0), // Lower cost is positive
-              contextualHelp: filters.selectedLocation === 'All Locations' ?
-                "Total vessel charter cost for all GoA drilling operations. Calculated from cost allocation data including vessel day rates and operational time. Does not include fuel costs. Represents comprehensive drilling vessel support cost across all locations." :
-                `Vessel charter cost specific to ${filters.selectedLocation}. Includes vessel day rates and operational time allocated to this drilling location. Does not include fuel costs. Based on cost allocation percentages and actual vessel utilization.`
-            },
-            {
-              title: "Fluid Volume",
-              value: Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString(),
-              unit: "bbls",
-              trend: previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
-                ((drillingMetrics.bulk.totalBulkVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0,
-              isPositive: drillingMetrics.bulk.totalBulkVolume >= previousPeriodMetrics.bulk.totalBulkVolume,
-              contextualHelp: filters.selectedLocation === 'All Locations' ?
-                "Total drilling and completion fluid volume moved across all GoA drilling operations. Includes drilling mud, completion fluids, chemicals, and specialized fluids. Anti-double-counting applied to avoid load/offload duplication." :
-                `Total drilling and completion fluid volume moved to ${filters.selectedLocation}. Includes all bulk fluid transfers supporting drilling operations at this location. Calculated from bulk actions with deduplication.`
-            }
-          ]}
-          onViewDetails={onNavigateToUpload}
-        />
-
+                return avgVisitsPerLocationPerWeek.toFixed(1);
+              } else {
+                // Visits per week for specific location
+                return (drillingMetrics.lifts.vesselVisits / weeks).toFixed(1);
+              }
+            })()}
+            variant="secondary"
+            unit="visits/week"
+            trend={previousPeriodMetrics.lifts.vesselVisits > 0 ? 
+              ((drillingMetrics.lifts.vesselVisits - previousPeriodMetrics.lifts.vesselVisits) / previousPeriodMetrics.lifts.vesselVisits) * 100 : 0}
+            isPositive={drillingMetrics.lifts.vesselVisits >= previousPeriodMetrics.lifts.vesselVisits}
+            color="blue"
+            contextualHelp={filters.selectedLocation === 'All Locations' ?
+              "Average vessel visits per drilling location per week across GoA operations. Calculated as (total drilling voyages ÷ active drilling locations with cost allocation in period) ÷ weeks in period. Only counts locations that were on-hire/active during the selected timeframe. Helps assess weekly operational tempo and logistics efficiency." :
+              `Average vessel visits per week to ${filters.selectedLocation}. Calculated as total visits divided by weeks in the selected time period. Each round trip voyage counts as one visit. Useful for planning weekly logistics capacity.`}
+          />
+          
+          <KPICard 
+            title="Lifts per Hour"
+            value={(Math.round(drillingMetrics.lifts.liftsPerHour * 100) / 100).toString()}
+            variant="secondary"
+            unit="lifts/hr"
+            trend={previousPeriodMetrics.lifts.liftsPerHour > 0 ? 
+              ((drillingMetrics.lifts.liftsPerHour - previousPeriodMetrics.lifts.liftsPerHour) / previousPeriodMetrics.lifts.liftsPerHour) * 100 : 0}
+            isPositive={drillingMetrics.lifts.liftsPerHour >= previousPeriodMetrics.lifts.liftsPerHour}
+            color="green"
+            contextualHelp={filters.selectedLocation === 'All Locations' ?
+              `ENHANCED: Average operational efficiency across all GoA drilling locations. Uses vessel codes classification for precise cargo operation identification and cost allocation LC validation for drilling-only filtering. LC validation rate: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Cargo ops hours: ${(drillingMetrics.lifts as any).cargoOperationHours?.toFixed(1) || 'N/A'} hrs.` :
+              `ENHANCED: Operational efficiency specific to ${filters.selectedLocation}. Uses vessel codes to identify cargo operations and cost allocation for location validation. LC validation: ${(drillingMetrics.lifts as any).lcValidationRate?.toFixed(1) || 'N/A'}%. Excludes weather, waiting, and non-operational time per vessel codes classification.`}
+          />
+          
+          <KPICard 
+            title="Logistics Vessel Cost"
+            value={formatSmartCurrency(drillingMetrics.costs.totalVesselCost)}
+            variant="secondary"
+            unit=""
+            trend={(previousPeriodMetrics.costs?.totalVesselCost || 0) > 0 ? 
+              ((drillingMetrics.costs.totalVesselCost - (previousPeriodMetrics.costs?.totalVesselCost || 0)) / (previousPeriodMetrics.costs?.totalVesselCost || 1)) * 100 : 0}
+            isPositive={drillingMetrics.costs.totalVesselCost <= (previousPeriodMetrics.costs?.totalVesselCost || 0)} // Lower cost is positive
+            color="purple"
+            contextualHelp={filters.selectedLocation === 'All Locations' ?
+              "Total vessel charter cost for all GoA drilling operations. Calculated from cost allocation data including vessel day rates and operational time. Does not include fuel costs. Represents comprehensive drilling vessel support cost across all locations." :
+              `Vessel charter cost specific to ${filters.selectedLocation}. Includes vessel day rates and operational time allocated to this drilling location. Does not include fuel costs. Based on cost allocation percentages and actual vessel utilization.`}
+          />
+          
+          <KPICard 
+            title="Fluid Volume"
+            value={Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString()}
+            variant="secondary"
+            unit="bbls"
+            trend={previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
+              ((drillingMetrics.bulk.totalBulkVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0}
+            isPositive={drillingMetrics.bulk.totalBulkVolume >= previousPeriodMetrics.bulk.totalBulkVolume}
+            color="orange"
+            contextualHelp={filters.selectedLocation === 'All Locations' ?
+              "Total drilling and completion fluid volume moved across all GoA drilling operations. Includes drilling mud, completion fluids, chemicals, and specialized fluids. Anti-double-counting applied to avoid load/offload duplication." :
+              `Total drilling and completion fluid volume moved to ${filters.selectedLocation}. Includes all bulk fluid transfers supporting drilling operations at this location. Calculated from bulk actions with deduplication.`}
+          />
+        </div>
 
         {/* Compact KPI Cards Row - Matching your image layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
           <KPICard 
             title="Fluid Movement" 
             value={Math.round(drillingMetrics.bulk.totalBulkVolume).toLocaleString()}
-            variant="compact"
+            variant="secondary"
             unit="bbls"
             trend={previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
               ((drillingMetrics.bulk.totalBulkVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0}
@@ -2311,7 +2252,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           <KPICard 
             title="Drilling Voyages" 
             value={drillingMetrics.lifts.vesselVisits.toLocaleString()}
-            variant="compact"
+            variant="secondary"
             unit="voyages"
             trend={previousPeriodMetrics.lifts.vesselVisits > 0 ? 
               ((drillingMetrics.lifts.vesselVisits - previousPeriodMetrics.lifts.vesselVisits) / previousPeriodMetrics.lifts.vesselVisits) * 100 : 0}
@@ -2322,7 +2263,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
           <KPICard 
             title="Vessel Utilization" 
             value={Math.round((drillingMetrics.utilization as any).vesselUtilization || 0).toString()}
-            variant="compact"
+            variant="secondary"
             unit="%"
             trend={(previousPeriodMetrics.utilization as any).vesselUtilization > 0 ? 
               (((drillingMetrics.utilization as any).vesselUtilization - (previousPeriodMetrics.utilization as any).vesselUtilization) / (previousPeriodMetrics.utilization as any).vesselUtilization) * 100 : 0}

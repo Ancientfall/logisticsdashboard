@@ -1552,7 +1552,7 @@ Source: Vessel manifests RT Lifts field`;
           <KPICard 
             title="Chemical Movement" 
             value={Math.round(productionMetrics.bulk.productionChemicalVolume * 42).toLocaleString()}
-            variant="compact"
+            variant="secondary"
             unit="gals"
             trend={previousPeriodMetrics.bulk.totalBulkVolume > 0 ? 
               ((productionMetrics.bulk.productionChemicalVolume - previousPeriodMetrics.bulk.totalBulkVolume) / previousPeriodMetrics.bulk.totalBulkVolume) * 100 : 0}
@@ -1563,7 +1563,7 @@ Source: Vessel manifests RT Lifts field`;
           <KPICard 
             title="Production Voyages" 
             value={productionMetrics.lifts.vesselVisits.toLocaleString()}
-            variant="compact"
+            variant="secondary"
             unit="voyages"
             trend={previousPeriodMetrics.lifts.vesselVisits > 0 ? 
               ((productionMetrics.lifts.vesselVisits - previousPeriodMetrics.lifts.vesselVisits) / previousPeriodMetrics.lifts.vesselVisits) * 100 : 0}
@@ -1574,7 +1574,7 @@ Source: Vessel manifests RT Lifts field`;
           <KPICard 
             title="Vessel Utilization" 
             value={Math.round((productionMetrics.utilization as any).vesselUtilization || 0).toString()}
-            variant="compact"
+            variant="secondary"
             unit="%"
             trend={(previousPeriodMetrics.utilization as any).vesselUtilization > 0 ? 
               (((productionMetrics.utilization as any).vesselUtilization - (previousPeriodMetrics.utilization as any).vesselUtilization) / (previousPeriodMetrics.utilization as any).vesselUtilization) * 100 : 0}

@@ -92,8 +92,14 @@
     "test": "NODE_NO_WARNINGS=1 node scripts/test.js",
     "excel-server": "NODE_NO_WARNINGS=1 node simple-excel-server.js",
     "excel-server-fast": "NODE_NO_WARNINGS=1 NODE_OPTIONS=\"--max-old-space-size=2048\" node simple-excel-server.js",
-    "dev": "concurrently \"npm run excel-server\" \"npm start\"",
-    "dev-fast": "./start-dev-optimized.sh"
+    "dev": "concurrently --kill-others --names \"EXCEL,REACT\" --prefix-colors \"green,blue\" \"npm run excel-server\" \"npm start\"",
+    "dev-fast": "concurrently --kill-others --names \"EXCEL,REACT\" --prefix-colors \"green,blue\" \"npm run excel-server-fast\" \"npm run start-fast\"",
+    "dev-stable": "./start-dev-servers.sh",
+    "dev-persistent": "./start-dev.sh",
+    "excel-persistent": "./start-excel-server.sh",
+    "react-persistent": "./start-react-only.sh",
+    "kill-servers": "lsof -ti:3000,5001 | xargs kill -9 2>/dev/null || true",
+    "restart-dev": "npm run kill-servers && npm run dev"
   },
   "eslintConfig": {
     "extends": [
@@ -193,7 +199,7 @@
     "@axe-core/react": "^4.10.2",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
-    "concurrently": "^9.1.2",
+    "concurrently": "^9.2.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
