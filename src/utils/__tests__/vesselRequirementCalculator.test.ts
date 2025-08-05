@@ -4,7 +4,6 @@ import {
   calculateDeliveryDemand,
   calculateVesselCapability,
   isPSVOrOSV,
-  RIG_LOCATION_MAPPINGS,
   BP_OFFSHORE_LOCATIONS
 } from '../vesselRequirementCalculator';
 import { 
@@ -529,70 +528,7 @@ describe('vesselRequirementCalculator', () => {
       }
     ];
 
-    const mockVoyageEvents: VoyageEvent[] = [
-      {
-        id: 'event-1',
-        mission: 'Supply',
-        vessel: 'OSV Neptune',
-        voyageNumber: '001',
-        event: 'Load - Fuel, Water or Methanol',
-        parentEvent: 'Cargo Ops',
-        location: 'Thunder Horse',
-        originalLocation: 'Thunder Horse',
-        mappedLocation: 'Thunder Horse',
-        from: new Date('2024-03-15T08:00:00Z'),
-        to: new Date('2024-03-15T14:00:00Z'),
-        hours: 6,
-        finalHours: 6,
-        eventDate: new Date('2024-03-15'),
-        eventYear: 2024,
-        quarter: 'Q1',
-        monthNumber: 3,
-        monthName: 'March',
-        weekOfYear: 11,
-        dayOfWeek: 'Friday',
-        dayOfMonth: 15,
-        portType: 'rig',
-        locationType: 'Offshore',
-        activityCategory: 'Productive',
-        department: 'Drilling',
-        lcNumber: 'LC-1001-DR',
-        mappingStatus: 'LC Mapped',
-        dataIntegrity: 'Valid',
-        year: 2024
-      },
-      {
-        id: 'event-2',
-        mission: 'Supply',
-        vessel: 'OSV Atlantic',
-        voyageNumber: '001',
-        event: '',
-        parentEvent: 'Waiting on Weather',
-        location: 'Mad Dog',
-        originalLocation: 'Mad Dog',
-        mappedLocation: 'Mad Dog',
-        from: new Date('2024-03-16T10:00:00Z'),
-        to: new Date('2024-03-16T14:00:00Z'),
-        hours: 4,
-        finalHours: 4,
-        eventDate: new Date('2024-03-16'),
-        eventYear: 2024,
-        quarter: 'Q1',
-        monthNumber: 3,
-        monthName: 'March',
-        weekOfYear: 11,
-        dayOfWeek: 'Saturday',
-        dayOfMonth: 16,
-        portType: 'rig',
-        locationType: 'Offshore',
-        activityCategory: 'Non-Productive',
-        department: 'Production',
-        lcNumber: 'LC-2001-PR',
-        mappingStatus: 'LC Mapped',
-        dataIntegrity: 'Valid',
-        year: 2024
-      }
-    ];
+    // Unused mock voyage events removed
 
     test('should process cost allocation matches correctly', () => {
       const matches = processManifestCostAllocationMatches(mockEnhancedManifests, mockCostAllocations);

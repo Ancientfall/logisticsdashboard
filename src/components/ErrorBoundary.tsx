@@ -34,7 +34,9 @@ class ErrorBoundary extends Component<Props, State> {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="bg-white p-8 rounded-xl shadow-lg border border-red-200 max-w-md mx-auto">
             <div className="text-center">
-              <div className="text-red-500 text-6xl mb-4">💥</div>
+              <div className="text-red-500 text-6xl mb-4">
+                <span role="img" aria-label="Error explosion">💥</span>
+              </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h2>
               <p className="text-gray-600 mb-4">
                 The dashboard encountered an unexpected error. Please refresh the page or try again.

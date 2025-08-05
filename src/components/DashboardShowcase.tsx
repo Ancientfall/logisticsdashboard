@@ -23,7 +23,7 @@ const DashboardShowcase: React.FC = () => {
   const { isDataReady, voyageEvents, isLoading } = useData();
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const { state: loadingState, isLoading: isInitialLoading, setLoading } = useLoadingState();
+  const { isLoading: isInitialLoading, setLoading } = useLoadingState();
 
   // Simulate progressive loading for better UX
   useEffect(() => {

@@ -284,4 +284,3 @@ describe('Manifest-Voyage Integration', () => {
     expect(formatted).toContain('80.0%'); // (5+3)/10 * 100
   });
 });
-}

@@ -130,6 +130,8 @@ describe('DataContext', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('voyage-events-count')).toHaveTextContent('1');
+    });
+    await waitFor(() => {
       expect(screen.getByTestId('vessel-manifests-count')).toHaveTextContent('1');
     });
 
@@ -142,6 +144,8 @@ describe('DataContext', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('voyage-events-count')).toHaveTextContent('0');
+    });
+    await waitFor(() => {
       expect(screen.getByTestId('vessel-manifests-count')).toHaveTextContent('0');
     });
   });
@@ -188,7 +192,11 @@ describe('DataContext', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('voyage-events-count')).toHaveTextContent('1');
+    });
+    await waitFor(() => {
       expect(screen.getByTestId('vessel-manifests-count')).toHaveTextContent('1');
+    });
+    await waitFor(() => {
       expect(screen.getByTestId('is-data-ready')).toHaveTextContent('true');
     });
   });

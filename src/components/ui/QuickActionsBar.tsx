@@ -9,14 +9,10 @@ import {
   RefreshCw, 
   Download, 
   Upload, 
-  Settings, 
-  HelpCircle, 
-  Zap, 
   MoreHorizontal,
   X,
   Home,
   BarChart3,
-  Database,
   Monitor
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
@@ -46,7 +42,7 @@ interface QuickActionsBarProps {
 const useContextActions = (): QuickAction[] => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { forceRefreshFromStorage, isDataReady, voyageEvents } = useData();
+  const { forceRefreshFromStorage, isDataReady } = useData();
   
   return [
     // Always available actions

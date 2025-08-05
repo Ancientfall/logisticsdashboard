@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import KPICard from '../dashboard/KPICard';
 
 describe('KPICard Component', () => {
@@ -39,8 +39,7 @@ describe('KPICard Component', () => {
     );
     
     // Should show trend indicator (implementation dependent)
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should show tooltip when provided', () => {
@@ -51,19 +50,16 @@ describe('KPICard Component', () => {
       />
     );
     
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should apply correct color classes', () => {
     const { rerender } = render(<KPICard {...defaultProps} color="green" />);
     
-    let kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
     
     rerender(<KPICard {...defaultProps} color="red" />);
-    kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should handle different status types', () => {
@@ -72,8 +68,7 @@ describe('KPICard Component', () => {
     statusTypes.forEach(status => {
       const { unmount } = render(<KPICard {...defaultProps} status={status} />);
       
-      const kpiCard = screen.getByText('Test KPI').closest('div');
-      expect(kpiCard).toBeInTheDocument();
+      expect(screen.getByText('Test KPI')).toBeInTheDocument();
       
       unmount();
     });
@@ -85,8 +80,7 @@ describe('KPICard Component', () => {
     variants.forEach(variant => {
       const { unmount } = render(<KPICard {...defaultProps} variant={variant} />);
       
-      const kpiCard = screen.getByText('Test KPI').closest('div');
-      expect(kpiCard).toBeInTheDocument();
+      expect(screen.getByText('Test KPI')).toBeInTheDocument();
       
       unmount();
     });
@@ -96,8 +90,7 @@ describe('KPICard Component', () => {
     render(<KPICard {...defaultProps} unit="tons" />);
     
     // Unit should be displayed (implementation dependent)
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should show target comparison when provided', () => {
@@ -110,8 +103,7 @@ describe('KPICard Component', () => {
     );
     
     // Should show target comparison (implementation dependent)
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should display contextual help when provided', () => {
@@ -122,8 +114,7 @@ describe('KPICard Component', () => {
       />
     );
     
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should handle trend icons correctly', () => {
@@ -136,8 +127,7 @@ describe('KPICard Component', () => {
       />
     );
     
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should handle negative trends', () => {
@@ -150,15 +140,13 @@ describe('KPICard Component', () => {
       />
     );
     
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
   });
 
   test('should be accessible', () => {
     render(<KPICard {...defaultProps} />);
     
-    const kpiCard = screen.getByText('Test KPI').closest('div');
-    expect(kpiCard).toBeInTheDocument();
+    expect(screen.getByText('Test KPI')).toBeInTheDocument();
     
     // Should be keyboard accessible if interactive
     // Should have proper ARIA labels if needed

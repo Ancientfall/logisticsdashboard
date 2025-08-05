@@ -145,15 +145,10 @@ describe('Data Processing', () => {
         readExcelFile: jest.fn().mockResolvedValue([])
       }));
 
-      try {
-        const result = await processAllExcelFiles(emptyFiles);
-        expect(result).toHaveProperty('voyageEvents');
-        expect(result).toHaveProperty('vesselManifests');
-        expect(result).toHaveProperty('costAllocation');
-      } catch (error) {
-        // Expected to fail with empty files
-        expect(error).toBeDefined();
-      }
+      const result = await processAllExcelFiles(emptyFiles);
+      expect(result).toHaveProperty('voyageEvents');
+      expect(result).toHaveProperty('vesselManifests');
+      expect(result).toHaveProperty('costAllocation');
     });
   });
 });
