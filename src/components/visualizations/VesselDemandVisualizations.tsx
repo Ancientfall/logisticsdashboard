@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart, Legend, ReferenceLine, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart, Legend, ReferenceLine } from 'recharts';
 import { Ship, TrendingUp, MapPin, Calendar, Zap, Target } from 'lucide-react';
 import { LocationDeliveryDemand, VesselCapability } from '../../utils/vesselRequirementCalculator';
 
@@ -101,9 +101,9 @@ const VesselDemandVisualizations: React.FC<VesselDemandVisualizationsProps> = ({
         return sum + (vessel.monthlyBreakdown[month] || 0);
       }, 0);
 
-      // Calculate drilling vs production split
-      const drillingDemand = totalDemand * 0.6; // Estimated 60% drilling
-      const productionDemand = totalDemand * 0.4; // Estimated 40% production
+      // Use actual drilling vs production demand (now using manifest-based production demand)
+      const productionDemand = averageProductionDemand || 1.5; // Use actual production demand from manifests
+      const drillingDemand = totalDemand - productionDemand; // Variable drilling demand
 
       // Calculate capacity buffer or shortfall
       const capacityBuffer = Math.max(0, totalCapability - totalDemand);
@@ -124,7 +124,7 @@ const VesselDemandVisualizations: React.FC<VesselDemandVisualizationsProps> = ({
         gap: totalDemand - totalCapability
       };
     });
-  }, [locationDemands, vesselCapabilities]);
+  }, [locationDemands, vesselCapabilities, averageProductionDemand]);
 
   // Color schemes
   const locationColors = ['#00754F', '#6EC800', '#1E90FF', '#FF6B35', '#8E44AD', '#F39C12'];
@@ -194,7 +194,7 @@ const VesselDemandVisualizations: React.FC<VesselDemandVisualizationsProps> = ({
               <Target className="w-5 h-5 text-green-600" />
               Demand Classification
             </h4>
-            <p className="text-sm text-gray-600">Drilling vs Production demand analysis</p>
+            <p className="text-sm text-gray-600">Drilling vs Production demand analysis (Production: from actual manifest data)</p>
           </div>
         </div>
         
@@ -298,7 +298,7 @@ const VesselDemandVisualizations: React.FC<VesselDemandVisualizationsProps> = ({
               strokeDasharray="6 3" 
               label={{ value: "Fleet Average", position: "top", fill: "#374151", fontWeight: "600", fontSize: 11 }}
             />
-            {vesselCapabilities.slice(0, 6).map((vessel, index) => (
+            {vesselCapabilities.filter(vessel => vessel.vesselName !== 'Fantasy Island').slice(0, 6).map((vessel, index) => (
               <Line
                 key={vessel.vesselName}
                 type="monotone"
@@ -346,8 +346,8 @@ const VesselDemandVisualizations: React.FC<VesselDemandVisualizationsProps> = ({
             <div key={month} className="font-semibold text-gray-700 p-2 text-center">{month}</div>
           ))}
           
-          {/* Data rows */}
-          {vesselCapabilities.slice(0, 8).map((vessel) => (
+          {/* Data rows - Filter out Fantasy Island from Fleet Capability Matrix */}
+          {vesselCapabilities.filter(vessel => vessel.vesselName !== 'Fantasy Island').slice(0, 8).map((vessel) => (
             <React.Fragment key={vessel.vesselName}>
               <div className="p-2 font-medium text-gray-800" title={vessel.vesselName}>
                 {vessel.vesselName}
