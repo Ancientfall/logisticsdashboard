@@ -1,10 +1,15 @@
 /**
- * Vessel Codes Processor
- * Handles vessel event classification using Vessel Codes.xlsx data
- * Provides authoritative productive/non-productive classification
+ * Vessel Codes Processor - Enhanced L1/L2 Event Classification System
+ * 
+ * Handles vessel event classification using Vessel Codes.xlsx data with:
+ * - L1 Parent Event (primary classification)
+ * - L2 Event (detailed classification)  
+ * - Activity categorization (Productive/Non-Productive/etc.)
+ * - Port type applicability and operational context
+ * - Integration with cost allocation validation
  */
 
-import { VesselCode, VesselCodeClassification } from '../types';
+import { VesselCode, VesselCodeClassification, VoyageEvent } from '../types';
 import { classifyActivity } from './activityClassification';
 
 // ==================== VESSEL CODES DATA ====================
@@ -477,6 +482,302 @@ export const debugVesselCodes = () => {
   });
 };
 
+// ==================== ENHANCED FUNCTIONS FOR VESSEL REQUIREMENT CALCULATOR ====================
+
+/**
+ * Enhanced vessel codes database structure for integration with cost allocation
+ */
+export interface VesselCodesDatabase {
+  codes: Map<string, VesselCode>; // Key: "L1_PARENT_EVENT|L2_EVENT"
+  l1Events: Set<string>;
+  l2Events: Set<string>;
+  productiveCodes: VesselCode[];
+  nonProductiveCodes: VesselCode[];
+  weatherRelatedCodes: VesselCode[];
+  cargoOperationCodes: VesselCode[];
+  transitOperationCodes: VesselCode[];
+  maintenanceOperationCodes: VesselCode[];
+}
+
+/**
+ * Create enhanced vessel codes database from existing data
+ */
+export const createVesselCodesDatabase = (vesselCodes: VesselCode[] = VESSEL_CODES_DATA): VesselCodesDatabase => {
+  const database: VesselCodesDatabase = {
+    codes: new Map(),
+    l1Events: new Set(),
+    l2Events: new Set(),
+    productiveCodes: [],
+    nonProductiveCodes: [],
+    weatherRelatedCodes: [],
+    cargoOperationCodes: [],
+    transitOperationCodes: [],
+    maintenanceOperationCodes: []
+  };
+
+  vesselCodes.forEach(code => {
+    if (!code.isActive) return;
+
+    // Create composite key for lookup
+    const key = `${code.l1ParentEvent.toUpperCase()}|${(code.l2Event || '').toUpperCase()}`;
+    database.codes.set(key, code);
+
+    // Track unique events
+    database.l1Events.add(code.l1ParentEvent.toUpperCase());
+    if (code.l2Event) {
+      database.l2Events.add(code.l2Event.toUpperCase());
+    }
+
+    // Categorize codes
+    switch (code.activityCategory) {
+      case 'Productive':
+        database.productiveCodes.push(code);
+        break;
+      case 'Non-Productive':
+        database.nonProductiveCodes.push(code);
+        break;
+      case 'Maintenance':
+        database.maintenanceOperationCodes.push(code);
+        break;
+    }
+
+    // Special classifications
+    if (code.isWeatherRelated) {
+      database.weatherRelatedCodes.push(code);
+    }
+    if (code.isCargoOperation) {
+      database.cargoOperationCodes.push(code);
+    }
+    if (code.isTransitOperation) {
+      database.transitOperationCodes.push(code);
+    }
+    if (code.isMaintenanceOperation) {
+      database.maintenanceOperationCodes.push(code);
+    }
+  });
+
+  console.log(`🚢 Vessel Codes Database Created:`);
+  console.log(`  Total codes: ${database.codes.size}`);
+  console.log(`  L1 events: ${database.l1Events.size}`);
+  console.log(`  L2 events: ${database.l2Events.size}`);
+  console.log(`  Productive codes: ${database.productiveCodes.length}`);
+  console.log(`  Non-productive codes: ${database.nonProductiveCodes.length}`);
+  console.log(`  Weather-related codes: ${database.weatherRelatedCodes.length}`);
+  console.log(`  Cargo operation codes: ${database.cargoOperationCodes.length}`);
+
+  return database;
+};
+
+/**
+ * Batch classify multiple voyage events using enhanced database
+ */
+export const batchClassifyVoyageEvents = (
+  events: VoyageEvent[],
+  database: VesselCodesDatabase
+): VesselCodeClassification[] => {
+  console.log(`🔍 Classifying ${events.length} voyage events using vessel codes...`);
+  
+  const classifications = events.map(event => {
+    // Use existing function but enhance with database lookup
+    const baseClassification = classifyEventWithVesselCodes(
+      event.parentEvent, 
+      event.event || null, 
+      event.portType
+    );
+
+    // Enhance with database lookup for better matching
+    const parentEvent = event.parentEvent.toUpperCase();
+    const eventName = (event.event || '').toUpperCase();
+    const exactKey = `${parentEvent}|${eventName}`;
+    const parentOnlyKey = `${parentEvent}|`;
+    
+    const exactMatch = database.codes.get(exactKey);
+    const parentMatch = database.codes.get(parentOnlyKey);
+    
+    if (exactMatch) {
+      return {
+        ...baseClassification,
+        vesselCode: exactMatch,
+        activityCategory: exactMatch.activityCategory,
+        confidence: 'High' as const,
+        source: 'VesselCodes' as const,
+        notes: 'Enhanced exact L1/L2 match found'
+      };
+    } else if (parentMatch) {
+      return {
+        ...baseClassification,
+        vesselCode: parentMatch,
+        activityCategory: parentMatch.activityCategory,
+        confidence: 'Medium' as const,
+        source: 'VesselCodes' as const,
+        notes: 'Enhanced L1 parent match found'
+      };
+    }
+    
+    return baseClassification;
+  });
+  
+  // Generate enhanced statistics
+  const stats = {
+    total: classifications.length,
+    exact: classifications.filter(c => c.confidence === 'High' && c.source === 'VesselCodes').length,
+    fuzzy: classifications.filter(c => c.confidence === 'Medium' && c.source === 'VesselCodes').length,
+    fallback: classifications.filter(c => c.source === 'Fallback').length,
+    productive: classifications.filter(c => c.activityCategory === 'Productive').length,
+    nonProductive: classifications.filter(c => c.activityCategory === 'Non-Productive').length,
+    maintenance: classifications.filter(c => c.activityCategory === 'Maintenance').length,
+    uncategorized: classifications.filter(c => c.activityCategory === 'Uncategorized').length
+  };
+  
+  console.log('📊 Enhanced Classification Statistics:');
+  console.log(`  Exact matches: ${stats.exact} (${(stats.exact/stats.total*100).toFixed(1)}%)`);
+  console.log(`  Fuzzy matches: ${stats.fuzzy} (${(stats.fuzzy/stats.total*100).toFixed(1)}%)`);
+  console.log(`  Fallback classifications: ${stats.fallback} (${(stats.fallback/stats.total*100).toFixed(1)}%)`);
+  console.log(`  Productive: ${stats.productive} (${(stats.productive/stats.total*100).toFixed(1)}%)`);
+  console.log(`  Non-Productive: ${stats.nonProductive} (${(stats.nonProductive/stats.total*100).toFixed(1)}%)`);
+  console.log(`  Maintenance: ${stats.maintenance} (${(stats.maintenance/stats.total*100).toFixed(1)}%)`);
+  console.log(`  Uncategorized: ${stats.uncategorized} (${(stats.uncategorized/stats.total*100).toFixed(1)}%)`);
+  
+  return classifications;
+};
+
+/**
+ * Filter events for drilling operations using vessel codes + cost allocation
+ */
+export const filterEventsForDrillingOperations = (
+  events: VoyageEvent[],
+  classifications: VesselCodeClassification[],
+  excludeWeatherRelated: boolean = true,
+  includeTransitTime: boolean = true
+): { events: VoyageEvent[]; classifications: VesselCodeClassification[] } => {
+  
+  const filteredIndices: number[] = [];
+  
+  events.forEach((event, index) => {
+    const classification = classifications[index];
+    let include = true;
+    
+    // Exclude weather-related if requested
+    if (excludeWeatherRelated && classification.vesselCode?.isWeatherRelated) {
+      include = false;
+    }
+    
+    // Include productive operations
+    if (classification.activityCategory === 'Productive') {
+      include = true;
+    }
+    
+    // Include transit time if requested
+    if (includeTransitTime && classification.vesselCode?.isTransitOperation) {
+      include = true;
+    }
+    
+    // Filter by port type (rig operations for drilling)
+    if (event.portType !== 'rig' && !classification.vesselCode?.isTransitOperation) {
+      include = false;
+    }
+    
+    if (include) {
+      filteredIndices.push(index);
+    }
+  });
+  
+  return {
+    events: filteredIndices.map(i => events[i]),
+    classifications: filteredIndices.map(i => classifications[i])
+  };
+};
+
+/**
+ * Calculate productive hours using vessel codes classification
+ */
+export const calculateProductiveHoursWithVesselCodes = (
+  events: VoyageEvent[],
+  classifications: VesselCodeClassification[]
+): {
+  totalHours: number;
+  productiveHours: number;
+  nonProductiveHours: number;
+  maintenanceHours: number;
+  transitHours: number;
+  cargoOpsHours: number;
+  weatherHours: number;
+  productivePercentage: number;
+  breakdown: Record<string, { hours: number; count: number; percentage: number }>;
+} => {
+  let totalHours = 0;
+  let productiveHours = 0;
+  let nonProductiveHours = 0;
+  let maintenanceHours = 0;
+  let transitHours = 0;
+  let cargoOpsHours = 0;
+  let weatherHours = 0;
+  
+  const breakdown: Record<string, { hours: number; count: number; percentage: number }> = {};
+  
+  events.forEach((event, index) => {
+    const classification = classifications[index];
+    const hours = event.finalHours || event.hours || 0;
+    
+    totalHours += hours;
+    
+    // Initialize breakdown category if not exists
+    if (!breakdown[classification.activityCategory]) {
+      breakdown[classification.activityCategory] = { hours: 0, count: 0, percentage: 0 };
+    }
+    
+    breakdown[classification.activityCategory].hours += hours;
+    breakdown[classification.activityCategory].count += 1;
+    
+    // Categorize hours
+    switch (classification.activityCategory) {
+      case 'Productive':
+        productiveHours += hours;
+        break;
+      case 'Non-Productive':
+        nonProductiveHours += hours;
+        break;
+      case 'Maintenance':
+        maintenanceHours += hours;
+        break;
+      default:
+        // Uncategorized goes to non-productive
+        nonProductiveHours += hours;
+    }
+    
+    // Special categorizations
+    if (classification.vesselCode?.isTransitOperation) {
+      transitHours += hours;
+    }
+    if (classification.vesselCode?.isCargoOperation) {
+      cargoOpsHours += hours;
+    }
+    if (classification.vesselCode?.isWeatherRelated) {
+      weatherHours += hours;
+    }
+  });
+  
+  // Calculate percentages
+  Object.keys(breakdown).forEach(category => {
+    breakdown[category].percentage = totalHours > 0 ? 
+      (breakdown[category].hours / totalHours) * 100 : 0;
+  });
+  
+  const productivePercentage = totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
+  
+  return {
+    totalHours,
+    productiveHours,
+    nonProductiveHours,
+    maintenanceHours,
+    transitHours,
+    cargoOpsHours,
+    weatherHours,
+    productivePercentage,
+    breakdown
+  };
+};
+
 const vesselCodesProcessor = {
   classifyEventWithVesselCodes,
   isWeatherRelatedEvent,
@@ -486,7 +787,12 @@ const vesselCodesProcessor = {
   isProductiveEvent,
   isNonProductiveEvent,
   getVesselCodesStats,
-  debugVesselCodes
+  debugVesselCodes,
+  // Enhanced functions
+  createVesselCodesDatabase,
+  batchClassifyVoyageEvents,
+  filterEventsForDrillingOperations,
+  calculateProductiveHoursWithVesselCodes
 };
 
 export default vesselCodesProcessor;
