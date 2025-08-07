@@ -7,7 +7,8 @@ import {
   CostAllocation,
   VesselClassification,
   VoyageList,
-  BulkAction 
+  BulkAction,
+  RigScheduleEntry 
 } from '../types';
 import { SimpleStorageManager, StorageData } from '../utils/storage/storageManagerSimple';
 import { indexedDBService, IndexedDBStorageData } from '../services/indexedDBService';
@@ -31,6 +32,7 @@ interface UseDataOperationsReturn {
   vesselClassifications: VesselClassification[];
   voyageList: VoyageList[];
   bulkActions: BulkAction[];
+  rigScheduleData: RigScheduleEntry[];
   
   // Meta state
   isDataReady: boolean;
@@ -46,6 +48,7 @@ interface UseDataOperationsReturn {
   setVesselClassifications: (data: VesselClassification[]) => void;
   setVoyageList: (data: VoyageList[]) => void;
   setBulkActions: (data: BulkAction[]) => void;
+  setRigScheduleData: (data: RigScheduleEntry[]) => void;
   
   // Operations
   loadStoredData: () => Promise<boolean>;
@@ -74,6 +77,7 @@ const convertToIndexedDBFormat = (data: StorageData): IndexedDBStorageData => ({
   vesselClassifications: data.vesselClassifications || [],
   voyageList: data.voyageList || [],
   bulkActions: data.bulkActions || [],
+  rigScheduleData: data.rigScheduleData || [],
   metadata: data.metadata
 });
 
@@ -85,6 +89,7 @@ const convertFromIndexedDBFormat = (data: IndexedDBStorageData): StorageData => 
   vesselClassifications: data.vesselClassifications || [],
   voyageList: data.voyageList || [],
   bulkActions: data.bulkActions || [],
+  rigScheduleData: data.rigScheduleData || [],
   metadata: data.metadata
 });
 
@@ -102,6 +107,7 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
   const [vesselClassifications, setVesselClassificationsState] = useState<VesselClassification[]>([]);
   const [voyageList, setVoyageListState] = useState<VoyageList[]>([]);
   const [bulkActions, setBulkActionsState] = useState<BulkAction[]>([]);
+  const [rigScheduleData, setRigScheduleDataState] = useState<RigScheduleEntry[]>([]);
   
   // Meta state
   const [isDataReady, setIsDataReadyState] = useState(false);
@@ -746,7 +752,8 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
             voyageList: enhancedData.voyageList,
             bulkActions: enhancedData.bulkActions,
             masterFacilities: convertedMasterFacilities,
-            vesselClassifications: convertedVesselClassifications
+            vesselClassifications: convertedVesselClassifications,
+            rigScheduleData: [] // PostgreSQL doesn't have rig schedule data yet
           };
           
           await indexedDBService.saveAllData(convertToIndexedDBFormat(dataStore));
@@ -784,7 +791,8 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
         costAllocation: costAllocation || [],
         masterFacilities: masterFacilities || [],
         vesselClassifications: vesselClassifications || [],
-        bulkActions: bulkActions || []
+        bulkActions: bulkActions || [],
+        rigScheduleData: rigScheduleData || []
       };
       
       // Try IndexedDB first (primary storage)
@@ -820,7 +828,7 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
       setIsSaving(false);
       return false;
     }
-  }, [voyageEvents, vesselManifests, voyageList, costAllocation, masterFacilities, vesselClassifications, bulkActions, isSaving]);
+  }, [voyageEvents, vesselManifests, voyageList, costAllocation, masterFacilities, vesselClassifications, bulkActions, rigScheduleData, isSaving]);
 
   // Clear all data from both IndexedDB and localStorage
   const clearAllData = useCallback(async () => {
@@ -831,6 +839,7 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
     setVesselClassificationsState([]);
     setVoyageListState([]);
     setBulkActionsState([]);
+    setRigScheduleDataState([]);
     setIsDataReadyState(false);
     setError(null);
     setLastUpdated(null);
@@ -902,6 +911,14 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
     props?.onDataUpdate?.({ bulkActions: data });
   }, [props]);
 
+  const setRigScheduleData = useCallback((data: RigScheduleEntry[]) => {
+    console.log(`🗓️ useDataOperations: setRigScheduleData called with ${data.length} records`);
+    setRigScheduleDataState(data);
+    setLastUpdated(new Date());
+    props?.onDataUpdate?.({ rigScheduleData: data });
+    console.log(`🗓️ useDataOperations: rigScheduleData state updated successfully`);
+  }, [props]);
+
   const setIsDataReady = useCallback((ready: boolean) => {
     console.log(`🎯 useDataOperations: setIsDataReady called with ${ready}`);
     setIsDataReadyState(ready);
@@ -963,6 +980,7 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
     vesselClassifications,
     voyageList,
     bulkActions,
+    rigScheduleData,
     
     // Meta
     isDataReady,
@@ -978,6 +996,7 @@ export const useDataOperations = (props?: UseDataOperationsProps): UseDataOperat
     setVesselClassifications,
     setVoyageList,
     setBulkActions,
+    setRigScheduleData,
     
     // Operations
     loadStoredData,

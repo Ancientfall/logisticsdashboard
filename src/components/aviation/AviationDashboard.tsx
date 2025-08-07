@@ -95,8 +95,7 @@ const AviationDashboard: React.FC = () => {
 
   const totalAllocated = aviationData.reduce((sum, item) => sum + item.flightsAllocated, 0);
   const totalCompleted = aviationData.reduce((sum, item) => sum + item.flightsCompleted, 0);
-  const totalAdHoc = aviationData.reduce((sum, item) => sum + item.adHocCompleted, 0);
-  const totalAdHocAllocated = aviationData.reduce((sum, item) => sum + item.adHocAllocated, 0);
+  // Removed unused totalAdHoc and totalAdHocAllocated variables
   const overallCompletionRate = calculateCompletionRate(totalCompleted, totalAllocated);
 
   const rigsWithCostOverage = aviationData.filter(rig => rig.flightsCompleted > rig.flightsAllocated);

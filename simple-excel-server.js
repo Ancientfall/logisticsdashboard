@@ -45,14 +45,16 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
-    // Only allow Excel files
+    // Allow Excel and CSV files
     if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
         file.mimetype === 'application/vnd.ms-excel' ||
+        file.mimetype === 'text/csv' ||
         file.originalname.toLowerCase().endsWith('.xlsx') ||
-        file.originalname.toLowerCase().endsWith('.xls')) {
+        file.originalname.toLowerCase().endsWith('.xls') ||
+        file.originalname.toLowerCase().endsWith('.csv')) {
       cb(null, true)
     } else {
-      cb(new Error('Only Excel files are allowed'), false)
+      cb(new Error('Only Excel and CSV files are allowed'), false)
     }
   },
   limits: {
@@ -395,6 +397,227 @@ app.get('/api/excel-files-status', async (req, res) => {
   }
 })
 
+// ===== VESSEL SCHEDULE SPECIFIC API ENDPOINTS =====
+
+// GET /api/vessel-schedule-files - List available vessel schedule files
+app.get('/api/vessel-schedule-files', async (req, res) => {
+  try {
+    const excelDir = path.join(__dirname, 'excel-data', 'excel-files')
+    const files = await fs.promises.readdir(excelDir)
+    
+    // Filter for vessel schedule files (pattern: Vessel_Schedule_*.xlsx)
+    const scheduleFiles = files
+      .filter(file => file.match(/^Vessel_Schedule_\d{4}_\d{2}\.xlsx$/i))
+      .sort((a, b) => b.localeCompare(a)) // Sort by name descending (newest first)
+    
+    const fileDetails = await Promise.all(
+      scheduleFiles.map(async (file) => {
+        const filePath = path.join(excelDir, file)
+        const stats = await fs.promises.stat(filePath)
+        
+        // Extract version info from filename
+        const match = file.match(/Vessel_Schedule_(\d{4})_(\d{2})\.xlsx$/i)
+        const version = match ? `${match[1]}-${match[2]}_v1.0` : 'Unknown'
+        
+        return {
+          name: file,
+          size: stats.size,
+          lastModified: stats.mtime.toISOString(),
+          created: stats.birthtime.toISOString(),
+          version: version,
+          type: 'vessel_schedule'
+        }
+      })
+    )
+    
+    res.json({
+      success: true,
+      files: fileDetails,
+      count: fileDetails.length
+    })
+  } catch (error) {
+    console.error('Error listing vessel schedule files:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list vessel schedule files',
+      details: error.message
+    })
+  }
+})
+
+// GET /api/vessel-schedule-files/:filename - Download specific vessel schedule file
+app.get('/api/vessel-schedule-files/:filename', (req, res) => {
+  const filename = req.params.filename
+  
+  // Validate filename pattern for security
+  if (!filename.match(/^Vessel_Schedule_\d{4}_\d{2}\.xlsx$/i)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid vessel schedule filename format. Expected: Vessel_Schedule_YYYY_MM.xlsx'
+    })
+  }
+  
+  const filePath = path.join(__dirname, 'excel-data', 'excel-files', filename)
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({
+      success: false,
+      error: 'Vessel schedule file not found',
+      filename: filename
+    })
+  }
+  
+  // Set appropriate headers for Excel file download
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Cache-Control', 'no-cache')
+  
+  // Stream the file
+  const fileStream = fs.createReadStream(filePath)
+  fileStream.pipe(res)
+  
+  fileStream.on('error', (error) => {
+    console.error('Error streaming vessel schedule file:', error)
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to download vessel schedule file'
+      })
+    }
+  })
+})
+
+// POST /api/upload-vessel-schedule - Upload new vessel schedule file with validation
+app.post('/api/upload-vessel-schedule', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      })
+    }
+    
+    const uploadedFile = req.file
+    const { year, month, version } = req.body
+    
+    // Generate standardized filename
+    const paddedMonth = String(month).padStart(2, '0')
+    const targetFileName = `Vessel_Schedule_${year}_${paddedMonth}.xlsx`
+    
+    // Validate filename matches expected pattern
+    if (!targetFileName.match(/^Vessel_Schedule_\d{4}_\d{2}\.xlsx$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid filename format generated'
+      })
+    }
+    
+    const targetPath = path.join(__dirname, 'excel-data', 'excel-files', targetFileName)
+    
+    // Check if file already exists and create backup
+    if (fs.existsSync(targetPath)) {
+      const backupPath = targetPath.replace('.xlsx', `_backup_${Date.now()}.xlsx`)
+      await fs.promises.copyFile(targetPath, backupPath)
+      console.log(`Created backup: ${backupPath}`)
+    }
+    
+    // Move uploaded file to target location
+    await fs.promises.rename(uploadedFile.path, targetPath)
+    
+    // Get file stats
+    const stats = await fs.promises.stat(targetPath)
+    
+    console.log(`Vessel schedule uploaded successfully: ${targetFileName}`)
+    
+    res.json({
+      success: true,
+      message: 'Vessel schedule file uploaded successfully',
+      file: {
+        name: targetFileName,
+        size: stats.size,
+        uploaded: new Date().toISOString(),
+        version: version || `${year}-${paddedMonth}_v1.0`
+      }
+    })
+    
+  } catch (error) {
+    console.error('Error uploading vessel schedule:', error)
+    
+    // Clean up uploaded file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        await fs.promises.unlink(req.file.path)
+      } catch (cleanupError) {
+        console.error('Error cleaning up uploaded file:', cleanupError)
+      }
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload vessel schedule file',
+      details: error.message
+    })
+  }
+})
+
+// GET /api/vessel-schedule-status - Check vessel schedule file status and version
+app.get('/api/vessel-schedule-status', async (req, res) => {
+  try {
+    const excelDir = path.join(__dirname, 'excel-data', 'excel-files')
+    const files = await fs.promises.readdir(excelDir)
+    
+    // Find the most recent vessel schedule file
+    const scheduleFiles = files
+      .filter(file => file.match(/^Vessel_Schedule_\d{4}_\d{2}\.xlsx$/i))
+      .sort((a, b) => b.localeCompare(a))
+    
+    if (scheduleFiles.length === 0) {
+      return res.json({
+        success: true,
+        hasSchedule: false,
+        message: 'No vessel schedule files found'
+      })
+    }
+    
+    const latestFile = scheduleFiles[0]
+    const filePath = path.join(excelDir, latestFile)
+    const stats = await fs.promises.stat(filePath)
+    
+    // Extract date info from filename
+    const match = latestFile.match(/Vessel_Schedule_(\d{4})_(\d{2})\.xlsx$/i)
+    const year = match ? match[1] : 'Unknown'
+    const month = match ? match[2] : 'Unknown'
+    
+    // Calculate age in days
+    const ageInDays = Math.floor((Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60 * 24))
+    
+    res.json({
+      success: true,
+      hasSchedule: true,
+      currentFile: {
+        name: latestFile,
+        size: stats.size,
+        lastModified: stats.mtime.toISOString(),
+        version: `${year}-${month}_v1.0`,
+        year: parseInt(year),
+        month: parseInt(month),
+        ageInDays: ageInDays
+      },
+      totalScheduleFiles: scheduleFiles.length,
+      isStale: ageInDays > 45 // Flag as stale if older than 45 days
+    })
+    
+  } catch (error) {
+    console.error('Error checking vessel schedule status:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check vessel schedule status',
+      details: error.message
+    })
+  }
+})
+
 app.listen(PORT, () => {
     console.log('Excel server running on port', PORT)
     console.log('Excel files directory:', EXCEL_FILES_DIR)
@@ -402,4 +625,8 @@ app.listen(PORT, () => {
     console.log('Excel files API: http://localhost:' + PORT + '/api/excel-files')
     console.log('Upload API: http://localhost:' + PORT + '/api/upload-monthly-data')
     console.log('Upload logs: http://localhost:' + PORT + '/api/upload-logs')
+    console.log('--- Vessel Schedule APIs ---')
+    console.log('Schedule files: http://localhost:' + PORT + '/api/vessel-schedule-files')
+    console.log('Schedule upload: http://localhost:' + PORT + '/api/upload-vessel-schedule')
+    console.log('Schedule status: http://localhost:' + PORT + '/api/vessel-schedule-status')
 })

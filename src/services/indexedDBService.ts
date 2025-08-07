@@ -7,7 +7,8 @@ import {
   CostAllocation,
   VesselClassification,
   VoyageList,
-  BulkAction
+  BulkAction,
+  RigScheduleEntry
 } from '../types';
 
 export interface IndexedDBStorageData {
@@ -18,6 +19,7 @@ export interface IndexedDBStorageData {
   vesselClassifications: VesselClassification[];
   voyageList: VoyageList[];
   bulkActions: BulkAction[];
+  rigScheduleData: RigScheduleEntry[];
   metadata?: {
     lastUpdated: Date | string;
     dateRange?: {
@@ -115,6 +117,7 @@ export class IndexedDBStorageService {
           logisticsDB.vesselClassifications.clear(),
           logisticsDB.voyageList.clear(),
           logisticsDB.bulkActions.clear(),
+          logisticsDB.rigScheduleData.clear(),
           logisticsDB.metadata.clear()
         ]);
 
@@ -141,6 +144,9 @@ export class IndexedDBStorageService {
         }
         if (data.bulkActions.length > 0) {
           savePromises.push(logisticsDB.bulkActions.bulkAdd(data.bulkActions));
+        }
+        if (data.rigScheduleData.length > 0) {
+          savePromises.push(logisticsDB.rigScheduleData.bulkAdd(data.rigScheduleData));
         }
         
         // Save metadata
@@ -184,6 +190,7 @@ export class IndexedDBStorageService {
         vesselClassifications,
         voyageList,
         bulkActions,
+        rigScheduleData,
         metadataArray
       ] = await Promise.all([
         logisticsDB.voyageEvents.toArray(),
@@ -193,6 +200,7 @@ export class IndexedDBStorageService {
         logisticsDB.vesselClassifications.toArray(),
         logisticsDB.voyageList.toArray(),
         logisticsDB.bulkActions.toArray(),
+        logisticsDB.rigScheduleData.toArray(),
         logisticsDB.metadata.toArray()
       ]);
 
@@ -210,6 +218,7 @@ export class IndexedDBStorageService {
         vesselClassifications,
         voyageList,
         bulkActions,
+        rigScheduleData,
         metadata: metadataArray[0] // Single metadata record
       };
 

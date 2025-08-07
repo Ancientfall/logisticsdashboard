@@ -6,7 +6,8 @@ import {
   CostAllocation,
   VesselClassification,
   VoyageList,
-  BulkAction 
+  BulkAction,
+  RigScheduleEntry 
 } from '../../types';
 
 export interface StorageData {
@@ -17,6 +18,7 @@ export interface StorageData {
   vesselClassifications: VesselClassification[];
   voyageList: VoyageList[];
   bulkActions: BulkAction[];
+  rigScheduleData: RigScheduleEntry[];
   metadata?: {
     lastUpdated: Date | string;
     dateRange?: {
@@ -166,6 +168,7 @@ export class SimpleStorageManager {
       vesselClassifications: parsed.vesselClassifications || [],
       voyageList: parsed.voyageList || [],
       bulkActions: parsed.bulkActions || [],
+      rigScheduleData: parsed.rigScheduleData || [],
       hasData: false,
       lastUpdated: null
     };

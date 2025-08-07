@@ -82,6 +82,8 @@ module.exports = function (proxy, allowedHost) {
         errors: true,
         warnings: false,
       },
+      // Reduce polling and connection timeouts
+      reconnect: 5,
     },
     devMiddleware: {
       // It is important to tell WebpackDevServer to use the same "publicPath" path as
@@ -89,6 +91,9 @@ module.exports = function (proxy, allowedHost) {
       // from the root.
       // remove last slash so user can land on `/test` instead of `/test/`
       publicPath: paths.publicUrlOrPath.slice(0, -1),
+      // Performance improvements
+      writeToDisk: false,
+      stats: 'errors-warnings',
     },
 
     // server: {

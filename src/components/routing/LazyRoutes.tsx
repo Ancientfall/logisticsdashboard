@@ -20,6 +20,7 @@ const CostAllocationManagerRedesigned = React.lazy(() => import('../dashboard/Co
 const ComparisonDashboard = React.lazy(() => import('../dashboard/ComparisonDashboard'));
 const BulkActionsDashboard = React.lazy(() => import('../dashboard/BulkActionsDashboard'));
 const VesselRequirementDashboard = React.lazy(() => import('../dashboard/VesselRequirementDashboard'));
+const VesselForecastDashboard = React.lazy(() => import('../dashboard/VesselForecastDashboard'));
 
 // Admin and special components
 const AdminDashboard = React.lazy(() => import('../admin/AdminDashboard'));
@@ -59,6 +60,7 @@ export const LazyCostAllocationManagerRedesigned = withLazyLoading(CostAllocatio
 export const LazyComparisonDashboard = withLazyLoading(ComparisonDashboard);
 export const LazyBulkActionsDashboard = withLazyLoading(BulkActionsDashboard);
 export const LazyVesselRequirementDashboard = withLazyLoading(VesselRequirementDashboard);
+export const LazyVesselForecastDashboard = withLazyLoading(VesselForecastDashboard);
 
 export const LazyAdminDashboard = withLazyLoading(AdminDashboard);
 export const LazyReferenceDataManager = withLazyLoading(ReferenceDataManager);
@@ -93,6 +95,7 @@ export const preloadRoute = (routeName: string) => {
     'comparison': () => import('../dashboard/ComparisonDashboard'),
     'bulk': () => import('../dashboard/BulkActionsDashboard'),
     'vessel-requirements': () => import('../dashboard/VesselRequirementDashboard'),
+    'vessel-forecast': () => import('../dashboard/VesselForecastDashboard'),
     'admin': () => import('../admin/AdminDashboard'),
     'admin-reference': () => import('../admin/ReferenceDataManager'),
     'tv-display': () => import('../TVKioskDisplay'),

@@ -102,7 +102,8 @@ export class DebugUtils {
       costAllocation: [],
       vesselClassifications: [],
       voyageList: [],
-      bulkActions: []
+      bulkActions: [],
+      rigScheduleData: []
     };
     
     const saveResult = storageManager.saveData(testData);

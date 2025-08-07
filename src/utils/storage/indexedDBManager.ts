@@ -7,7 +7,8 @@ import {
   CostAllocation,
   VesselClassification,
   VoyageList,
-  BulkAction
+  BulkAction,
+  RigScheduleEntry
 } from '../../types';
 import type { Notification, NotificationSettings } from '../../types/notification';
 
@@ -30,6 +31,7 @@ export interface LogisticsData {
   vesselClassifications: VesselClassification[];
   voyageList: VoyageList[];
   bulkActions: BulkAction[];
+  rigScheduleData: RigScheduleEntry[];
   metadata?: StorageMetadata;
 }
 
@@ -46,6 +48,7 @@ export class LogisticsDatabase extends Dexie {
   vesselClassifications!: Table<VesselClassification, number>;
   voyageList!: Table<VoyageList, number>;
   bulkActions!: Table<BulkAction, number>;
+  rigScheduleData!: Table<RigScheduleEntry, number>;
   metadata!: Table<StorageMetadata, number>;
   notifications!: Table<Notification, string>;
   notificationSettings!: Table<NotificationSettings, number>;
@@ -97,6 +100,24 @@ export class LogisticsDatabase extends Dexie {
       notificationSettings: '++id'
     });
 
+    // Version 3: Add rig schedule data
+    this.version(3).stores({
+      // Keep all existing stores
+      voyageEvents: '++id, vessel, eventDate, location, activityCategory, from, to',
+      vesselManifests: '++id, transporter, manifestDate, from, offshoreLocation',
+      masterFacilities: '++id, name, location, type',
+      costAllocation: '++id, vesselName, date, location, activityType',
+      vesselClassifications: '++id, vesselName, classification, type',
+      voyageList: '++id, vesselName, departure, arrival, route',
+      bulkActions: '++id, timestamp, type, status',
+      metadata: '++id, lastUpdated, dataVersion',
+      notifications: 'id, type, subType, priority, timestamp, isRead, groupId',
+      notificationSettings: '++id',
+      
+      // Add rig schedule data store
+      rigScheduleData: '++id, rigName, client, activityType, location, startDate, endDate, duration'
+    });
+
     // Optional: Add hooks for data validation and transformation
     this.voyageEvents.hook('creating', (primKey, obj, trans) => {
       // Ensure dates are proper Date objects
@@ -134,7 +155,8 @@ export class LogisticsDatabase extends Dexie {
         costAllocation: await this.costAllocation.count(),
         vesselClassifications: await this.vesselClassifications.count(),
         voyageList: await this.voyageList.count(),
-        bulkActions: await this.bulkActions.count()
+        bulkActions: await this.bulkActions.count(),
+        rigScheduleData: await this.rigScheduleData.count()
       };
 
       const totalRecords = Object.values(counts).reduce((sum, count) => sum + count, 0);
@@ -172,6 +194,7 @@ export class LogisticsDatabase extends Dexie {
           this.vesselClassifications.clear(),
           this.voyageList.clear(),
           this.bulkActions.clear(),
+          this.rigScheduleData.clear(),
           this.metadata.clear()
         ]);
       });
@@ -196,6 +219,7 @@ export class LogisticsDatabase extends Dexie {
         vesselClassifications,
         voyageList,
         bulkActions,
+        rigScheduleData,
         metadata
       ] = await Promise.all([
         this.voyageEvents.toArray(),
@@ -205,6 +229,7 @@ export class LogisticsDatabase extends Dexie {
         this.vesselClassifications.toArray(),
         this.voyageList.toArray(),
         this.bulkActions.toArray(),
+        this.rigScheduleData.toArray(),
         this.metadata.toArray()
       ]);
 
@@ -216,6 +241,7 @@ export class LogisticsDatabase extends Dexie {
         vesselClassifications,
         voyageList,
         bulkActions,
+        rigScheduleData,
         metadata: metadata[0] // Single metadata record
       };
     } catch (error) {
@@ -239,6 +265,7 @@ export class LogisticsDatabase extends Dexie {
             this.vesselClassifications.clear(),
             this.voyageList.clear(),
             this.bulkActions.clear(),
+            this.rigScheduleData.clear(),
             this.metadata.clear()
           ]);
         }
@@ -251,6 +278,7 @@ export class LogisticsDatabase extends Dexie {
           data.vesselClassifications.length > 0 && this.vesselClassifications.bulkAdd(data.vesselClassifications),
           data.voyageList.length > 0 && this.voyageList.bulkAdd(data.voyageList),
           data.bulkActions.length > 0 && this.bulkActions.bulkAdd(data.bulkActions),
+          data.rigScheduleData.length > 0 && this.rigScheduleData.bulkAdd(data.rigScheduleData),
           data.metadata && this.metadata.add(data.metadata)
         ].filter(Boolean));
       });

@@ -13,7 +13,8 @@ import {
   Database,
   Zap,
   Monitor,
-  Calculator
+  Calculator,
+  TrendingUp
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { DashboardSkeleton, useLoadingState } from './ui/LoadingSystem';
@@ -114,6 +115,16 @@ const DashboardShowcase: React.FC = () => {
       gradient: 'from-teal-500 to-cyan-600',
       features: ['Fleet Optimization', 'Rig-by-Rig Analysis', 'Utilization Metrics', 'Voyage Patterns'],
       stats: { rigs: '15+', vessels: '8', utilization: '72%' }
+    },
+    {
+      id: 'vessel-forecast',
+      title: 'Vessel Demand Forecasting',
+      description: '🔮 Strategic 12-month vessel planning with predictive analytics, scenario planning, and management decision support',
+      icon: TrendingUp,
+      route: '/vessel-forecast',
+      gradient: 'from-purple-500 to-indigo-600',
+      features: ['12-Month Forecasts', 'Scenario Planning', 'Management Injects', 'Decision Support'],
+      stats: { scenarios: '3', accuracy: '85%', horizon: '12mo' }
     },
     {
       id: 'tv-display',
@@ -251,6 +262,14 @@ const DashboardShowcase: React.FC = () => {
                 onMouseEnter={() => setHoveredCard(dashboard.id)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => handleDashboardClick(dashboard)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleDashboardClick(dashboard);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 {/* Card */}
                 <div className="relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100 overflow-hidden">

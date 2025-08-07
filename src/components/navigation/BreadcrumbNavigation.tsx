@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, Home, BarChart3, Settings, Database } from 'lucide-react';
+import { ChevronRight, Home, BarChart3, Settings, Database, TrendingUp } from 'lucide-react';
 
 export interface BreadcrumbItem {
   label: string;
@@ -32,6 +32,7 @@ const RouteMap: Record<string, { label: string; icon?: React.ComponentType<any> 
   '/comparison': { label: 'Comparison Analytics', icon: BarChart3 },
   '/bulk': { label: 'Bulk Operations', icon: BarChart3 },
   '/vessel-requirements': { label: 'Vessel Requirements', icon: BarChart3 },
+  '/vessel-forecast': { label: 'Vessel Forecasting', icon: TrendingUp },
   '/tv-display': { label: 'TV Kiosk Display', icon: BarChart3 },
   '/aviation': { label: 'Aviation Dashboard', icon: BarChart3 },
   '/dashboard': { label: 'Data Summary', icon: BarChart3 },
@@ -77,7 +78,7 @@ const generateBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
 /**
  * Individual breadcrumb item component
  */
-const BreadcrumbItem: React.FC<{ 
+const BreadcrumbItemComponent: React.FC<{ 
   item: BreadcrumbItem; 
   isLast: boolean; 
   onClick: (path: string) => void;
@@ -138,7 +139,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
     >
       <div className="flex items-center space-x-1 overflow-x-auto">
         {filteredItems.map((item, index) => (
-          <BreadcrumbItem
+          <BreadcrumbItemComponent
             key={item.path}
             item={item}
             isLast={index === filteredItems.length - 1}

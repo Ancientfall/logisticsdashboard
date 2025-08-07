@@ -24,6 +24,7 @@ import ReferenceDataManager from './components/admin/ReferenceDataManager'
 import TVKioskDisplay from './components/TVKioskDisplay'
 import AviationDashboard from './components/aviation/AviationDashboard'
 import VesselRequirementDashboard from './components/dashboard/VesselRequirementDashboard'
+import VesselForecastDashboard from './components/dashboard/VesselForecastDashboard'
 
 import './index.css'
 
@@ -111,6 +112,12 @@ function App() {
 								<Route path="/vessel-requirements" element={
 									<DashboardLayout>
 										<VesselRequirementDashboard />
+									</DashboardLayout>
+								} />
+								
+								<Route path="/vessel-forecast" element={
+									<DashboardLayout>
+										<VesselForecastDashboard />
 									</DashboardLayout>
 								} />
 								

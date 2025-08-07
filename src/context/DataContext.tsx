@@ -7,7 +7,8 @@ import {
   CostAllocation,
   VesselClassification,
   VoyageList,
-  BulkAction 
+  BulkAction,
+  RigScheduleEntry 
 } from '../types';
 import { SimpleDataStore } from '../types/simpleDataStore';
 import { useDataOperations } from '../hooks/useDataOperations';
@@ -22,6 +23,7 @@ interface DataContextType {
   vesselClassifications: VesselClassification[];
   voyageList: VoyageList[];
   bulkActions: BulkAction[];
+  rigScheduleData: RigScheduleEntry[];
   
   // Data store (for compatibility with existing code)
   dataStore: SimpleDataStore | null;
@@ -42,6 +44,7 @@ interface DataContextType {
   setVesselClassifications: (data: VesselClassification[]) => void;
   setVoyageList: (data: VoyageList[]) => void;
   setBulkActions: (data: BulkAction[]) => void;
+  setRigScheduleData: (data: RigScheduleEntry[]) => void;
   
   // Utility functions
   setLoading: (loading: boolean) => void;
@@ -57,6 +60,7 @@ interface DataContextType {
     vesselClassifications: boolean;
     voyageList: boolean;
     bulkActions: boolean;
+    rigSchedule: boolean;
   };
   
   // New navigation functions for our enhanced UI
@@ -78,6 +82,7 @@ const DataContext = createContext<DataContextType>({
   vesselClassifications: [],
   voyageList: [],
   bulkActions: [],
+  rigScheduleData: [],
   
   dataStore: null,
   setDataStore: () => {},
@@ -95,6 +100,7 @@ const DataContext = createContext<DataContextType>({
   setVesselClassifications: () => {},
   setVoyageList: () => {},
   setBulkActions: () => {},
+  setRigScheduleData: () => {},
   
   setLoading: () => {},
   setError: () => {},
@@ -107,7 +113,8 @@ const DataContext = createContext<DataContextType>({
     costAllocation: false,
     vesselClassifications: false,
     voyageList: false,
-    bulkActions: false
+    bulkActions: false,
+    rigSchedule: false
   },
   
   resetToUpload: () => {},
@@ -189,7 +196,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     costAllocation: dataOps.costAllocation.length > 0,
     vesselClassifications: dataOps.vesselClassifications.length > 0,
     voyageList: dataOps.voyageList.length > 0,
-    bulkActions: dataOps.bulkActions.length > 0
+    bulkActions: dataOps.bulkActions.length > 0,
+    rigSchedule: dataOps.rigScheduleData.length > 0
   };
 
   // Auto-check data readiness when arrays change (with debouncing)
@@ -228,6 +236,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       vesselClassifications: dataOps.vesselClassifications,
       voyageList: dataOps.voyageList,
       bulkActions: dataOps.bulkActions,
+      rigScheduleData: dataOps.rigScheduleData,
       
       // Data store for compatibility
       dataStore,
@@ -250,6 +259,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setVesselClassifications: dataOps.setVesselClassifications,
       setVoyageList: dataOps.setVoyageList,
       setBulkActions: dataOps.setBulkActions,
+      setRigScheduleData: dataOps.setRigScheduleData,
       
       // Utilities
       setLoading,

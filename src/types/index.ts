@@ -815,3 +815,452 @@ export interface FluidAnalysis {
   temperature?: number;
   uploadId?: string;
 }
+
+// ==================== VESSEL FORECASTING INTERFACES ====================
+
+/**
+ * Future demand prediction for a specific location
+ */
+export interface ForecastDemand {
+  location: string;
+  monthlyForecast: Record<string, number>; // month (YYYY-MM) -> predicted deliveries
+  confidence: Record<string, number>; // confidence level for each month (0-1)
+  trendDirection: 'increasing' | 'decreasing' | 'stable';
+  seasonalPattern?: Record<string, number>; // seasonal adjustment factors
+  growthRate: number; // monthly growth rate
+  historicalAverage: number;
+  notes?: string;
+}
+
+/**
+ * Vessel capability forecast
+ */
+export interface VesselCapabilityForecast {
+  vesselName: string;
+  monthlyCapability: Record<string, number>; // month (YYYY-MM) -> predicted capability
+  plannedMaintenance: Record<string, number>; // maintenance periods reducing capability
+  utilizationForecast: Record<string, number>; // expected utilization rates
+  performanceTrend: 'improving' | 'declining' | 'stable';
+  averageCapability: number;
+  notes?: string;
+}
+
+/**
+ * Additional vessel requirement injections
+ */
+export interface VesselInject {
+  id: string;
+  name: string;
+  description: string;
+  type: 'drilling_campaign' | 'maintenance_project' | 'contract_change' | 'emergency_response' | 'special_project';
+  startMonth: string; // YYYY-MM
+  endMonth: string; // YYYY-MM
+  vesselRequirement: number; // additional vessels needed (+) or capability reduction (-)
+  locations: string[]; // affected locations
+  impact: 'demand_increase' | 'demand_decrease' | 'capability_reduction' | 'capability_increase';
+  priority: 'high' | 'medium' | 'low';
+  probability: number; // 0-1, likelihood of this inject occurring
+  cost?: number; // estimated cost impact
+  createdBy: string;
+  createdAt: Date;
+  isActive: boolean;
+}
+
+/**
+ * Forecasting scenario configuration
+ */
+export interface ForecastScenario {
+  id: string;
+  name: string;
+  description: string;
+  type: 'base_case' | 'optimistic' | 'pessimistic' | 'custom';
+  demandGrowthRate: number; // overall demand growth assumption
+  capabilityGrowthRate: number; // fleet capability improvement assumption
+  activeInjects: string[]; // inject IDs to include in this scenario
+  confidenceThreshold: number; // minimum confidence level for predictions
+  timeHorizon: number; // forecast horizon in months
+  assumptions: string[];
+  createdAt: Date;
+  lastModified: Date;
+}
+
+/**
+ * Complete forecast result for a scenario
+ */
+export interface ScenarioResult {
+  scenario: ForecastScenario;
+  forecastPeriod: {
+    startMonth: string;
+    endMonth: string;
+    totalMonths: number;
+  };
+  
+  // Demand forecasts
+  locationForecasts: ForecastDemand[];
+  totalDemandForecast: Record<string, number>; // month -> total demand
+  drillingDemandForecast: Record<string, number>;
+  productionDemandForecast: Record<string, number>;
+  
+  // Capability forecasts
+  vesselCapabilityForecasts: VesselCapabilityForecast[];
+  totalCapabilityForecast: Record<string, number>; // month -> total capability
+  
+  // Vessel requirements
+  vesselRequirementsByMonth: Record<string, number>; // month -> required vessels
+  vesselGapByMonth: Record<string, number>; // month -> gap (+ shortage, - surplus)
+  
+  // Applied injects
+  appliedInjects: VesselInject[];
+  injectImpactByMonth: Record<string, number>; // month -> inject impact
+  
+  // Analysis
+  averageUtilization: number;
+  peakDemandMonth: string;
+  maxVesselGap: number;
+  recommendedFleetSize: number;
+  confidenceScore: number; // overall confidence in forecast
+  
+  // Metadata
+  calculatedAt: Date;
+  calculationDuration: number; // milliseconds
+}
+
+/**
+ * Management recommendation for vessel planning
+ */
+export interface ManagementRecommendation {
+  id: string;
+  type: 'vessel_acquisition' | 'vessel_retirement' | 'contract_renegotiation' | 'capacity_optimization' | 'capacity_planning' | 'operational_excellence';
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  
+  // Timing
+  recommendedAction: string;
+  timeframe: 'immediate' | 'next_quarter' | 'next_6_months' | 'next_year' | 'next_3_months';
+  targetMonth?: string;
+  
+  // Impact
+  vesselImpact: number; // vessels affected
+  costImpact?: number; // estimated cost
+  demandImpact: number; // delivery capacity affected
+  utilizationImpact: number; // utilization change
+  
+  // Supporting data
+  triggerConditions: string[]; // conditions that led to this recommendation
+  alternativeOptions: string[]; // alternative approaches
+  riskFactors?: string[]; // risk factors to consider
+  dataSupport?: string[]; // supporting data sources
+  stakeholderAlignment?: 'high' | 'medium' | 'low'; // stakeholder alignment level
+  risks: string[]; // risks of not taking action
+  benefits: string[]; // benefits of taking action
+  
+  // Metadata
+  confidence: number; // 0-1
+  basedOnScenarios: string[]; // scenario IDs that support this recommendation
+  createdAt: Date;
+  reviewDate?: Date; // review date
+  reviewedBy?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'implemented';
+}
+
+/**
+ * Vessel forecast analysis result
+ */
+export interface VesselForecastResult {
+  // Input data summary
+  historicalMonths: number;
+  forecastMonths: number;
+  analysisDate: Date;
+  
+  // Core fleet baseline
+  coreFleetBaseline: CoreFleetBaseline;
+  
+  // Scenarios analyzed
+  scenarios: ScenarioResult[];
+  baseScenario: ScenarioResult;
+  
+  // Cross-scenario analysis
+  demandRange: { min: number; max: number; average: number }; // across all scenarios
+  vesselRequirementRange: { min: number; max: number; average: number };
+  consensusRecommendations: ManagementRecommendation[]; // recommendations supported by multiple scenarios
+  
+  // Risk analysis
+  highRiskMonths: string[]; // months with significant vessel shortages
+  lowUtilizationMonths: string[]; // months with excess capacity
+  sensitivityAnalysis: {
+    demandSensitivity: number; // how much vessel requirements change per 1% demand change
+    capabilitySensitivity: number; // how much requirements change per 1% capability change
+  };
+  
+  // Summary metrics
+  averageForecastAccuracy: number; // based on historical validation
+  recommendedDecisionPoints: Array<{
+    month: string;
+    decision: string;
+    rationale: string;
+  }>;
+  
+  // Export data
+  exportData: {
+    forecastSummary: any[];
+    monthlyBreakdown: any[];
+    recommendations: any[];
+  };
+}
+
+// ==================== RIG SCHEDULE & ACTIVITY-BASED FORECASTING ====================
+
+/**
+ * Rig schedule entry from monthly 18-month planning data
+ * Based on P10 (early case) and P50 (mean case) timing scenarios
+ */
+export interface RigScheduleEntry {
+  // Identifiers
+  id: string;
+  rigName: string;
+  activityName?: string;
+  
+  // Activity Classification  
+  rigActivityType: string; // Made more flexible for CSV import
+  wellType?: string; // Made optional
+  activityStatus?: string; // Added from CSV
+  
+  // Timing Information
+  originalDuration: number; // hours as planned (CSV provides hours)
+  actualDuration?: number; // hours if completed
+  startDate: string | Date; // More flexible for CSV processing
+  finishDate: string | Date; // More flexible for CSV processing
+  timing?: 'P10' | 'P50'; // Early case vs Mean case scenario - optional for CSV
+  scenario?: 'early' | 'mean'; // Alternative scenario field for CSV
+  
+  // Location & Context
+  location: string;
+  fieldName?: string;
+  platform?: string;
+  waterDepth?: number;
+  region?: string; // Added from CSV
+  
+  // Vessel Impact Factors (made optional for CSV compatibility)
+  fluidIntensity?: 'Low' | 'Medium' | 'High' | 'Critical'; // fluid volume expectations
+  logisticsComplexity?: 'Standard' | 'Complex' | 'Extreme'; // special requirements
+  weatherSensitivity?: 'Low' | 'Medium' | 'High'; // weather window criticality
+  
+  // Business Context
+  priority?: 'Critical' | 'High' | 'Medium' | 'Low';
+  projectCode?: string;
+  costCenter?: string;
+  
+  // Additional CSV fields
+  rigContractor?: string;
+  rigType?: string;
+  plan?: string;
+  estimate?: string;
+  eventType?: string;
+  wellheadType?: string;
+  
+  // Metadata (made optional for CSV compatibility)
+  scheduleVersion?: string; // e.g., "Aug2025_v1.2"
+  lastUpdated?: Date;
+  confidence?: number; // 0-1 confidence in timing
+  assumptions?: string[];
+}
+
+/**
+ * Activity-based vessel requirement mapping
+ * Maps rig activities to expected vessel needs
+ */
+export interface ActivityVesselMapping {
+  // Activity Identification
+  activityType: string;
+  wellType: string;
+  locationCategory: 'Shallow_Water' | 'Deep_Water' | 'Ultra_Deep_Water';
+  
+  // Base Requirements
+  baseVesselRequirement: number; // typical vessels needed for this activity
+  durationMultiplier: number; // adjustment factor for longer/shorter activities
+  simultaneousActivityPenalty: number; // additional vessels when multiple rigs active
+  
+  // Demand Factors
+  fluidVolumeEstimate: number; // expected BBLs for this activity type
+  equipmentVolumeEstimate: number; // expected deck space requirements
+  frequencyFactor: number; // trips per week multiplier
+  
+  // Location & Environmental Factors
+  weatherBufferFactor: number; // additional capacity for weather delays
+  distanceFactor: number; // transit time impact
+  portAccessibilityFactor: number; // ease of loading/unloading
+  
+  // Special Requirements
+  specializedVesselNeeds: string[]; // e.g., ['crane_vessel', 'chemical_vessel']
+  concurrentSupport: boolean; // requires simultaneous vessel operations
+  
+  // Business Rules
+  minimumVesselCount: number; // absolute minimum vessels for this activity
+  maximumEfficiencyThreshold: number; // vessels beyond this point show diminishing returns
+  
+  // Confidence & Validation
+  confidence: number; // 0-1 confidence in these estimates
+  basedOnHistoricalEvents: number; // number of historical events used for calibration
+  lastCalibrated: Date;
+  notes: string;
+}
+
+/**
+ * Core fleet baseline configuration
+ * Represents the contracted vessel capacity and flexibility
+ */
+export interface CoreFleetBaseline {
+  // Fleet Composition
+  baseVesselCount: number; // standard 8 vessels under contract
+  contractedVessels: ContractedVessel[];
+  
+  // Flexibility & Options
+  flexibilityBuffer: number; // vessels that can be released if needed
+  maxFlexUpCapacity: number; // maximum additional vessels that can be chartered quickly
+  
+  // Contract Terms
+  coreContractExpiry: Date;
+  dayRateStructure: DayRateStructure;
+  charterOptions: CharterOption[];
+  
+  // Performance Metrics
+  averageUtilizationTarget: number; // target utilization for core fleet
+  minimumUtilizationThreshold: number; // below this, consider fleet reduction
+  
+  // Operational Constraints
+  maintenanceSchedule: VesselMaintenanceWindow[];
+  seasonalAdjustments: SeasonalFleetAdjustment[];
+  
+  // Business Rules
+  contractualNoticeRequired: number; // days notice needed for fleet changes
+  emergencyCharterSLA: number; // hours to secure emergency vessel
+  
+  // Tracking
+  lastReviewDate: Date;
+  nextReviewDue: Date;
+  fleetManager: string;
+}
+
+/**
+ * Individual contracted vessel information
+ */
+export interface ContractedVessel {
+  vesselName: string;
+  vesselType: 'PSV' | 'AHTS' | 'Crew_Boat' | 'Multi_Purpose';
+  vesselSpecs: {
+    deckSpace: number; // square feet
+    cargoCapacity: number; // tons
+    liquidCapacity: number; // BBLs
+    craneCapacity?: number; // tons
+  };
+  
+  // Contract Details
+  contractType: 'Long_Term' | 'Medium_Term' | 'Spot' | 'Call_Option';
+  dayRate: number;
+  contractStart: Date;
+  contractEnd: Date;
+  
+  // Performance & Availability
+  reliability: number; // 0-1 reliability score
+  averageTransitTime: Record<string, number>; // location -> hours
+  maintenanceSchedule: Date[];
+  
+  // Flexibility
+  canBeReleased: boolean;
+  releaseNoticeDay: number;
+  replacementCost: number; // cost to charter equivalent vessel
+}
+
+/**
+ * Day rate structure for vessel chartering
+ */
+export interface DayRateStructure {
+  baseRate: number; // standard day rate
+  volumeDiscount: number; // discount for multiple vessels
+  longTermDiscount: number; // discount for longer contracts
+  seasonalSurcharge: Record<string, number>; // month -> surcharge percentage
+  emergencyPremium: number; // premium for short-notice charters
+  fuelEscalation: boolean; // whether fuel costs are escalated
+}
+
+/**
+ * Charter options and flexibility arrangements
+ */
+export interface CharterOption {
+  optionType: 'Call_Option' | 'Put_Option' | 'Swing_Option';
+  vesselCount: number;
+  exerciseNotice: number; // days notice required
+  optionFee: number; // cost to maintain option
+  exerciseRate: number; // day rate if option is exercised
+  validFrom: Date;
+  validTo: Date;
+  exerciseConditions: string[];
+}
+
+/**
+ * Planned vessel maintenance windows
+ */
+export interface VesselMaintenanceWindow {
+  vesselName: string;
+  maintenanceType: 'Routine' | 'Major_Overhaul' | 'Dry_Dock' | 'Inspection';
+  plannedStart: Date;
+  plannedEnd: Date;
+  estimatedDuration: number; // days
+  canBeDeferred: boolean;
+  deferralCost: number; // cost impact of deferring maintenance
+  impactOnFleet: number; // vessels effectively out of service
+}
+
+/**
+ * Seasonal fleet adjustments
+ */
+export interface SeasonalFleetAdjustment {
+  season: 'Hurricane' | 'Winter_Weather' | 'Summer_Campaign' | 'Holiday_Shutdown';
+  startMonth: number; // 1-12
+  endMonth: number; // 1-12
+  fleetAdjustment: number; // +/- vessels from baseline
+  rationale: string;
+  historicalBasis: string;
+}
+
+/**
+ * Enhanced vessel inject with rig schedule integration
+ * Replaces generic injects with specific business scenarios
+ */
+export interface EnhancedVesselInject extends Omit<VesselInject, 'type'> {
+  // Enhanced inject types matching specific business scenarios
+  type: 'new_well_campaign' | 'extended_drilling_program' | 'planned_maintenance_window' | 
+        'emergency_response' | 'rig_move_support' | 'completion_intensive_period' |
+        'simultaneous_operations' | 'weather_contingency' | 'equipment_mobilization';
+  
+  // Rig schedule integration
+  triggeredBySchedule: boolean;
+  relatedRigActivities: string[]; // RigScheduleEntry IDs
+  scheduleConfidence: number; // 0-1 confidence that this inject will be needed
+  
+  // Core fleet impact
+  baselineAdjustment: number; // +/- from 8-vessel baseline
+  charterRecommendation: 'charter_additional' | 'release_excess' | 'maintain_baseline' | 'exercise_option';
+  
+  // Business context
+  businessJustification: string;
+  contractualImplications: string[]; // impact on existing contracts
+  costEstimate: number; // estimated additional cost
+  riskMitigation: string[];
+  
+  // Decision support
+  triggerDate: Date; // when this decision needs to be made
+  reversible: boolean; // can this decision be easily reversed
+  alternativeOptions: string[];
+  
+  // Integration with rig schedule
+  linkedWells: string[]; // well names affected
+  linkedRigs: string[]; // rig names involved
+  linkedLocations: string[]; // platforms/locations involved
+  
+  // Performance tracking
+  actualVesselImpact?: number; // actual vessels used (for historical injects)
+  actualCost?: number; // actual cost incurred
+  effectivenessScore?: number; // 0-1 score of how well this inject worked
+}

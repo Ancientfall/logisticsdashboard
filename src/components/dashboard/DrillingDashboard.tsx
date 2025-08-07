@@ -1902,75 +1902,7 @@ const DrillingDashboard: React.FC<DrillingDashboardProps> = ({ onNavigateToUploa
     return { months, locations };
   }, [voyageEvents, vesselManifests]); // Focus on primary data sources
 
-  // Dynamic targets based on filter scope - realistic for 16+ months of data
-  const dynamicTargets = useMemo(() => {
-    const isSingleLocation = filters.selectedLocation !== 'All Locations';
-    const isSingleMonth = filters.selectedMonth !== 'All Months';
-    
-    // Base targets for 16+ months across all locations (more realistic)
-    let cargoTarget = 95000; // Realistic for 16+ months across all drilling locations
-    let liftsPerHourTarget = 1.4; // Achievable drilling ops efficiency
-    let nptTarget = 18; // Realistic NPT for drilling operations
-    let waitingTarget = 12; // Realistic waiting time for drilling operations
-    
-    // Adjust targets based on scope
-    if (isSingleLocation && isSingleMonth) {
-      // Single location, single month - focused view
-      cargoTarget = 3000; // Realistic monthly cargo at one location (scaled up from 95k yearly)
-      liftsPerHourTarget = 1.6; // Better efficiency in focused operations
-      nptTarget = 15; // Stricter for focused view
-      waitingTarget = 8; // Lower waiting time for focused operations
-    } else if (isSingleLocation) {
-      // Single location, all months - 16+ months at one location
-      cargoTarget = 30000; // Realistic 16+ months at single location (scaled up from 95k yearly)
-      liftsPerHourTarget = 1.5; // Good efficiency for sustained operations
-      nptTarget = 16; // Slightly better than all locations
-      waitingTarget = 10; // Improved waiting management
-    } else if (isSingleMonth) {
-      // All locations, single month - monthly snapshot
-      cargoTarget = 9500; // Realistic monthly total across all locations (95k/10 months)
-      liftsPerHourTarget = 1.3; // Variable efficiency across multiple locations
-      nptTarget = 20; // Higher variability across locations
-      waitingTarget = 14; // Variable waiting times across locations
-    }
-    
-    // Calculate productive hours target based on cargo operations
-    // Assume 1 hour of productive time per 50 tons of cargo (realistic ratio)
-    const productiveHoursTarget = Math.round(cargoTarget / 50);
-    
-    // Convert waiting percentage to realistic hours based on total operation time
-    // Assume 2000 hours base operation time, adjust by scope
-    let baseOperationHours = 2000;
-    if (isSingleLocation && isSingleMonth) {
-      baseOperationHours = 150; // ~5 hours/day for 30 days
-    } else if (isSingleLocation) {
-      baseOperationHours = 800; // Single location over 16+ months
-    } else if (isSingleMonth) {
-      baseOperationHours = 400; // All locations in one month
-    }
-    
-    const waitingHoursTarget = Math.round(baseOperationHours * (waitingTarget / 100));
-    
-    // DEBUG: Log dynamic targets
-    console.log('🎯 Dynamic targets calculated:', {
-      cargoTons: cargoTarget,
-      liftsPerHour: liftsPerHourTarget,
-      nptPercentage: nptTarget,
-      waitingPercentage: waitingTarget,
-      productiveHours: productiveHoursTarget,
-      waitingHours: waitingHoursTarget,
-      filterContext: { isSingleLocation, isSingleMonth }
-    });
-
-    return {
-      cargoTons: cargoTarget,
-      liftsPerHour: liftsPerHourTarget,
-      nptPercentage: nptTarget,
-      waitingPercentage: waitingTarget,
-      productiveHours: productiveHoursTarget,
-      waitingHours: waitingHoursTarget,
-    };
-  }, [filters.selectedMonth, filters.selectedLocation]);
+  // Removed unused dynamicTargets variable - targets are managed elsewhere
 
 
   // Calculate filtered record counts for display

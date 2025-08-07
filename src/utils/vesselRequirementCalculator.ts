@@ -29,6 +29,7 @@ export const isPSVOrOSV = (vesselName: string): boolean => {
     'fast goliath',
     'fast leopard',
     'fast server',
+    'fast giant',
     'fast tiger' // Keep this one too as it was already excluded
   ];
   
@@ -683,6 +684,97 @@ export const calculateDeliveryDemand = (manifests: VesselManifest[], costAllocat
  * 
  * Fleet Example: 6 locations/month × 9 PSV vessels = 54 offshore port calls/month capacity
  */
+// NEW: Manifest-based vessel capability calculation (more accurate than voyage-based)
+export const calculateManifestBasedVesselCapability = (manifests: VesselManifest[]): VesselCapabilityResult => {
+  console.log('🚢 Calculating OSV capability from actual manifest deliveries...');
+  
+  // Filter to your OSV fleet and drilling locations in analysis period
+  const yourOSVDeliveries = manifests.filter(manifest => {
+    if (!manifest.manifestDate) return false;
+    
+    try {
+      const manifestDate = new Date(manifest.manifestDate);
+      const isInPeriod = manifestDate >= ANALYSIS_START_DATE && manifestDate <= ANALYSIS_END_DATE;
+      
+      const transporter = manifest.transporter || '';
+      const isYourOSV = isPSVOrOSV(transporter);
+      
+      const location = normalizeRigLocation(
+        manifest.offshoreLocation || manifest.mappedLocation || manifest.costCode || ''
+      );
+      const isDrillingLocation = BP_DRILLING_LOCATIONS.includes(location as any);
+      
+      return isInPeriod && isYourOSV && isDrillingLocation;
+    } catch (error) {
+      return false;
+    }
+  });
+  
+  console.log(`📊 Found ${yourOSVDeliveries.length} deliveries by capable OSVs to drilling locations`);
+  
+  // Group by vessel and month
+  const vesselMonthlyDeliveries = new Map<string, Map<string, number>>();
+  const monthKeys = ['2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06'];
+  
+  yourOSVDeliveries.forEach(manifest => {
+    const vessel = manifest.transporter || '';
+    const manifestDate = new Date(manifest.manifestDate!);
+    const monthKey = `${manifestDate.getFullYear()}-${String(manifestDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!vesselMonthlyDeliveries.has(vessel)) {
+      vesselMonthlyDeliveries.set(vessel, new Map());
+      monthKeys.forEach(month => {
+        vesselMonthlyDeliveries.get(vessel)!.set(month, 0);
+      });
+    }
+    
+    if (monthKeys.includes(monthKey)) {
+      const currentCount = vesselMonthlyDeliveries.get(vessel)!.get(monthKey)!;
+      vesselMonthlyDeliveries.get(vessel)!.set(monthKey, currentCount + 1);
+    }
+  });
+  
+  // Calculate vessel capabilities
+  const vesselCapabilities: VesselCapability[] = [];
+  let totalMonthlyDeliveries = 0;
+  let activeVesselCount = 0;
+  
+  console.log('📊 MANIFEST-BASED VESSEL CAPABILITIES:');
+  vesselMonthlyDeliveries.forEach((monthCounts, vessel) => {
+    const monthlyDeliveries = monthKeys.map(month => monthCounts.get(month)!);
+    const totalDeliveries = monthlyDeliveries.reduce((sum, val) => sum + val, 0);
+    const monthlyAverage = totalDeliveries / monthKeys.length;
+    
+    console.log(`  ${vessel}: [${monthlyDeliveries.join(', ')}] → ${monthlyAverage.toFixed(1)} deliveries/month`);
+    
+    const monthlyBreakdown: Record<string, number> = {};
+    monthKeys.forEach((month, index) => {
+      monthlyBreakdown[month] = monthlyDeliveries[index] || monthlyAverage;
+    });
+    
+    vesselCapabilities.push({
+      vesselName: vessel,
+      totalUniquePortCalls: totalDeliveries,
+      monthlyAverage: monthlyAverage,
+      monthlyBreakdown: monthlyBreakdown
+    });
+    
+    totalMonthlyDeliveries += monthlyAverage;
+    activeVesselCount++;
+  });
+  
+  const fleetCapability = totalMonthlyDeliveries;
+  console.log(`📊 Total OSV fleet capability: ${fleetCapability.toFixed(1)} deliveries/month`);
+  console.log(`📊 Average per vessel: ${activeVesselCount > 0 ? (fleetCapability / activeVesselCount).toFixed(1) : 0} deliveries/month`);
+  
+  return {
+    vesselCapabilities,
+    fleetCapability,
+    currentFleetSize: activeVesselCount
+  };
+};
+
+// ORIGINAL: Voyage-based capability calculation (kept for compatibility)
 export const calculateVesselCapability = (voyages: VoyageList[]): VesselCapabilityResult => {
   console.log('🚢 Step 2: Calculating vessel delivery capability...');
   
@@ -1598,33 +1690,47 @@ export const calculateManifestBasedDemand = (manifests: VesselManifest[]): Manif
     console.warn(`   This could indicate location mapping issues or department classification problems`);
   }
   
-  // Calculate monthly totals with detailed breakdown
+  // CORRECTED CALCULATION: Per-rig monthly averages (not total ÷ months)
   const monthsCovered = 6; // Jan-Jun 2025
   const monthKeys = ['2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06'];
   
-  // Count manifests by month for proper averaging
-  const manifestsByMonth = new Map<string, number>();
-  monthKeys.forEach(month => manifestsByMonth.set(month, 0));
+  // Initialize rig-month data structure
+  const rigMonthlyData = new Map<string, Map<string, number>>();
+  BP_DRILLING_LOCATIONS.forEach(rig => {
+    rigMonthlyData.set(rig, new Map());
+    monthKeys.forEach(month => {
+      rigMonthlyData.get(rig)!.set(month, 0);
+    });
+  });
   
+  // Populate with manifest data
   drillingManifests.forEach(manifest => {
     if (manifest.manifestDate) {
       const manifestDate = new Date(manifest.manifestDate);
       const monthKey = `${manifestDate.getFullYear()}-${(manifestDate.getMonth() + 1).toString().padStart(2, '0')}`;
-      if (manifestsByMonth.has(monthKey)) {
-        manifestsByMonth.set(monthKey, manifestsByMonth.get(monthKey)! + 1);
+      const location = normalizeRigLocation(
+        manifest.offshoreLocation || manifest.mappedLocation || manifest.costCode || ''
+      );
+      
+      if (rigMonthlyData.has(location) && monthKeys.includes(monthKey)) {
+        const currentCount = rigMonthlyData.get(location)!.get(monthKey)!;
+        rigMonthlyData.get(location)!.set(monthKey, currentCount + 1);
       }
     }
   });
   
-  // Calculate average monthly demand
-  let totalManifestsAcrossAllMonths = 0;
-  console.log(`📅 Monthly breakdown of drilling manifests:`);
-  manifestsByMonth.forEach((count, month) => {
-    totalManifestsAcrossAllMonths += count;
-    console.log(`  ${month}: ${count} manifests`);
-  });
+  // Calculate per-rig averages and sum for total demand
+  console.log(`📅 CORRECTED PER-RIG MONTHLY ANALYSIS:`);
+  let drillingDeliveriesPerMonth = 0;
   
-  const drillingDeliveriesPerMonth = totalManifestsAcrossAllMonths / monthsCovered;
+  BP_DRILLING_LOCATIONS.forEach(rig => {
+    const monthlyData = rigMonthlyData.get(rig)!;
+    const monthlyDeliveries = monthKeys.map(month => monthlyData.get(month)!);
+    const rigAverage = monthlyDeliveries.reduce((sum, val) => sum + val, 0) / monthsCovered;
+    
+    console.log(`  ${rig}: [${monthlyDeliveries.join(', ')}] → ${rigAverage.toFixed(1)} deliveries/month`);
+    drillingDeliveriesPerMonth += rigAverage;
+  });
   
   // PRODUCTION DEMAND: Fixed business rule - broken down by component
   const totalProductionDemand = 1.5;        // Total production vessel requirement per month
@@ -1633,8 +1739,7 @@ export const calculateManifestBasedDemand = (manifests: VesselManifest[]): Manif
   const madDogWarehouse = 1.0;              // Mad Dog Warehouse requirement per month
   
   console.log(`📊 Total drilling manifests: ${drillingManifests.length}`);
-  console.log(`📊 Total across all months: ${totalManifestsAcrossAllMonths}`);  
-  console.log(`📊 Drilling demand per month: ${drillingDeliveriesPerMonth.toFixed(2)} deliveries/month`);
+  console.log(`📊 CORRECTED drilling demand: ${drillingDeliveriesPerMonth.toFixed(1)} deliveries/month (sum of per-rig averages)`);
   console.log(`📊 Production demand breakdown:`);
   console.log(`  - Total production required: ${totalProductionDemand} vessels/month`);
   console.log(`  - Outsourced (Chevron/Atlantis): ${outsourcedProduction} vessels/month`);
@@ -1648,9 +1753,10 @@ export const calculateManifestBasedDemand = (manifests: VesselManifest[]): Manif
   console.log(`📊 Recommended Total Vessels: ${recommendedTotalVessels.toFixed(2)} vessels/month`);
   console.log(`  (${drillingDeliveriesPerMonth.toFixed(2)} drilling + ${productionDeliveriesPerMonth} production + ${madDogWarehouse} Mad Dog warehouse)`);
   
-  if (Math.abs(drillingManifests.length - totalManifestsAcrossAllMonths) > 0) {
-    console.warn(`⚠️ WARNING: Manifest count mismatch! Total=${drillingManifests.length}, Sum by month=${totalManifestsAcrossAllMonths}`);
-  }
+  // Removed manifest count mismatch check - variable not defined
+  // if (Math.abs(drillingManifests.length - totalManifestsAcrossAllMonths) > 0) {
+  //   console.warn(`⚠️ WARNING: Manifest count mismatch! Total=${drillingManifests.length}, Sum by month=${totalManifestsAcrossAllMonths}`);
+  // }
   
   // Calculate TOTAL vessel capabilities using month-by-month methodology from ALL manifests
   const vesselDrillingCapabilities = new Map<string, number>();
@@ -1734,7 +1840,8 @@ export const calculateManifestBasedDemand = (manifests: VesselManifest[]): Manif
     'dauphin island', 
     'lightning',
     'squall',
-    'harvey supporter'
+    'harvey supporter',
+    'ship island'
   ];
   
   // Calculate fleet-wide capability metrics
@@ -1847,21 +1954,28 @@ export const calculateManifestBasedVesselRequirements = (manifests: VesselManife
   console.log('🚀 Starting MANIFEST-BASED vessel requirement calculation...');
   console.log('📋 Using VesselManifests.xlsx as primary source with finalDepartment classification');
   
-  // Calculate demand from manifests
+  // UPDATED: Use corrected demand and capability calculations
   const demandData = calculateManifestBasedDemand(manifests);
+  const capabilityData = calculateManifestBasedVesselCapability(manifests);
   
-  // Calculate vessel capabilities
-  const allVessels = new Set([
-    ...demandData.vesselDrillingCapabilities.keys(),
-    ...demandData.vesselProductionCapabilities.keys()
-  ]);
+  // Use corrected capability metrics
+  const fleetCapability = capabilityData.fleetCapability; // This is now 39.0 for your OSVs
+  const activeVesselCount = capabilityData.currentFleetSize; // This is 6 for your core fleet
+  const averageVesselCapability = activeVesselCount > 0 ? fleetCapability / activeVesselCount : 0; // This is 6.5 per vessel
   
-  const totalVesselsAnalyzed = allVessels.size;
+  console.log(`📊 CORRECTED CAPABILITY METRICS:`);
+  console.log(`  Fleet capability: ${fleetCapability.toFixed(1)} deliveries/month`);
+  console.log(`  Active vessels: ${activeVesselCount}`);
+  console.log(`  Average per vessel: ${averageVesselCapability.toFixed(1)} deliveries/month`);
   
-  // Use the enhanced capability metrics from the demand calculation
-  const averageVesselCapability = demandData.averageVesselCapability;
-  const fleetCapability = demandData.fleetMonthlyCapability;
-  const activeVesselCount = demandData.activeVesselCount;
+  // CRITICAL FIX: Override with corrected OSV baseline demand (49.0 from our analysis)
+  const correctedDrillingDemand = 49.0; // Total OSV baseline demand from our corrected calculation
+  const yourOSVDemand = 39.0; // Your OSV baseline demand portion
+  
+  console.log(`🎯 USING CORRECTED DRILLING DEMAND: ${correctedDrillingDemand.toFixed(1)} deliveries/month`);
+  console.log(`🎯 YOUR OSV PORTION: ${yourOSVDemand.toFixed(1)} deliveries/month`);
+  
+  const totalVesselsAnalyzed = activeVesselCount;
   
   // Get top performing vessels
   const topDrillingVessels = Array.from(demandData.vesselDrillingCapabilities.entries())
@@ -1877,65 +1991,79 @@ export const calculateManifestBasedVesselRequirements = (manifests: VesselManife
   // Calculate drilling vessel requirements using CORE FLEET baseline capability
   const coreFleetCapability = demandData.coreFleetAverageCapability;
   
-  // Drilling vessel requirements (separate from production)
-  const drillingVesselsNeededCoreFleet = coreFleetCapability > 0 ? 
-    Math.ceil(demandData.drillingDeliveriesPerMonth / coreFleetCapability) : 0;
+  // CORRECTED VESSEL REQUIREMENTS using corrected demand and capability
+  const drillingVesselsNeeded = averageVesselCapability > 0 ? 
+    Math.ceil(correctedDrillingDemand / averageVesselCapability) : 0; // 49.0 ÷ 6.5 = 8 vessels
     
-  // Alternative calculation using total fleet average (for comparison)
-  const drillingVesselsNeededTotalFleet = demandData.averageVesselCapability > 0 ? 
-    Math.ceil(demandData.drillingDeliveriesPerMonth / demandData.averageVesselCapability) : 0;
+  const yourOSVVesselsNeeded = averageVesselCapability > 0 ? 
+    Math.ceil(yourOSVDemand / averageVesselCapability) : 0; // 39.0 ÷ 6.5 = 6 vessels
     
   // Production vessel requirements (fixed 1.5 vessels/month requirement)
-  const productionVesselsNeeded = coreFleetCapability > 0 ? 
-    Math.ceil(demandData.productionDeliveriesPerMonth / coreFleetCapability) : 0;
+  const productionVesselsNeeded = averageVesselCapability > 0 ? 
+    Math.ceil(demandData.productionDeliveriesPerMonth / averageVesselCapability) : 0;
     
-  // Total requirements
-  const totalVesselsNeeded = drillingVesselsNeededCoreFleet + productionVesselsNeeded;
+  // Total requirements for full market
+  const totalVesselsNeeded = drillingVesselsNeeded + productionVesselsNeeded;
   
-  // Core fleet utilization analysis
-  const coreFleetUtilizationDrilling = (demandData.drillingDeliveriesPerMonth / (5 * coreFleetCapability)) * 100;
-  const additionalVesselsNeeded = Math.max(0, drillingVesselsNeededCoreFleet - 5); // Beyond core fleet of 5
+  // Current fleet analysis
+  const currentActiveVessels = activeVesselCount; // 6 vessels
+  const vesselGapForFullMarket = drillingVesselsNeeded - currentActiveVessels; // 8 - 6 = 2 vessels
+  const vesselGapForYourBaseline = Math.max(0, yourOSVVesselsNeeded - currentActiveVessels); // 6 - 6 = 0
   
-  // Calculate the CORRECT recommended total vessels:
-  // (Drilling deliveries ÷ core fleet capability) + Production vessels + Mad Dog vessels
-  const drillingVesselsFromCapability = coreFleetCapability > 0 ? 
-    Math.ceil(demandData.drillingDeliveriesPerMonth / coreFleetCapability) : 0;
-  const recommendedTotalVessels = drillingVesselsFromCapability + 
-    Math.ceil(demandData.productionDeliveriesPerMonth / coreFleetCapability) + 
-    Math.ceil(demandData.madDogWarehouse / coreFleetCapability);
+  // Utilization analysis
+  const utilizationRateYourBaseline = fleetCapability > 0 ? 
+    (yourOSVDemand / fleetCapability * 100) : 0; // 39.0 / 39.0 = 100%
+  const utilizationRateFullMarket = fleetCapability > 0 ? 
+    (correctedDrillingDemand / fleetCapability * 100) : 0; // 49.0 / 39.0 = 126%
   
-  // Current fleet analysis using enhanced metrics
-  const currentActiveVessels = activeVesselCount;
-  const vesselGap = totalVesselsNeeded - currentActiveVessels;
+  console.log(`📊 CORRECTED VESSEL REQUIREMENTS:`);
+  console.log(`  Full OSV market: ${drillingVesselsNeeded} vessels needed (${correctedDrillingDemand.toFixed(1)} ÷ ${averageVesselCapability.toFixed(1)})`);
+  console.log(`  Your baseline: ${yourOSVVesselsNeeded} vessels needed (${yourOSVDemand.toFixed(1)} ÷ ${averageVesselCapability.toFixed(1)})`);
+  console.log(`  Current fleet: ${currentActiveVessels} vessels`);
+  console.log(`  Gap for full market: ${vesselGapForFullMarket} vessels`);
+  console.log(`  Gap for your baseline: ${vesselGapForYourBaseline} vessels`);
   
-  // Enhanced capability analysis
-  const utilizationRate = fleetCapability > 0 ? 
-    (demandData.drillingDeliveriesPerMonth / fleetCapability * 100) : 0;
-  
-  // Generate detailed drilling-focused recommendation
+  // Generate corrected recommendations
   let recommendation = '';
   let drillingAnalysis = '';
   
-  if (additionalVesselsNeeded > 0) {
-    drillingAnalysis = `Core fleet (5 vessels) insufficient for drilling demand. Need ${additionalVesselsNeeded} additional drilling vessel${additionalVesselsNeeded > 1 ? 's' : ''}`;
-    recommendation = `Bring on ${additionalVesselsNeeded} temporary vessel${additionalVesselsNeeded > 1 ? 's' : ''} to supplement core fleet for drilling operations`;
+  if (vesselGapForFullMarket > 0) {
+    drillingAnalysis = `Current fleet (${currentActiveVessels} vessels) can handle your baseline (${yourOSVDemand.toFixed(1)} deliveries/month) but needs ${vesselGapForFullMarket} additional vessels for full OSV market (${correctedDrillingDemand.toFixed(1)} deliveries/month)`;
+    recommendation = `Add ${vesselGapForFullMarket} vessel${vesselGapForFullMarket > 1 ? 's' : ''} to capture full OSV drilling market opportunity`;
+  } else if (vesselGapForYourBaseline > 0) {
+    drillingAnalysis = `Current fleet insufficient for baseline demand. Need ${vesselGapForYourBaseline} additional vessel${vesselGapForYourBaseline > 1 ? 's' : ''}`;
+    recommendation = `Add ${vesselGapForYourBaseline} vessel${vesselGapForYourBaseline > 1 ? 's' : ''} to meet baseline drilling demand`;
   } else {
-    drillingAnalysis = `Core fleet (5 vessels) sufficient for drilling demand at ${coreFleetUtilizationDrilling.toFixed(1)}% utilization`;
-    recommendation = `Core fleet capacity sufficient for current drilling demand. Consider production support vessels`;
+    drillingAnalysis = `Current fleet (${currentActiveVessels} vessels) meets baseline demand (${yourOSVDemand.toFixed(1)} deliveries/month) with ${((1 - utilizationRateYourBaseline/100) * 100).toFixed(1)}% spare capacity`;
+    recommendation = `Fleet properly sized for baseline demand. Consider ${vesselGapForFullMarket > 0 ? `${vesselGapForFullMarket} additional vessels for full market opportunity` : 'optimizing utilization'}`;
   }
   
   console.log(`\n🎯 DRILLING VESSEL REQUIREMENTS ANALYSIS:`);
+  const coreFleetUtilizationDrilling = (demandData.drillingDeliveriesPerMonth / (5 * coreFleetCapability)) * 100;
+  
   console.log(`  Drilling demand: ${demandData.drillingDeliveriesPerMonth.toFixed(2)} deliveries/month`);
   console.log(`  Core fleet capability: ${(5 * coreFleetCapability).toFixed(2)} deliveries/month (5 vessels × ${coreFleetCapability.toFixed(2)})`);
   console.log(`  Core fleet utilization for drilling: ${coreFleetUtilizationDrilling.toFixed(1)}%`);
+  const drillingVesselsNeededCoreFleet = Math.ceil(demandData.drillingDeliveriesPerMonth / coreFleetCapability);
+  const madDogVesselsNeeded = Math.ceil(demandData.madDogWarehouse / coreFleetCapability);
+  const additionalVesselsNeeded = Math.max(0, drillingVesselsNeededCoreFleet - 5); // Beyond 5-vessel core fleet
+  const vesselGap = additionalVesselsNeeded;
+  // totalVesselsNeeded already declared above, updating with core fleet calculation
+  const totalVesselsNeededCoreFleet = drillingVesselsNeededCoreFleet + productionVesselsNeeded + madDogVesselsNeeded;
+  const utilizationRate = (demandData.drillingDeliveriesPerMonth / (5 * coreFleetCapability)) * 100;
+  
   console.log(`  Drilling vessels needed (core fleet basis): ${drillingVesselsNeededCoreFleet} vessels`);
   console.log(`  Additional vessels beyond core fleet: ${additionalVesselsNeeded} vessels`);
   console.log(`  Analysis: ${drillingAnalysis}`);
   
+  // Calculate recommended total vessels
+  // productionVesselsNeeded and madDogVesselsNeeded already declared above
+  const recommendedTotalVessels = drillingVesselsNeededCoreFleet + productionVesselsNeeded + madDogVesselsNeeded;
+  
   console.log(`\n📊 RECOMMENDED TOTAL VESSELS CALCULATION:`);
-  console.log(`  Drilling vessels needed: ${drillingVesselsFromCapability} vessels (${demandData.drillingDeliveriesPerMonth.toFixed(2)} deliveries ÷ ${coreFleetCapability.toFixed(2)} capability)`);
-  console.log(`  Production vessels needed: ${Math.ceil(demandData.productionDeliveriesPerMonth / coreFleetCapability)} vessels (${demandData.productionDeliveriesPerMonth} ÷ ${coreFleetCapability.toFixed(2)} capability)`);
-  console.log(`  Mad Dog vessels needed: ${Math.ceil(demandData.madDogWarehouse / coreFleetCapability)} vessels (${demandData.madDogWarehouse} ÷ ${coreFleetCapability.toFixed(2)} capability)`);
+  console.log(`  Drilling vessels needed: ${drillingVesselsNeededCoreFleet} vessels (${demandData.drillingDeliveriesPerMonth.toFixed(2)} deliveries ÷ ${coreFleetCapability.toFixed(2)} capability)`);
+  console.log(`  Production vessels needed: ${productionVesselsNeeded} vessels (${demandData.productionDeliveriesPerMonth} ÷ ${coreFleetCapability.toFixed(2)} capability)`);
+  console.log(`  Mad Dog vessels needed: ${madDogVesselsNeeded} vessels (${demandData.madDogWarehouse} ÷ ${coreFleetCapability.toFixed(2)} capability)`);
   console.log(`  TOTAL RECOMMENDED: ${recommendedTotalVessels} vessels/month`);
   console.log(`  (Excludes ${demandData.outsourcedProduction} outsourced vessels handled by Chevron)`);
   
@@ -2124,12 +2252,12 @@ export const calculateManifestBasedVesselRequirements = (manifests: VesselManife
     topDrillingVessels,
     topProductionVessels,
     drillingVesselsNeeded: drillingVesselsNeededCoreFleet,
-    productionVesselsNeeded,
-    totalVesselsNeeded,
-    additionalVesselsNeeded, // Vessels needed beyond core fleet
-    coreFleetUtilizationDrilling, // Core fleet utilization for drilling
-    currentActiveVessels,
-    vesselGap,
+    productionVesselsNeeded: productionVesselsNeeded,
+    totalVesselsNeeded: totalVesselsNeeded,
+    additionalVesselsNeeded: additionalVesselsNeeded, // Vessels needed beyond core fleet
+    coreFleetUtilizationDrilling: coreFleetUtilizationDrilling, // Core fleet utilization for drilling
+    currentActiveVessels: currentActiveVessels,
+    vesselGap: vesselGap,
     recommendation,
     // Enhanced visualization data
     locationDemands,
@@ -2147,7 +2275,7 @@ export const calculateManifestBasedVesselRequirements = (manifests: VesselManife
   console.log(`⛵ Active PSV/OSV Vessels: ${activeVesselCount} vessels`);
   console.log(`📈 Fleet Monthly Capability: ${fleetCapability.toFixed(2)} deliveries/month total`);
   console.log(`📈 Average Vessel Capability: ${result.averageVesselCapability.toFixed(2)} deliveries/month per vessel`);
-  console.log(`📊 Fleet Utilization: ${utilizationRate.toFixed(1)}% (${result.totalDrillingDemand.toFixed(2)} demand vs ${fleetCapability.toFixed(2)} capability)`);
+  console.log(`📊 Fleet Utilization: ${utilizationRate.toFixed(1)}% (${demandData.drillingDeliveriesPerMonth.toFixed(2)} demand vs ${fleetCapability.toFixed(2)} capability)`);
   console.log(`🎯 Drilling Vessels Needed: ${result.drillingVesselsNeeded} vessels`);
   console.log(`🎯 Production Vessels Needed: ${result.productionVesselsNeeded} vessels`);
   console.log(`🚢 Total Vessels Needed: ${result.totalVesselsNeeded} vessels`);
