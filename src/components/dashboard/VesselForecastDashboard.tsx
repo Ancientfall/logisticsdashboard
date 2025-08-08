@@ -18,7 +18,12 @@ import {
   Clock
 } from 'lucide-react';
 import { loadBothScenarios } from '../../utils/rigScheduleProcessor';
-import { calculateTabularVesselForecast } from '../../utils/tabularVesselDemandCalculator';
+import { 
+  generateTabularVesselForecast,
+  generateVesselSpottingAnalysis,
+  VESSEL_DEMAND_CONSTANTS,
+  RIG_ACTIVITY_TYPES
+} from '../../utils/realVesselDemandCalculator';
 import { 
   TabularVesselForecast,
   RigActivity
@@ -44,23 +49,7 @@ interface VesselDemand {
   locationBreakdown: Record<string, number>;
 }
 
-interface TabularForecast {
-  months: string[];
-  rigs: {
-    rigName: string;
-    monthlyActivities: Record<string, {
-      activityType: string;
-      location: string;
-      demand: number;
-    }>;
-  }[];
-  totals: {
-    monthlyDemand: Record<string, number>;
-    monthlyVessels: Record<string, number>;
-    currentFleetCapability: Record<string, number>;
-    additionalVesselsNeeded: Record<string, number>;
-  };
-}
+// Removed unused TabularForecast interface - using TabularVesselForecast from types
 
 // ==================== CONSTANTS & CONFIGURATION ====================
 
@@ -75,79 +64,44 @@ const BP_COLORS = {
   textLight: '#6B7280'
 };
 
-// Baseline assumptions from Aug 2026 Updated
+// Updated baseline assumptions using real business logic
 const BASELINE_ASSUMPTIONS = {
   // Fleet composition
-  drillingFleetSize: 6, // Base vessels available for drilling support
+  drillingFleetSize: VESSEL_DEMAND_CONSTANTS.BASELINE_DRILLING_FLEET, // Base vessels available for drilling support
   productionVessels: 1.75, // 1.25 for Fantasy Island + 0.5 for Thunder Horse
   madDogWarehouse: 1, // Dedicated warehouse vessel for Mad Dog
   chevronOperatorSharing: -0.25, // Reduction due to Chevron operator sharing
   totalFleetSize: 8.5, // Total fleet (6 + 1.75 + 1 - 0.25 = 8.5)
   
-  // Operational parameters
-  vesselDeliveryCapability: 6.5, // deliveries per vessel per month for standard locations
-  wellsDeliveryDemand: 8.3, // total deliveries required by a drilling rig per month
+  // Operational parameters - using real business constants
+  vesselDeliveryCapability: VESSEL_DEMAND_CONSTANTS.BASELINE_VESSEL_CAPABILITY, // deliveries per vessel per month for standard locations
+  wellsDeliveryDemand: VESSEL_DEMAND_CONSTANTS.BASELINE_RIG_DEMAND, // total deliveries required by a drilling rig per month
   
-  // Location factors
+  // Location factors - using real multipliers
   paleogeneTransitFactor: 1.25, // 25% increase to vessel demand for transit
-  kaskidaTiberFactor: 3, // 3x typical monthly wells delivery demand
-  multiZoneCompletionFactor: 2, // 2x typical monthly wells delivery demand
+  kaskidaTiberFactor: VESSEL_DEMAND_CONSTANTS.BATCH_ULTRA_DEEP_MULTIPLIER, // 3x for batch operations at ultra-deep locations
+  multiZoneCompletionFactor: VESSEL_DEMAND_CONSTANTS.BATCH_STANDARD_MULTIPLIER, // 2x for batch operations at standard locations
   lwiDemandFactor: 0.5, // 50% demand of other wells
 };
 
-const RIG_ACTIVITY_TYPES: Record<string, { name: string; demandMultiplier: number; color: string }> = {
-  'RSU': { name: 'Rig Start Up', demandMultiplier: 0.5, color: 'bg-blue-100 text-blue-800' },
-  'DRL': { name: 'Drill', demandMultiplier: 1.0, color: 'bg-green-100 text-green-800' },
-  'CPL': { name: 'Completion', demandMultiplier: 1.5, color: 'bg-purple-100 text-purple-800' },
-  'RM': { name: 'Rig Maintenance', demandMultiplier: 0.3, color: 'bg-gray-100 text-gray-800' },
-  'WS': { name: 'White Space', demandMultiplier: 0, color: 'bg-white text-gray-400' },
-  'P&A': { name: 'Plug & Abandon', demandMultiplier: 0.8, color: 'bg-red-100 text-red-800' },
-  'WWP': { name: 'Well Work Production', demandMultiplier: 0.7, color: 'bg-yellow-100 text-yellow-800' },
-  'MOB': { name: 'Mobilization', demandMultiplier: 0.4, color: 'bg-indigo-100 text-indigo-800' },
-  'WWI': { name: 'Well Work Intervention', demandMultiplier: 0.5, color: 'bg-orange-100 text-orange-800' },
-  'TAR': { name: 'Turnaround', demandMultiplier: 0.9, color: 'bg-teal-100 text-teal-800' },
-  'LWI': { name: 'Light Well Intervention', demandMultiplier: 0.5, color: 'bg-pink-100 text-pink-800' }
-};
+// RIG_ACTIVITY_TYPES now imported from realVesselDemandCalculator.ts
 
-// Location configurations with transit times and capabilities
+// Location configurations with transit times and capabilities - updated with real business logic
 const LOCATION_CONFIGS: Record<string, LocationConfig> = {
   'GOM.Atlantis': { name: 'Atlantis', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#00754F' },
   'GOM.Nakika': { name: 'Nakika', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#6EC800' },
   'GOM.Region': { name: 'Region', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#0099D4' },
   'GOM.GOMX': { name: 'GOMX', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#FF6B35' },
-  'GOM.ThunderHorse': { name: 'Thunder Horse', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#8B5CF6' },
+  'GOM.Thunder Horse': { name: 'Thunder Horse', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#8B5CF6' },
   'GOM.Argos': { name: 'Argos', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#EC4899' },
-  'GOM.MadDog': { name: 'Mad Dog', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#F59E0B' },
-  'GOM.Paleogene': { name: 'Paleogene', transitHours: 24, vesselCapability: 6.5, rigDemand: 8.3 * 1.25, color: '#DC2626' },
-  'GOM.Kaskida': { name: 'Kaskida', transitHours: 24, vesselCapability: 6.5, rigDemand: 8.3 * 3, color: '#7C3AED' },
-  'GOM.Tiber': { name: 'Tiber', transitHours: 24, vesselCapability: 6.5, rigDemand: 8.3 * 3, color: '#991B1B' }
+  'GOM.Mad Dog': { name: 'Mad Dog', transitHours: 13, vesselCapability: 6.5, rigDemand: 8.3, color: '#F59E0B' },
+  // Ultra-deep locations with reduced vessel capability (4.9 vs 6.5) due to 24hr transit
+  'GOM.Paleogene': { name: 'Paleogene', transitHours: 24, vesselCapability: VESSEL_DEMAND_CONSTANTS.ULTRA_DEEP_CAPABILITY, rigDemand: 8.3, color: '#DC2626' },
+  'GOM.Kaskida': { name: 'Kaskida', transitHours: 24, vesselCapability: VESSEL_DEMAND_CONSTANTS.ULTRA_DEEP_CAPABILITY, rigDemand: 8.3, color: '#7C3AED' },
+  'GOM.Tiber': { name: 'Tiber', transitHours: 24, vesselCapability: VESSEL_DEMAND_CONSTANTS.ULTRA_DEEP_CAPABILITY, rigDemand: 8.3, color: '#991B1B' }
 };
 
-// Rig name mappings from Excel to display names
-const RIG_NAME_MAPPINGS: Record<string, string> = {
-  'Transocean Invictus': 'Deepwater Invictus',
-  'GOM.Atlas': 'Deepwater Atlas',
-  'GOM.Black Hornet': 'Ocean Blackhornet',
-  'GOM.Black Lion': 'Ocean BlackLion',
-  'GOM.Ice Max': 'Stena IceMAX',
-  'GOM.LWI ISLVEN': 'Island Venture',
-  'GOM.Mad Dog SPAR': 'Mad Dog Drilling',
-  'GOM.PDQ': 'Thunderhorse Drilling',
-  'GOM.Q5000': 'Q5000',
-  'GOM.TBD#02': 'TBD #02',
-  'GOM.TBD#07': 'TBD #07',
-  // Alternative formats
-  'INVICTUS': 'Deepwater Invictus',
-  'ATLAS': 'Deepwater Atlas',
-  'Black Hornet': 'Ocean Blackhornet',
-  'Black Lion': 'Ocean BlackLion',
-  'STENA ICEMAX': 'Stena IceMAX',
-  'Mad Dog Spar': 'Mad Dog Drilling',
-  'TH PDQ': 'Thunderhorse Drilling',
-  'TBD #7': 'TBD #07',
-  'TBD #2': 'TBD #02',
-  'Intervention Vessel TBD': 'Island Venture'
-};
+// Rig name mappings are now handled in rigScheduleProcessor.ts
 
 const RIG_NAMES = [
   'Deepwater Invictus', 'Deepwater Atlas', 'Ocean Blackhornet', 'Ocean BlackLion',
@@ -184,185 +138,92 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
   const [selectedRigs, setSelectedRigs] = useState<string[]>(RIG_NAMES);
   const [selectedLocations, setSelectedLocations] = useState<string[]>(Object.keys(LOCATION_CONFIGS));
   
+  // Interactive editing
+  const [editingCell, setEditingCell] = useState<{rigName: string, month: string} | null>(null);
+  const [editedValues, setEditedValues] = useState<Record<string, Record<string, number>>>({});
+  const [editedActivityTypes, setEditedActivityTypes] = useState<Record<string, Record<string, string>>>({});
+  const [tempEditValue, setTempEditValue] = useState<string>('');
+  const [tempActivityType, setTempActivityType] = useState<string>('');
+  
   // Processing status
   const [loadingStep, setLoadingStep] = useState<string>('Initializing...');
   const [processingProgress, setProcessingProgress] = useState<number>(0);
 
   // ==================== UTILITY FUNCTIONS ====================
   
-  // Parse Excel dates
-  const parseExcelDate = (value: any): Date | null => {
-    if (!value) return null;
-    if (value instanceof Date) return value;
-    if (typeof value === 'number') {
-      const excelEpoch = new Date(1900, 0, 1);
-      const msPerDay = 24 * 60 * 60 * 1000;
-      return new Date(excelEpoch.getTime() + (value - 2) * msPerDay);
-    }
-    if (typeof value === 'string') {
-      const parsed = new Date(value);
-      return isNaN(parsed.getTime()) ? null : parsed;
-    }
-    return null;
+  // Interactive editing functions
+  const startEdit = (rigName: string, month: string, currentValue: number, currentActivityType?: string) => {
+    setEditingCell({ rigName, month });
+    setTempEditValue(currentValue.toString());
+    setTempActivityType(currentActivityType || 'DRL'); // Default to DRL if no activity type
   };
   
-  // Find closest rig name match
-  const findClosestRigName = (input: string): string => {
-    const normalizedInput = input.toLowerCase().trim();
-    
-    for (const rigName of RIG_NAMES) {
-      if (normalizedInput.includes(rigName.toLowerCase()) || 
-          rigName.toLowerCase().includes(normalizedInput)) {
-        return rigName;
-      }
-    }
-    
-    for (const [key, value] of Object.entries(RIG_NAME_MAPPINGS)) {
-      if (normalizedInput.includes(key.toLowerCase()) || 
-          key.toLowerCase().includes(normalizedInput)) {
-        return value;
-      }
-    }
-    
-    return '';
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setTempEditValue('');
+    setTempActivityType('');
   };
   
-  // Calculate monthly vessel demands
-  const calculateMonthlyVesselDemand = (activities: RigActivity[]): VesselDemand[] => {
-    const monthlyDemands: Map<string, VesselDemand> = new Map();
+  const saveEdit = () => {
+    if (!editingCell) return;
     
-    // Generate 18 months starting from Jan 2026
-    for (let i = 0; i < 18; i++) {
-      const date = new Date(2026, i, 1);
-      const monthKey = `${date.toLocaleDateString('en-US', { month: 'short' })}-${String(date.getFullYear()).slice(-2)}`;
-      
-      monthlyDemands.set(monthKey, {
-        month: date.toLocaleDateString('en-US', { month: 'long' }),
-        year: date.getFullYear(),
-        totalDemand: 0,
-        vesselCount: 0,
-        rigActivities: [],
-        locationBreakdown: {}
-      });
+    const newValue = parseFloat(tempEditValue);
+    if (isNaN(newValue) || newValue < 0) {
+      cancelEdit();
+      return;
     }
     
-    // Process activities by month
-    activities.forEach(activity => {
-      const startMonth = new Date(activity.startDate.getFullYear(), activity.startDate.getMonth(), 1);
-      const endMonth = new Date(activity.endDate.getFullYear(), activity.endDate.getMonth(), 1);
-      
-      let currentMonth = new Date(startMonth);
-      while (currentMonth <= endMonth) {
-        const monthKey = `${currentMonth.toLocaleDateString('en-US', { month: 'short' })}-${String(currentMonth.getFullYear()).slice(-2)}`;
-        const demand = monthlyDemands.get(monthKey);
-        
-        if (demand) {
-          const locationConfig = LOCATION_CONFIGS[activity.asset] || LOCATION_CONFIGS['GOM.Region'];
-          const activityDemand = locationConfig.rigDemand * (RIG_ACTIVITY_TYPES[activity.activityType]?.demandMultiplier || 1);
-          
-          demand.totalDemand += activityDemand;
-          demand.rigActivities.push(activity);
-          
-          if (!demand.locationBreakdown[activity.asset]) {
-            demand.locationBreakdown[activity.asset] = 0;
-          }
-          demand.locationBreakdown[activity.asset] += activityDemand;
+    // Update edited values
+    setEditedValues(prev => ({
+      ...prev,
+      [editingCell.rigName]: {
+        ...prev[editingCell.rigName],
+        [editingCell.month]: newValue
+      }
+    }));
+    
+    // Update edited activity types if provided
+    if (tempActivityType) {
+      setEditedActivityTypes(prev => ({
+        ...prev,
+        [editingCell.rigName]: {
+          ...prev[editingCell.rigName],
+          [editingCell.month]: tempActivityType
         }
-        
-        currentMonth.setMonth(currentMonth.getMonth() + 1);
-      }
-    });
+      }));
+    }
     
-    // Calculate vessel counts
-    monthlyDemands.forEach(demand => {
-      let weightedVesselCapability = 0;
-      let totalWeight = 0;
-      
-      Object.entries(demand.locationBreakdown).forEach(([location, locationDemand]) => {
-        const config = LOCATION_CONFIGS[location] || LOCATION_CONFIGS['GOM.Region'];
-        weightedVesselCapability += config.vesselCapability * locationDemand;
-        totalWeight += locationDemand;
-      });
-      
-      if (totalWeight > 0) {
-        const avgVesselCapability = weightedVesselCapability / totalWeight;
-        demand.vesselCount = Math.ceil(demand.totalDemand / avgVesselCapability);
-      }
-    });
-    
-    return Array.from(monthlyDemands.values());
+    cancelEdit();
   };
-
-  const generateTabularForecast = (activities: RigActivity[]): TabularForecast => {
-    const months: string[] = [];
-    for (let i = 0; i < 18; i++) {
-      const date = new Date(2026, i, 1);
-      months.push(`${date.toLocaleDateString('en-US', { month: 'short' })}-${String(date.getFullYear()).slice(-2)}`);
+  
+  const getVesselValue = (rigName: string, month: string): number => {
+    // Check for edited value first, then fall back to original
+    const editedRigValues = editedValues[rigName];
+    if (editedRigValues && editedRigValues[month] !== undefined) {
+      return editedRigValues[month];
     }
     
-    const rigData = RIG_NAMES.map(rigName => {
-      const monthlyActivities: Record<string, { activityType: string; location: string; demand: number }> = {};
-      
-      activities
-        .filter(a => a.rigName === rigName)
-        .forEach(activity => {
-          const startMonth = new Date(activity.startDate.getFullYear(), activity.startDate.getMonth(), 1);
-          const endMonth = new Date(activity.endDate.getFullYear(), activity.endDate.getMonth(), 1);
-          
-          let currentMonth = new Date(startMonth);
-          while (currentMonth <= endMonth) {
-            const monthKey = `${currentMonth.toLocaleDateString('en-US', { month: 'short' })}-${String(currentMonth.getFullYear()).slice(-2)}`;
-            
-            if (months.includes(monthKey)) {
-              const locationConfig = LOCATION_CONFIGS[activity.asset] || LOCATION_CONFIGS['GOM.Region'];
-              const demand = locationConfig.rigDemand * (RIG_ACTIVITY_TYPES[activity.activityType]?.demandMultiplier || 1);
-              
-              monthlyActivities[monthKey] = {
-                activityType: activity.activityType,
-                location: locationConfig.name,
-                demand
-              };
-            }
-            
-            currentMonth.setMonth(currentMonth.getMonth() + 1);
-          }
-        });
-      
-      return { rigName, monthlyActivities };
-    });
+    // Fall back to original tabular forecast data
+    const rig = tabularForecast?.rigDemands.find(r => r.rigName === rigName);
+    return rig?.monthlyVessels[month] || 0;
+  };
+  
+  const getActivityType = (rigName: string, month: string): string => {
+    // Check for edited activity type first, then fall back to original
+    const editedRigActivityTypes = editedActivityTypes[rigName];
+    if (editedRigActivityTypes && editedRigActivityTypes[month]) {
+      return editedRigActivityTypes[month];
+    }
     
-    const totals = {
-      monthlyDemand: {} as Record<string, number>,
-      monthlyVessels: {} as Record<string, number>,
-      currentFleetCapability: {} as Record<string, number>,
-      additionalVesselsNeeded: {} as Record<string, number>
-    };
-    
-    months.forEach(month => {
-      let totalDemand = 0;
-      
-      rigData.forEach(rig => {
-        if (rig.monthlyActivities[month]) {
-          totalDemand += rig.monthlyActivities[month].demand;
-        }
-      });
-      
-      totals.monthlyDemand[month] = totalDemand;
-      
-      // Calculate drilling fleet capability
-      const drillingFleetCapability = BASELINE_ASSUMPTIONS.drillingFleetSize * BASELINE_ASSUMPTIONS.vesselDeliveryCapability;
-      totals.currentFleetCapability[month] = drillingFleetCapability;
-      
-      // Calculate total vessels needed
-      const totalVesselsNeeded = Math.ceil(totalDemand / BASELINE_ASSUMPTIONS.vesselDeliveryCapability);
-      totals.monthlyVessels[month] = totalVesselsNeeded;
-      
-      // Calculate additional vessels needed
-      const additionalNeeded = Math.max(0, totalVesselsNeeded - BASELINE_ASSUMPTIONS.drillingFleetSize);
-      totals.additionalVesselsNeeded[month] = additionalNeeded;
-    });
-    
-    return { months, rigs: rigData, totals };
+    // Fall back to original tabular forecast data
+    const rig = tabularForecast?.rigDemands.find(r => r.rigName === rigName);
+    return rig?.primaryActivityTypes?.[month] || '';
+  };
+  
+  const resetEdits = () => {
+    setEditedValues({});
+    setEditedActivityTypes({});
+    setEditingCell(null);
   };
   
   // ==================== DATA LOADING FUNCTIONS ====================
@@ -388,17 +249,59 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
       setProcessingProgress(25);
       
       // Filter based on selected rigs and locations
-      const filteredActivities = selectedActivities.filter(
-        a => selectedRigs.includes(a.rigName) && selectedLocations.includes(a.asset)
-      );
+      console.log(`🔍 Selected rigs:`, selectedRigs);
+      console.log(`🔍 Selected locations:`, selectedLocations);
+      
+      // Debug specific mapped rig activities before filtering
+      const mappedRigNames = ['GOM.TBD #02', 'GOM.TBD #07', 'GOM.PDQ', 'GOM.Atlas', 'GOM.LWI.ISLVEN', 'TBD #02', 'TBD #07', 'Thunderhorse Drilling', 'Deepwater Atlas', 'Island Venture']; // Check both original and mapped names
+      const mappedRigsBeforeFilter = selectedActivities.filter(a => mappedRigNames.includes(a.rigName));
+      console.log(`🔍 Mapped rig activities (TBD #02, #07, PDQ, Atlas, ISLVEN) before filtering: ${mappedRigsBeforeFilter.length}`);
+      mappedRigsBeforeFilter.forEach(activity => {
+        // Show the rig name mapping
+        let rigNameForComparison = activity.rigName;
+        if (activity.rigName === 'GOM.TBD #02') rigNameForComparison = 'TBD #02';
+        if (activity.rigName === 'GOM.TBD #07') rigNameForComparison = 'TBD #07';
+        if (activity.rigName === 'GOM.PDQ') rigNameForComparison = 'Thunderhorse Drilling';
+        if (activity.rigName === 'GOM.Atlas') rigNameForComparison = 'Deepwater Atlas';
+        if (activity.rigName === 'GOM.LWI.ISLVEN') rigNameForComparison = 'Island Venture';
+        
+        console.log(`  - ${activity.rigName} → ${rigNameForComparison} at ${activity.asset} (${activity.activityName})`);
+        console.log(`    Rig selected: ${selectedRigs.includes(rigNameForComparison)}, Location selected: ${selectedLocations.includes(activity.asset)}`);
+        
+        // Special debugging for Atlas activities
+        if (activity.rigName === 'GOM.Atlas') {
+          console.log(`    🔍 ATLAS DEBUG: Checking if "Deepwater Atlas" is in selected rigs:`, selectedRigs);
+          console.log(`    🔍 ATLAS DEBUG: Asset "${activity.asset}" in selected locations:`, selectedLocations.includes(activity.asset));
+        }
+      });
+      
+      // Filter with proper rig name mapping for all mapped rigs
+      const filteredActivities = selectedActivities.filter(a => {
+        // Map GOM rig names to standard rig names for comparison
+        let rigNameForComparison = a.rigName;
+        if (a.rigName === 'GOM.TBD #02') rigNameForComparison = 'TBD #02';
+        if (a.rigName === 'GOM.TBD #07') rigNameForComparison = 'TBD #07';
+        if (a.rigName === 'GOM.PDQ') rigNameForComparison = 'Thunderhorse Drilling';
+        if (a.rigName === 'GOM.Atlas') rigNameForComparison = 'Deepwater Atlas';
+        if (a.rigName === 'GOM.LWI.ISLVEN') rigNameForComparison = 'Island Venture';
+        
+        const rigSelected = selectedRigs.includes(rigNameForComparison);
+        const locationSelected = selectedLocations.includes(a.asset);
+        
+        return rigSelected && locationSelected;
+      });
+      
+      // Debug mapped rig activities after filtering
+      const mappedRigsAfterFilter = filteredActivities.filter(a => mappedRigNames.includes(a.rigName));
+      console.log(`🔍 Mapped rig activities after filtering: ${mappedRigsAfterFilter.length}`);
       
       setLoadingStep('Processing selected scenario...');
       setProcessingProgress(50);
       
-      // Generate 18-month forecast horizon
+      // Generate extended forecast horizon to include Atlas activities (2028-2030)
       const months: string[] = [];
       const startDate = new Date(2026, 0, 1);
-      for (let i = 0; i < 17; i++) {
+      for (let i = 0; i < 48; i++) { // Extended from 17 to 48 months to cover 2026-2030
         const month = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
         const monthStr = `${month.toLocaleDateString('en-US', { month: 'short' })}-${String(month.getFullYear()).slice(-2)}`;
         months.push(monthStr);
@@ -406,24 +309,51 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
       
       console.log(`🔍 Calculating forecast for ${selectedScenario} case with ${filteredActivities.length} activities`);
       
-      setLoadingStep('Mapping activities to offshore locations...');
+      setLoadingStep('Applying real business logic for vessel demand...');
       setProcessingProgress(70);
       
-      // Calculate forecasts
-      const forecast = calculateTabularVesselForecast(filteredActivities, months);
-      const demands = calculateMonthlyVesselDemand(filteredActivities);
-      const tabular = generateTabularForecast(filteredActivities);
+      // Use real vessel demand calculator with business logic
+      const forecast = generateTabularVesselForecast(filteredActivities, months);
+      const vesselSpottingAnalysis = generateVesselSpottingAnalysis(filteredActivities);
       
-      setLoadingStep('Finalizing analysis...');
+      console.log('🔍 Vessel Spotting Analysis:', vesselSpottingAnalysis);
+      console.log('🔍 Monthly Demands:', vesselSpottingAnalysis.monthlyDemands);
+      
+      const demands = vesselSpottingAnalysis.monthlyDemands.map(md => ({
+        month: md.month,
+        year: md.year,
+        totalDemand: md.totalDemand,
+        vesselCount: md.totalVesselsRequired,
+        rigActivities: filteredActivities.filter(a => {
+          // Check if activity spans this month
+          const activityStartMonth = new Date(a.startDate.getFullYear(), a.startDate.getMonth(), 1);
+          const activityEndMonth = new Date(a.endDate.getFullYear(), a.endDate.getMonth(), 1);
+          const [monthStr, yearStr] = md.month.split('-');
+          const monthIndex = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(monthStr);
+          const currentMonth = new Date(2000 + parseInt(yearStr), monthIndex, 1);
+          return currentMonth >= activityStartMonth && currentMonth <= activityEndMonth;
+        }),
+        locationBreakdown: md.rigDemands.reduce((acc, rd) => {
+          acc[rd.asset] = (acc[rd.asset] || 0) + rd.vesselsRequired;
+          return acc;
+        }, {} as Record<string, number>)
+      }));
+      
+      setLoadingStep('Finalizing real data analysis...');
       setProcessingProgress(90);
+      
+      console.log('🔍 Setting vessel demands:', demands);
+      console.log('🔍 Demands array length:', demands.length);
       
       setRigActivities(filteredActivities);
       setVesselDemands(demands);
       setTabularForecast(forecast);
       
-      console.log('✅ Vessel forecast dashboard ready');
-      console.log(`📍 Generated demand for ${forecast.locationDemands.length} locations`);
+      console.log('✅ Real vessel forecast dashboard ready with business logic');
+      console.log(`🔧 Generated demand for ${forecast.rigDemands.length} rigs`);
       console.log(`📅 Forecast horizon: ${months.length} months`);
+      console.log(`🚢 Peak vessels needed: ${vesselSpottingAnalysis.peakVesselsNeeded} in ${vesselSpottingAnalysis.peakDemandMonth}`);
+      console.log(`📈 Average additional vessels: ${vesselSpottingAnalysis.averageAdditionalVessels.toFixed(1)}`);
       
       setProcessingProgress(100);
       
@@ -493,7 +423,7 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
         totalDemand: avgDemand.toFixed(1),
         avgVessels: avgVessels.toFixed(1),
         avgAdditional: avgAdditional.toFixed(1),
-        peakAdditional,
+        peakAdditional: peakAdditional.toFixed(1),
         peakMonth: peakMonth || 'N/A',
         drillingFleet: BASELINE_ASSUMPTIONS.drillingFleetSize,
         totalFleet: BASELINE_ASSUMPTIONS.totalFleetSize
@@ -511,7 +441,7 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
       totalDemand: totalDemand.toFixed(1),
       avgVessels: avgVessels.toFixed(1),
       avgAdditional: avgAdditional.toFixed(1),
-      peakAdditional,
+      peakAdditional: peakAdditional.toFixed(1),
       peakMonth,
       drillingFleet: BASELINE_ASSUMPTIONS.drillingFleetSize,
       totalFleet: BASELINE_ASSUMPTIONS.totalFleetSize
@@ -777,7 +707,15 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                       />
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" style={{ color: config.color }} />
-                        {config.name} ({config.transitHours}h transit)
+                        <span>{config.name}</span>
+                        <span className="text-xs text-gray-500">
+                          ({config.transitHours}h, {config.vesselCapability}/mo)
+                        </span>
+                        {config.vesselCapability < 6.0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                            Ultra-deep
+                          </span>
+                        )}
                       </span>
                     </label>
                   ))}
@@ -937,10 +875,39 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
         {viewMode === 'table' && tabularForecast && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Ship className="w-5 h-5 text-[#00754F]" />
-                Offshore Location Vessel Requirements - {selectedScenario} Case
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Ship className="w-5 h-5 text-[#00754F]" />
+                  Offshore Location Vessel Requirements - {selectedScenario} Case
+                </h2>
+                
+                {/* Interactive editing toolbar */}
+                <div className="flex items-center gap-2">
+                  {(Object.keys(editedValues).length > 0 || Object.keys(editedActivityTypes).length > 0) && (
+                    <>
+                      <span className="text-sm text-blue-600 font-medium">
+                        {Object.values(editedValues).reduce((count, rigEdits) => count + Object.keys(rigEdits).length, 0) + 
+                         Object.values(editedActivityTypes).reduce((count, rigEdits) => count + Object.keys(rigEdits).length, 0)} edits made
+                      </span>
+                      <button
+                        onClick={resetEdits}
+                        className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border border-gray-300 flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reset All
+                      </button>
+                    </>
+                  )}
+                  <div className="text-sm text-gray-600 flex items-center gap-1">
+                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Click any cell to edit
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -958,24 +925,124 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {tabularForecast.locationDemands.map((location, index) => (
-                    <tr key={location.locationName} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
+                  {tabularForecast.rigDemands.map((rig, index) => (
+                    <tr key={rig.rigName} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
                       <td className="px-4 py-3 font-medium text-gray-900 border-r border-gray-200">
-                        {location.locationDisplayName}
+                        {rig.rigDisplayName}
                       </td>
                       {tabularForecast.monthlyColumns.map((month) => {
-                        const demand = location.monthlyDemand[month] || 0;
+                        const vesselDemand = getVesselValue(rig.rigName, month);
+                        const activityType = getActivityType(rig.rigName, month);
+                        const isEdited = editedValues[rig.rigName]?.[month] !== undefined;
+                        const isActivityEdited = editedActivityTypes[rig.rigName]?.[month] !== undefined;
+                        const isBatch = rig.batchOperations[month] || false;
+                        const calculationBreakdown = rig.calculationBreakdown?.[month];
+                        
+                        // Get activity type configuration for coloring - use different colors for batch operations
+                        const activityConfig = activityType ? RIG_ACTIVITY_TYPES[activityType as keyof typeof RIG_ACTIVITY_TYPES] : null;
+                        
+                        // Use different colors for batch operations
+                        let activityColor = activityConfig?.color || 'bg-gray-100 text-gray-800';
+                        let borderColor = activityConfig?.borderColor || 'border-l-gray-500';
+                        
+                        if (isBatch && activityType === 'DRL') {
+                          // Use purple for batch drilling (DRL B) to distinguish from regular DRL green
+                          activityColor = 'bg-purple-100 text-purple-800' as any;
+                          borderColor = 'border-l-purple-500' as any;
+                        }
+                        // Note: Other batch operations (CPL B, etc.) use their regular colors since they don't get demand multiplication
+                        
+                        // Determine left border color based on activity type using imported config
+                        const getBorderColor = (type: string) => {
+                          return borderColor; // Use the batch-adjusted border color
+                        };
+                        
+                        // Determine cell styling based on activity type and demand
+                        const batchOutline = isBatch ? 'ring-2 ring-red-500 ring-inset' : '';
+                        const editedOutline = isEdited ? 'ring-2 ring-blue-500 ring-inset' : '';
+                        const cellStyling = vesselDemand > 0 
+                          ? `${activityColor} font-semibold border-l-4 ${getBorderColor(activityType)} ${batchOutline} ${editedOutline}`
+                          : 'text-gray-400 bg-white';
+                        
+                        const isEditing = editingCell?.rigName === rig.rigName && editingCell?.month === month;
+                        
                         return (
-                          <td key={month} className={`px-3 py-3 text-center border-r border-gray-200 ${
-                            demand > 0 
-                              ? demand === location.peakDemand 
-                                ? 'bg-yellow-200 font-bold text-yellow-900' // Peak demand highlighting
-                                : demand >= 1.5 
-                                ? 'bg-green-100 font-semibold text-green-800' // High demand
-                                : 'text-gray-900'
-                              : 'text-gray-400'
-                          }`}>
-                            {demand > 0 ? demand.toFixed(1) : ''}
+                          <td 
+                            key={month} 
+                            className={`px-3 py-3 text-center border-r border-gray-200 ${cellStyling} relative group cursor-pointer`}
+                            title={vesselDemand > 0 ? (isEdited ? 'Edited value - Click to change' : calculationBreakdown?.formula || 'Click to edit') : 'Click to add vessel demand'}
+                            onClick={() => !isEditing && startEdit(rig.rigName, month, vesselDemand, activityType)}
+                          >
+                            {isEditing ? (
+                              <div className="flex flex-col items-center bg-white p-2 rounded shadow-lg border-2 border-blue-500">
+                                <input
+                                  type="number"
+                                  value={tempEditValue}
+                                  onChange={(e) => setTempEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveEdit();
+                                    if (e.key === 'Escape') cancelEdit();
+                                  }}
+                                  className="w-16 text-center font-bold border rounded px-1 py-0.5 text-sm mb-2"
+                                  min="0"
+                                  step="0.1"
+                                  autoFocus
+                                  placeholder="0.00"
+                                />
+                                <select
+                                  value={tempActivityType}
+                                  onChange={(e) => setTempActivityType(e.target.value)}
+                                  className="text-xs border rounded px-1 py-0.5 mb-2 w-full"
+                                >
+                                  <option value="">Select Activity</option>
+                                  {Object.entries(RIG_ACTIVITY_TYPES).map(([code, config]) => (
+                                    <option key={code} value={code}>
+                                      {code} - {config.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={saveEdit}
+                                    className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={cancelEdit}
+                                    className="text-xs bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : vesselDemand > 0 ? (
+                              <div className="flex flex-col items-center">
+                                <span className={`font-bold ${isEdited ? 'text-blue-800' : ''}`}>
+                                  {vesselDemand.toFixed(2)}
+                                  {isEdited && <span className="text-blue-500 ml-1">*</span>}
+                                </span>
+                                <span className={`text-xs font-medium ${isActivityEdited ? 'text-blue-700' : ''}`}>
+                                  {activityType}{isBatch ? ' B' : ''}
+                                  {isActivityEdited && <span className="text-blue-500 ml-1">*</span>}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-transparent">-</span>
+                            )}
+                            
+                            {/* Tooltip for calculation transparency */}
+                            {vesselDemand > 0 && calculationBreakdown && (
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-black text-white text-xs rounded py-2 px-3 whitespace-nowrap z-10">
+                                <div className="font-semibold">{activityType}: {activityConfig?.name}</div>
+                                <div>{calculationBreakdown.formula}</div>
+                                <div className="text-gray-300">
+                                  {calculationBreakdown.isUltraDeep ? 'Ultra-deep location' : 'Standard location'}
+                                </div>
+                                {/* Tooltip arrow */}
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-black"></div>
+                              </div>
+                            )}
                           </td>
                         );
                       })}
@@ -1009,42 +1076,66 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
           </div>
         )}
         
-        {viewMode === 'chart' && (
+        {viewMode === 'chart' && tabularForecast && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-[#00754F]" />
               Vessel Demand Trend - {selectedScenario} Case
             </h2>
             
+            
             <div className="h-64 flex items-end justify-between gap-2">
-              {vesselDemands.map((demand, index) => {
-                const maxVessels = Math.max(...vesselDemands.map(d => d.vesselCount));
-                const height = (demand.vesselCount / maxVessels) * 100;
+              {tabularForecast.monthlyColumns.length > 0 ? tabularForecast.monthlyColumns.map((month, index) => {
+                // Sum all rig demands for this month (using edited values if available)
+                const totalVesselsNeeded = tabularForecast.rigDemands.reduce((sum, rig) => {
+                  return sum + getVesselValue(rig.rigName, month);
+                }, 0);
+                
+                // Find max for height calculation across all months (using edited values)
+                const allMonthlyTotals = tabularForecast.monthlyColumns.map(m => {
+                  return tabularForecast.rigDemands.reduce((sum, rig) => sum + getVesselValue(rig.rigName, m), 0);
+                });
+                const maxVessels = Math.max(...allMonthlyTotals, 0.1); // Ensure we don't divide by 0
+                const height = (totalVesselsNeeded / maxVessels) * 100;
+                
+                // Calculate internal vs external (assume 8.5 internal fleet capacity)
+                const internalUsed = Math.min(totalVesselsNeeded, 8.5);
+                const externalNeeded = Math.max(0, totalVesselsNeeded - 8.5);
                 
                 return (
-                  <div key={index} className="flex-1 flex flex-col items-center">
+                  <div key={month} className="flex-1 flex flex-col items-center">
                     <div className="w-full bg-[#00754F] rounded-t hover:bg-[#00754F]/80 transition-colors relative group"
-                         style={{ height: `${height}%` }}>
-                      <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-xs font-semibold text-gray-700">{demand.vesselCount}</span>
+                         style={{ height: `${Math.max(height, 2)}%` }}>
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
+                        <div className="font-semibold">{totalVesselsNeeded.toFixed(1)} vessels</div>
+                        <div className="text-xs text-gray-300">{internalUsed.toFixed(1)} internal + {externalNeeded.toFixed(1)} external</div>
                       </div>
                     </div>
-                    <span className="text-xs text-gray-600 mt-2 rotate-45 origin-left">{demand.month.slice(0, 3)}</span>
+                    <span className="text-xs text-gray-600 mt-2 rotate-45 origin-left">{month.slice(0, 3)}</span>
                   </div>
                 );
-              })}
+              }) : (
+                <div className="w-full flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <Ship className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>No monthly columns found</p>
+                    <p className="text-xs mt-1">Check Excel data loading</p>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="mt-6 pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Location Breakdown</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(LOCATION_CONFIGS).map(([key, config]) => (
-                  <div key={key} className="flex items-center gap-2 text-xs">
-                    <div className="w-3 h-3 rounded" style={{ backgroundColor: config.color }}></div>
-                    <span>{config.name}</span>
-                    <span className="text-gray-500">({config.vesselCapability} del/mo)</span>
-                  </div>
-                ))}
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Monthly Vessel Requirements</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-50 p-3 rounded">
+                  <h4 className="text-sm font-medium text-green-800">Internal Fleet</h4>
+                  <p className="text-xs text-green-700">Up to 8.5 vessels from our fleet</p>
+                </div>
+                <div className="bg-orange-50 p-3 rounded">
+                  <h4 className="text-sm font-medium text-orange-800">External Sourcing</h4>
+                  <p className="text-xs text-orange-700">Additional vessels needed beyond our fleet</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1133,8 +1224,8 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                   <span className="font-semibold">{rigActivities.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Locations Mapped:</span>
-                  <span className="font-semibold">{tabularForecast?.locationDemands.length || 0}</span>
+                  <span className="text-gray-600">Rigs Analyzed:</span>
+                  <span className="font-semibold">{tabularForecast?.rigDemands.length || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Data Source:</span>
@@ -1161,14 +1252,33 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
         
         {/* Activity Type Legend */}
         <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Activity Type Legend</h3>
-          <div className="grid grid-cols-5 gap-2">
-            {Object.entries(RIG_ACTIVITY_TYPES).map(([key, config]) => (
-              <div key={key} className={`px-3 py-2 rounded text-xs font-medium ${config.color} flex items-center justify-between`}>
-                <span>{key}</span>
-                <span className="opacity-75">×{config.demandMultiplier}</span>
-              </div>
-            ))}
+          <h3 className="text-sm font-medium text-gray-700 mb-3">
+            Activity Type Legend
+            <span className="text-xs text-gray-500 ml-2">(Table cells use these colors with left border indicators)</span>
+          </h3>
+          <div className="grid grid-cols-5 gap-2 mb-4">
+            {Object.entries(RIG_ACTIVITY_TYPES).map(([key, config]) => {
+              return (
+                <div key={key} className={`px-3 py-2 rounded text-xs font-medium ${config.color} flex items-center justify-between border-l-4 ${config.borderColor}`}>
+                  <span>{key}</span>
+                  <span className="opacity-75">×{config.demandMultiplier}</span>
+                </div>
+              );
+            })}
+            
+            {/* Add special batch operation legend - only DRL B gets multiplication */}
+            <div className="px-3 py-2 rounded text-xs font-medium bg-purple-100 text-purple-800 flex items-center justify-between border-l-4 border-l-purple-500 ring-2 ring-red-500 ring-inset">
+              <span>DRL B</span>
+              <span className="opacity-75">×1.5-3</span>
+            </div>
+          </div>
+          <div className="text-xs text-gray-600 space-y-1">
+            <div>• <strong>Table Format:</strong> "1.3 DRL" = 1.3 vessels required for Drilling activity</div>
+            <div>• <strong>DRL B (Batch Drilling):</strong> Only batch drilling gets demand multiplication (1.5x standard, 3x ultra-deep)</div>
+            <div>• <strong>Red Outline:</strong> Batch operation cells outlined in red for visual distinction</div>
+            <div>• <strong>Ultra-deep Locations:</strong> Tiber, Kaskida, Paleogene (4.9 del/mo vs 6.5 del/mo standard)</div>
+            <div>• <strong>Internal Fleet:</strong> 8.5 vessels total (6 drilling + 1.75 production + 1 warehouse)</div>
+            <div>• <strong>Hover cells</strong> for calculation breakdown and formula transparency</div>
           </div>
         </div>
       </div>

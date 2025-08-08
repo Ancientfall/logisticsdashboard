@@ -69,6 +69,7 @@ export function calculateTabularVesselForecast(
   
   const result: TabularVesselForecast = {
     assumptions: VESSEL_FORECAST_ASSUMPTIONS,
+    rigDemands: [], // Empty for now - will be populated when switching to rig-based display
     locationDemands,
     monthlyColumns: months,
     totals,

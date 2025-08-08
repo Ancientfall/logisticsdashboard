@@ -13,7 +13,7 @@
 import { 
   RigActivity, 
   ActivityProfile, 
-  RigVesselDemand, 
+  RigMonthlyVesselDemand, 
   CalculationBreakdown,
   DataFoundation 
 } from '../types/vesselForecast';
@@ -142,7 +142,7 @@ export function calculateRigVesselDemand(
   rigName: string,
   activities: RigActivity[],
   month: string
-): RigVesselDemand {
+): RigMonthlyVesselDemand {
   console.log(`🔍 Calculating vessel demand for ${rigName} in ${month}`);
   
   // Filter activities active in this month
@@ -245,7 +245,7 @@ export function calculateFleetVesselDemand(
   activities: RigActivity[],
   months: string[]
 ): {
-  rigDemands: RigVesselDemand[];
+  rigDemands: RigMonthlyVesselDemand[];
   monthlyTotals: Record<string, {
     totalDemand: number;
     totalVessels: number;
@@ -273,7 +273,7 @@ export function calculateFleetVesselDemand(
   const uniqueRigs = [...new Set(activities.map(a => a.rigName))];
   console.log(`⚙️ Rigs in analysis: ${uniqueRigs.join(', ')}`);
   
-  const rigDemands: RigVesselDemand[] = [];
+  const rigDemands: RigMonthlyVesselDemand[] = [];
   const monthlyTotals: Record<string, any> = {};
   const allCalculations: CalculationBreakdown[] = [];
   
@@ -383,12 +383,12 @@ export function getActivityProfile(activityType: string): ActivityProfile | null
 /**
  * Generate calculation explanation for management presentation
  */
-export function generateCalculationExplanation(demand: RigVesselDemand): string {
+export function generateCalculationExplanation(demand: RigMonthlyVesselDemand): string {
   const profile = ACTIVITY_PROFILES[demand.activities[0]?.activityType];
   const explanation = `
 **${demand.rigName} - ${demand.month}**
 
-**Activities:** ${demand.activities.map(a => a.activityName).join(', ')}
+**Activities:** ${demand.activities.map((a: RigActivity) => a.activityName).join(', ')}
 
 **Calculation:**
 - Base rig demand: ${RIG_DEMAND_BASELINE.value} deliveries/month

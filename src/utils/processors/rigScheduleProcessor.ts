@@ -7,41 +7,42 @@ import { safeNumeric } from '../helpers';
  * Processes vessel schedule Excel files for the vessel forecast dashboard
  */
 
-// Raw rig schedule interface - matches expected Excel column structure
+// Raw rig schedule interface - matches actual Excel column structure
 interface RawRigScheduleEntry {
   // Core identifiers
-  "Rig Name": string;
+  "GWDXAG-Rig Name": string;
   "Activity Name": string;
-  "Activity Type": string;
-  "Well Type"?: string;
+  "GWDXAG-Rig Activity Type": string;
+  "GWDXAG-Well Type"?: string;
   
   // Timing information
-  "Start Date": string;
-  "Finish Date": string;
-  "Original Duration": number;
+  "(*)Start": string | number;
+  "(*)Finish": string | number;
+  "Original Duration(h)": number;
   "Actual Duration"?: number;
-  "Timing": string; // P10 or P50
+  "GWDXAG-Estimate": string; // Mean, Early, etc.
   
   // Location information
-  "Location": string;
+  "GWDXAG-Asset"?: string;
+  "GWDXAG-Region"?: string;
   "Field Name"?: string;
   "Platform"?: string;
   "Water Depth"?: number;
   
   // Vessel impact factors
-  "Fluid Intensity": string;
-  "Logistics Complexity": string;
+  "Fluid Intensity"?: string;
+  "Logistics Complexity"?: string;
   "Weather Sensitivity"?: string;
   
   // Business context
-  "Priority": string;
+  "Priority"?: string;
   "Project Code"?: string;
   "Cost Center"?: string;
   
   // Metadata
-  "Schedule Version": string;
+  "Schedule Version"?: string;
   "Last Updated"?: string;
-  "Confidence": number;
+  "Confidence"?: number;
   "Assumptions"?: string;
 }
 
@@ -179,38 +180,71 @@ export const processRigSchedule = (
   
   console.log(`🗓️ Processing ${rawScheduleData.length} rig schedule entries...`);
   
+  // Debug: Check for TBD and Atlas entries in raw data
+  const tbdRawEntries = rawScheduleData.filter(entry => 
+    entry["GWDXAG-Rig Name"]?.toLowerCase().includes('tbd') ||
+    entry["GWDXAG-Asset"]?.toLowerCase().includes('tbd') ||
+    entry["Activity Name"]?.toLowerCase().includes('tbd')
+  );
+  console.log(`🔍 TBD entries in raw data: ${tbdRawEntries.length}`);
+  
+  const atlasRawEntries = rawScheduleData.filter(entry => 
+    entry["GWDXAG-Rig Name"]?.toLowerCase().includes('atlas') ||
+    entry["GWDXAG-Asset"]?.toLowerCase().includes('atlas') ||
+    entry["Activity Name"]?.toLowerCase().includes('atlas')
+  );
+  console.log(`🔍 Atlas entries in raw data: ${atlasRawEntries.length}`);
+  tbdRawEntries.forEach((entry, index) => {
+    console.log(`  TBD Raw Entry ${index + 1}:`);
+    console.log(`    - Rig Name: "${entry["GWDXAG-Rig Name"]}"`);
+    console.log(`    - Asset: "${entry["GWDXAG-Asset"]}"`);
+    console.log(`    - Activity: "${entry["Activity Name"]}"`);
+    console.log(`    - Start: "${entry["(*)Start"]}"`);
+    console.log(`    - Finish: "${entry["(*)Finish"]}"`);
+  });
+  
+  atlasRawEntries.forEach((entry, index) => {
+    console.log(`  Atlas Raw Entry ${index + 1}:`);
+    console.log(`    - Rig Name: "${entry["GWDXAG-Rig Name"]}"`);
+    console.log(`    - Asset: "${entry["GWDXAG-Asset"]}"`);
+    console.log(`    - Activity: "${entry["Activity Name"]}"`);
+    console.log(`    - Start: "${entry["(*)Start"]}"`);
+    console.log(`    - Finish: "${entry["(*)Finish"]}"`);
+  });
+  
   const processedEntries: RigScheduleEntry[] = [];
   const errors: string[] = [];
   
   rawScheduleData.forEach((raw, index) => {
     try {
       // Validate required fields
-      if (!raw["Rig Name"] || !raw["Activity Name"] || !raw["Start Date"] || !raw["Finish Date"]) {
-        errors.push(`Row ${index + 1}: Missing required fields (Rig Name, Activity Name, Start Date, or Finish Date)`);
+      if (!raw["GWDXAG-Rig Name"] || !raw["Activity Name"] || !raw["(*)Start"] || !raw["(*)Finish"]) {
+        errors.push(`Row ${index + 1}: Missing required fields (GWDXAG-Rig Name, Activity Name, (*)Start, or (*)Finish)`);
         return;
       }
       
-      // Parse dates
-      const startDate = parseDate(raw["Start Date"]);
-      const finishDate = parseDate(raw["Finish Date"]);
+      // Parse dates (now handles Excel serial numbers)
+      const startDate = parseDate(raw["(*)Start"]);
+      const finishDate = parseDate(raw["(*)Finish"]);
       
       if (!startDate || !finishDate) {
-        errors.push(`Row ${index + 1}: Invalid date format for ${raw["Rig Name"]} - ${raw["Activity Name"]}`);
+        errors.push(`Row ${index + 1}: Invalid date format for ${raw["GWDXAG-Rig Name"]} - ${raw["Activity Name"]}`);
         return;
       }
       
       // Validate date order
       if (finishDate <= startDate) {
-        errors.push(`Row ${index + 1}: Finish date must be after start date for ${raw["Rig Name"]} - ${raw["Activity Name"]}`);
+        errors.push(`Row ${index + 1}: Finish date must be after start date for ${raw["GWDXAG-Rig Name"]} - ${raw["Activity Name"]}`);
         return;
       }
       
-      // Calculate duration if not provided
-      const originalDuration = raw["Original Duration"] || 
+      // Calculate duration if not provided (convert hours to days)
+      const originalDuration = raw["Original Duration(h)"] ? 
+        Math.ceil(raw["Original Duration(h)"] / 24) : // Convert hours to days
         Math.ceil((finishDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       
       // Generate unique ID
-      const id = generateRigScheduleId(raw["Rig Name"], raw["Activity Name"], startDate);
+      const id = generateRigScheduleId(raw["GWDXAG-Rig Name"], raw["Activity Name"], startDate);
       
       // Parse assumptions (comma-separated string to array)
       const assumptions = raw["Assumptions"] ? 
@@ -220,22 +254,22 @@ export const processRigSchedule = (
       const processedEntry: RigScheduleEntry = {
         // Identifiers
         id,
-        rigName: raw["Rig Name"].trim(),
+        rigName: raw["GWDXAG-Rig Name"].trim(),
         activityName: raw["Activity Name"].trim(),
         
         // Activity Classification
-        rigActivityType: normalizeActivityType(raw["Activity Type"]),
-        wellType: normalizeWellType(raw["Well Type"] || ''),
+        rigActivityType: normalizeActivityType(raw["GWDXAG-Rig Activity Type"] || ''),
+        wellType: normalizeWellType(raw["GWDXAG-Well Type"] || ''),
         
         // Timing Information
         originalDuration,
         actualDuration: raw["Actual Duration"] ? safeNumeric(raw["Actual Duration"]) : undefined,
         startDate,
         finishDate,
-        timing: normalizeTiming(raw["Timing"] || 'P50'),
+        timing: normalizeTiming(raw["GWDXAG-Estimate"] || 'P50'),
         
         // Location & Context
-        location: raw["Location"].trim(),
+        location: raw["GWDXAG-Asset"]?.trim() || raw["GWDXAG-Region"]?.trim() || 'Unknown',
         fieldName: raw["Field Name"]?.trim(),
         platform: raw["Platform"]?.trim(),
         waterDepth: raw["Water Depth"] ? safeNumeric(raw["Water Depth"]) : undefined,
@@ -267,6 +301,42 @@ export const processRigSchedule = (
   
   // Log results
   console.log(`✅ Successfully processed ${processedEntries.length} rig schedule entries`);
+  
+  // Debug: Check TBD and Atlas entries in processed data
+  const tbdProcessedEntries = processedEntries.filter(entry => 
+    entry.rigName?.toLowerCase().includes('tbd') ||
+    entry.location?.toLowerCase().includes('tbd') ||
+    entry.activityName?.toLowerCase().includes('tbd')
+  );
+  console.log(`🔍 TBD entries in processed data: ${tbdProcessedEntries.length}`);
+  
+  const atlasProcessedEntries = processedEntries.filter(entry => 
+    entry.rigName?.toLowerCase().includes('atlas') ||
+    entry.location?.toLowerCase().includes('atlas') ||
+    entry.activityName?.toLowerCase().includes('atlas')
+  );
+  console.log(`🔍 Atlas entries in processed data: ${atlasProcessedEntries.length}`);
+  tbdProcessedEntries.forEach((entry, index) => {
+    console.log(`  TBD Processed Entry ${index + 1}:`);
+    console.log(`    - ID: "${entry.id}"`);
+    console.log(`    - Rig Name: "${entry.rigName}"`);
+    console.log(`    - Location: "${entry.location}"`);
+    console.log(`    - Activity: "${entry.activityName}"`);
+    console.log(`    - Start: "${entry.startDate}"`);
+    console.log(`    - Finish: "${entry.finishDate}"`);
+    console.log(`    - Activity Type: "${entry.rigActivityType}"`);
+  });
+  
+  atlasProcessedEntries.forEach((entry, index) => {
+    console.log(`  Atlas Processed Entry ${index + 1}:`);
+    console.log(`    - ID: "${entry.id}"`);
+    console.log(`    - Rig Name: "${entry.rigName}"`);
+    console.log(`    - Location: "${entry.location}"`);
+    console.log(`    - Activity: "${entry.activityName}"`);
+    console.log(`    - Start: "${entry.startDate}"`);
+    console.log(`    - Finish: "${entry.finishDate}"`);
+    console.log(`    - Activity Type: "${entry.rigActivityType}"`);
+  });
   
   if (errors.length > 0) {
     console.warn(`⚠️ ${errors.length} errors encountered during processing:`);

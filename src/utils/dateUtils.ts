@@ -4,34 +4,52 @@
  */
 
 /**
- * Parse date strings from different Excel sheet formats
+ * Parse date strings/numbers from different Excel sheet formats including Excel serial dates
  */
-export const parseDate = (dateStr: string | null | undefined): Date => {
+export const parseDate = (dateValue: string | number | null | undefined): Date => {
   const defaultDate = new Date(2024, 0, 1);
   
-  if (!dateStr) {
+  if (dateValue === null || dateValue === undefined || dateValue === '') {
     console.warn(`⚠️ Empty date value provided, using default date: ${defaultDate.toISOString()}`);
     return defaultDate;
   }
   
   try {
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      const minDate = new Date(2000, 0, 1);
-      const maxDate = new Date(2030, 11, 31);
-      
-      if (date >= minDate && date <= maxDate) {
-        return date;
-      } else {
-        console.warn(`⚠️ Parsed date ${date.toISOString()} from "${dateStr}" is outside expected data range.`);
-        return date;
+    // Handle Excel serial numbers (numeric dates)
+    if (typeof dateValue === 'number') {
+      // Excel stores dates as numbers - days since January 1, 1900
+      // But Excel incorrectly treats 1900 as a leap year, so we need to adjust
+      if (dateValue > 0 && dateValue < 2958466) { // Max Excel date (Dec 31, 9999)
+        const excelEpoch = new Date(1899, 11, 30); // Excel's adjusted epoch (Dec 30, 1899)
+        const date = new Date(excelEpoch.getTime() + dateValue * 24 * 60 * 60 * 1000);
+        
+        if (!isNaN(date.getTime())) {
+          console.log(`✅ Parsed Excel serial date: ${dateValue} → ${date.toISOString().substring(0, 10)}`);
+          return date;
+        }
       }
     }
     
-    console.warn(`⚠️ Could not parse date: "${dateStr}", using default date`);
+    // Handle string dates
+    if (typeof dateValue === 'string') {
+      const date = new Date(dateValue);
+      if (!isNaN(date.getTime())) {
+        const minDate = new Date(2000, 0, 1);
+        const maxDate = new Date(2035, 11, 31);
+        
+        if (date >= minDate && date <= maxDate) {
+          return date;
+        } else {
+          console.warn(`⚠️ Parsed date ${date.toISOString()} from "${dateValue}" is outside expected data range.`);
+          return date;
+        }
+      }
+    }
+    
+    console.warn(`⚠️ Could not parse date: "${dateValue}" (type: ${typeof dateValue}), using default date`);
     return defaultDate;
   } catch (error) {
-    console.warn(`⚠️ Error parsing date: ${dateStr}`, error);
+    console.warn(`⚠️ Error parsing date: ${dateValue}`, error);
     return defaultDate;
   }
 };

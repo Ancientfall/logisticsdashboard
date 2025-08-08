@@ -8,25 +8,32 @@
 // ==================== FOUNDATIONAL DATA TYPES ====================
 
 /**
- * Core rig activity from CSV schedule
+ * Core rig activity from XLSX schedule with enhanced vessel demand properties
  */
 export interface RigActivity {
   id: string;
   rigName: string;
-  activityType: 'RSU' | 'DRL' | 'CPL' | 'RM' | 'WWP' | 'WS' | 'P&A' | 'MOB' | 'WWI' | 'TAR';
+  activityType: 'RSU' | 'DRL' | 'CPL' | 'RM' | 'WWP' | 'WS' | 'P&A' | 'MOB' | 'WWI' | 'TAR' | 'LWI';
   activityName: string;
-  asset: string; // GOM.Atlantis, GOM.ThunderHorse, GOM.MadDog
+  asset: string; // GOM.Atlantis, GOM.ThunderHorse, GOM.MadDog, GOM.Tiber, GOM.Kaskida, GOM.Paleogene
   startDate: Date;
   endDate: Date;
   durationDays: number;
   scenario: 'MEAN' | 'EARLY';
+  
+  // Enhanced properties for vessel demand calculations
+  isBatchOperation?: boolean; // Detected from Activity Name containing 'batch' or 'batch set'
+  vesselCapability?: number; // 6.5 for standard locations, 4.9 for ultra-deep (Tiber, Kaskida, Paleogene)
+  demandMultiplier?: number; // 1x standard, 2x batch standard, 3x batch ultra-deep
+  monthlyDemand?: number; // Calculated as 8.3 * demandMultiplier
+  vesselsRequired?: number; // Calculated as monthlyDemand / vesselCapability
 }
 
 /**
  * Activity type configuration with demand multipliers and rationale
  */
 export interface ActivityProfile {
-  code: 'RSU' | 'DRL' | 'CPL' | 'RM' | 'WWP' | 'WS' | 'P&A' | 'MOB' | 'WWI' | 'TAR';
+  code: 'RSU' | 'DRL' | 'CPL' | 'RM' | 'WWP' | 'WS' | 'P&A' | 'MOB' | 'WWI' | 'TAR' | 'LWI';
   name: string;
   demandMultiplier: number; // Applied to 8.2 baseline deliveries/rig/month
   rationale: string; // Business justification for multiplier
@@ -35,9 +42,9 @@ export interface ActivityProfile {
 }
 
 /**
- * Monthly vessel demand calculation for a specific rig
+ * Monthly vessel demand calculation for a specific rig (legacy format)
  */
-export interface RigVesselDemand {
+export interface RigMonthlyVesselDemand {
   rigName: string;
   month: string; // YYYY-MM format
   activities: RigActivity[];
@@ -275,7 +282,34 @@ export interface RiskAssessment {
 // ==================== LOCATION-BASED FORECAST TYPES ====================
 
 /**
- * Monthly vessel demand by offshore location (Excel table format)
+ * Monthly vessel demand by individual rig (Excel table format)
+ */
+export interface RigVesselDemand {
+  rigName: string;
+  rigDisplayName: string;
+  currentAsset?: string; // Where the rig is currently assigned (GOM.Atlantis, etc.)
+  vesselCapability: number; // 6.5 or 4.9 based on current asset
+  monthlyDemand: Record<string, number>; // month -> deliveries needed
+  monthlyVessels: Record<string, number>; // month -> vessels required
+  totalAnnualDemand: number;
+  peakMonth: string;
+  peakDemand: number;
+  batchOperations: Record<string, boolean>; // month -> has batch operation
+  
+  // Activity type information for coloring and transparency
+  primaryActivityTypes: Record<string, string>; // month -> activity type code (DRL, CPL, etc.)
+  activityNames: Record<string, string>; // month -> full activity name
+  calculationBreakdown: Record<string, {
+    rigDemand: number; // Base rig demand (8.3)
+    demandMultiplier: number; // 1x, 2x, 3x for batch operations
+    vesselCapability: number; // 6.5 or 4.9 based on location
+    isUltraDeep: boolean; // Whether location is ultra-deep
+    formula: string; // Human-readable calculation formula
+  }>; // month -> calculation details
+}
+
+/**
+ * Monthly vessel demand by offshore location (Excel table format) - Legacy
  */
 export interface LocationVesselDemand {
   locationName: string;
@@ -307,7 +341,8 @@ export interface VesselForecastAssumptions {
  */
 export interface TabularVesselForecast {
   assumptions: VesselForecastAssumptions;
-  locationDemands: LocationVesselDemand[];
+  rigDemands: RigVesselDemand[]; // Changed from locationDemands to rigDemands
+  locationDemands: LocationVesselDemand[]; // Keep for backward compatibility
   monthlyColumns: string[]; // Jan-26, Feb-26, etc.
   totals: {
     internalFleet: Record<string, number>; // month -> total internal fleet needed
