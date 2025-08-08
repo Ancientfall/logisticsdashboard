@@ -271,3 +271,49 @@ export interface RiskAssessment {
   costOfMitigation: number;
   decisionThreshold: string;
 }
+
+// ==================== LOCATION-BASED FORECAST TYPES ====================
+
+/**
+ * Monthly vessel demand by offshore location (Excel table format)
+ */
+export interface LocationVesselDemand {
+  locationName: string;
+  locationDisplayName: string;
+  facilityType: 'Drilling' | 'Production' | 'Support';
+  monthlyDemand: Record<string, number>; // month -> vessel count
+  totalAnnualDemand: number;
+  peakMonth: string;
+  peakDemand: number;
+}
+
+/**
+ * Vessel forecast assumptions (top section of Excel)
+ */
+export interface VesselForecastAssumptions {
+  lastUpdated: string;
+  vesselDeliveryCapability: number; // deliveries per month
+  wellsDeliveryDemand: number; // deliveries per month
+  paleogeneTransitFactor: number; // % increase
+  kaskidaTiberFactor: number; // multiplier
+  multiZoneCompletionFactor: number; // multiplier
+  lwiDemandFactor: number; // % of other wells
+  productionDemandInternal: number; // vessel equivalent for Fantasy Island
+  productionDemandOutsourced: number; // AT and NK from Chevron
+}
+
+/**
+ * Complete tabular vessel forecast result
+ */
+export interface TabularVesselForecast {
+  assumptions: VesselForecastAssumptions;
+  locationDemands: LocationVesselDemand[];
+  monthlyColumns: string[]; // Jan-26, Feb-26, etc.
+  totals: {
+    internalFleet: Record<string, number>; // month -> total internal fleet needed
+    externallySourced: Record<string, number>; // month -> externally sourced vessels
+    totalDemand: Record<string, number>; // month -> total demand
+  };
+  dataFoundation: DataFoundation;
+  generatedAt: Date;
+}
