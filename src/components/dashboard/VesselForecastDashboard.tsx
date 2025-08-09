@@ -133,6 +133,7 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
   const [selectedScenario, setSelectedScenario] = useState<'MEAN' | 'EARLY'>('MEAN');
   const [error, setError] = useState<string | null>(null);
   const [showAssumptions, setShowAssumptions] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'chart' | 'timeline'>('table');
   const [showSettings, setShowSettings] = useState(false);
   
@@ -825,16 +826,20 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
         </div>
       </div>
       
-      {/* Settings Panel */}
+      {/* Enhanced Settings Panel */}
       {showSettings && (
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="grid grid-cols-2 gap-6">
+        <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200/50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Active Rigs */}
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Active Rigs</h3>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Ship className="w-4 h-4 text-[#00754F]" />
+                  Active Rigs
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-xl p-3 border border-gray-200">
                   {RIG_NAMES.map(rig => (
-                    <label key={rig} className="flex items-center gap-2 text-sm">
+                    <label key={rig} className="flex items-center gap-2 text-sm hover:bg-white rounded-lg p-2 transition-colors">
                       <input
                         type="checkbox"
                         checked={selectedRigs.includes(rig)}
@@ -845,19 +850,23 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                             setSelectedRigs(selectedRigs.filter(r => r !== rig));
                           }
                         }}
-                        className="rounded text-[#00754F]"
+                        className="rounded text-[#00754F] focus:ring-[#00754F]"
                       />
-                      {rig}
+                      <span className="font-medium">{rig}</span>
                     </label>
                   ))}
                 </div>
               </div>
               
+              {/* Locations */}
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Locations</h3>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-[#00754F]" />
+                  Offshore Locations
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-xl p-3 border border-gray-200">
                   {Object.entries(LOCATION_CONFIGS).map(([key, config]) => (
-                    <label key={key} className="flex items-center gap-2 text-sm">
+                    <label key={key} className="flex items-center gap-2 text-sm hover:bg-white rounded-lg p-2 transition-colors">
                       <input
                         type="checkbox"
                         checked={selectedLocations.includes(key)}
@@ -868,22 +877,66 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                             setSelectedLocations(selectedLocations.filter(l => l !== key));
                           }
                         }}
-                        className="rounded text-[#00754F]"
+                        className="rounded text-[#00754F] focus:ring-[#00754F]"
                       />
                       <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" style={{ color: config.color }} />
-                        <span>{config.name}</span>
-                        <span className="text-xs text-gray-500">
-                          ({config.transitHours}h, {config.vesselCapability}/mo)
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.color }}></div>
+                        <span className="font-medium">{config.name}</span>
+                        <span className="text-xs text-gray-500 bg-gray-200 rounded px-2 py-0.5">
+                          {config.transitHours}h | {config.vesselCapability}/mo
                         </span>
                         {config.vesselCapability < 6.0 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                             Ultra-deep
                           </span>
                         )}
                       </span>
                     </label>
                   ))}
+                </div>
+              </div>
+              
+              {/* Data Foundation */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#00754F]" />
+                  Data Foundation
+                </h3>
+                <div className="bg-gradient-to-br from-blue-50 to-emerald-50 rounded-xl p-4 border border-blue-200 space-y-3">
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-1">Data Source</h4>
+                    <div className="text-xs text-gray-600 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                        <span>VPS SERVER API</span>
+                      </div>
+                      <div>MEAN & EARLY Case scenarios</div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-1">Processing Stats</h4>
+                    <div className="text-xs text-gray-600 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Activities:</span>
+                        <span className="font-medium">{rigActivities.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Rigs:</span>
+                        <span className="font-medium">{tabularForecast?.rigDemands.length || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Capability:</span>
+                        <span className="font-medium">{BASELINE_ASSUMPTIONS.vesselDeliveryCapability}/mo</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-2 border-t border-blue-300/50">
+                    <div className="text-xs text-gray-500">
+                      Generated: {new Date().toLocaleTimeString()}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1701,83 +1754,40 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
           </div>
         )}
         
-        {/* Enhanced Data Foundation */}
-        <div className="mt-6 bg-gradient-to-br from-white/95 to-blue-50/30 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/20">
-          <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-            <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-2 rounded-xl">
-              <FileText className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div>Data Foundation & Quality</div>
-              <div className="text-sm font-medium text-[#00754F] mt-1">VPS Server Real-time Source</div>
-            </div>
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">Data Sources</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-[#00754F] font-bold">•</span>
-                  Excel Rig Schedule Data 2(MEAN CASE).csv
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#00754F] font-bold">•</span>
-                  Excel Rig Schedule Data 2(EARLY CASE).csv
-                </li>
-                <li className="flex items-start gap-2 mt-2 pt-2 border-t border-gray-200">
-                  <span className="text-[#6EC800] font-bold">•</span>
-                  <span className="text-xs text-gray-500">Loaded from VPS Server API</span>
-                </li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">Processing Statistics</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Activities Analyzed:</span>
-                  <span className="font-semibold">{rigActivities.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Rigs Analyzed:</span>
-                  <span className="font-semibold">{tabularForecast?.rigDemands.length || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Data Source:</span>
-                  <span className="font-semibold text-green-600">VPS SERVER</span>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">Key Baselines</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Vessel Capability:</span>
-                  <span className="font-semibold">{BASELINE_ASSUMPTIONS.vesselDeliveryCapability}/month</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Generated:</span>
-                  <span className="font-semibold text-xs">{new Date().toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
         
-        {/* Enhanced Activity Type Legend */}
+        {/* Collapsible Activity Type Legend */}
         <div className="mt-6 bg-gradient-to-br from-white/95 to-emerald-50/30 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-3">
-            <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-2 rounded-xl">
-              <Activity className="w-5 h-5 text-white" />
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-3">
+              <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-2 rounded-xl">
+                <Activity className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div>Activity Type Reference</div>
+                <div className="text-sm font-medium text-[#00754F] mt-1">Color coding and demand multipliers</div>
+              </div>
+            </h3>
+            <button
+              onClick={() => setShowLegend(!showLegend)}
+              className="flex items-center gap-2 px-4 py-2 bg-white/50 backdrop-blur-sm border border-gray-200 rounded-xl hover:bg-white/80 transition-all duration-300 text-gray-700 hover:text-gray-900"
+            >
+              {showLegend ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  <span className="text-sm font-medium">Hide Legend</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  <span className="text-sm font-medium">Show Legend</span>
+                </>
+              )}
+            </button>
+          </div>
+          
+          {showLegend && (
             <div>
-              <div>Activity Type Reference</div>
-              <div className="text-sm font-medium text-[#00754F] mt-1">Color coding and demand multipliers</div>
-            </div>
-          </h3>
-          <div className="grid grid-cols-5 gap-2 mb-4">
+              <div className="grid grid-cols-5 gap-2 mb-4">
             {Object.entries(RIG_ACTIVITY_TYPES).map(([key, config]) => {
               return (
                 <div key={key} className={`px-3 py-2 rounded text-xs font-medium ${config.color} flex items-center justify-between border-l-4 ${config.borderColor}`}>
@@ -1793,14 +1803,16 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
               <span className="opacity-75">×1.5-3</span>
             </div>
           </div>
-          <div className="text-xs text-gray-600 space-y-1">
-            <div>• <strong>Table Format:</strong> "1.3 DRL" = 1.3 vessels required for Drilling activity</div>
-            <div>• <strong>DRL B (Batch Drilling):</strong> Only batch drilling gets demand multiplication (1.5x standard, 3x ultra-deep)</div>
-            <div>• <strong>Red Outline:</strong> Batch operation cells outlined in red for visual distinction</div>
-            <div>• <strong>Ultra-deep Locations:</strong> Tiber, Kaskida, Paleogene (4.9 del/mo vs 6.5 del/mo standard)</div>
-            <div>• <strong>Internal Fleet:</strong> 8.5 vessels total (6 drilling + 1.75 production + 1 warehouse)</div>
-            <div>• <strong>Hover cells</strong> for calculation breakdown and formula transparency</div>
-          </div>
+              <div className="text-xs text-gray-600 space-y-1">
+                <div>• <strong>Table Format:</strong> "1.3 DRL" = 1.3 vessels required for Drilling activity</div>
+                <div>• <strong>DRL B (Batch Drilling):</strong> Only batch drilling gets demand multiplication (1.5x standard, 3x ultra-deep)</div>
+                <div>• <strong>Red Outline:</strong> Batch operation cells outlined in red for visual distinction</div>
+                <div>• <strong>Ultra-deep Locations:</strong> Tiber, Kaskida, Paleogene (4.9 del/mo vs 6.5 del/mo standard)</div>
+                <div>• <strong>Internal Fleet:</strong> 8.5 vessels total (6 drilling + 1.75 production + 1 warehouse)</div>
+                <div>• <strong>Hover cells</strong> for calculation breakdown and formula transparency</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
