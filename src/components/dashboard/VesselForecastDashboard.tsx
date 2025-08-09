@@ -154,6 +154,7 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
   
   // Tooltip state
   const [hoveredPoint, setHoveredPoint] = useState<{index: number, data: any} | null>(null);
+  const [scrollPosition, setScrollPosition] = useState<number>(0);
   
   // Ref for PDF capture
   const tableRef = useRef<HTMLDivElement>(null);
@@ -1378,14 +1379,23 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
               </div>
             </div>
             
-            <div className="h-96 relative bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200/50 p-6 shadow-inner">
+            <div className="h-[500px] relative bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200/50 p-6 shadow-inner overflow-visible">
               {/* Horizontal scroll instructions */}
               <div className="text-xs text-gray-500 mb-2 text-center">
                 ← Scroll horizontally to view all {tabularForecast.monthlyColumns.length} months →
               </div>
               
               {/* Horizontally Scrollable Chart Container */}
-              <div className="overflow-x-auto overflow-y-hidden h-full" style={{scrollBehavior: 'smooth'}}>
+              <div 
+                className="overflow-x-auto overflow-y-visible h-full relative" 
+                style={{scrollBehavior: 'smooth'}}
+                id="chart-scroll-container"
+                onScroll={(e) => {
+                  // Update scroll position for tooltip tracking
+                  const scrollLeft = (e.target as HTMLDivElement).scrollLeft;
+                  setScrollPosition(scrollLeft);
+                }}
+              >
                 {tabularForecast.monthlyColumns.length > 0 && (() => {
                   // Calculate vessel demands and positions
                   const dataPoints = tabularForecast.monthlyColumns.map((month, index) => {
@@ -1459,7 +1469,7 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                   });
                   
                   const maxVessels = Math.max(...dataPoints.map(d => d.total), 16);
-                  const chartHeight = 300; // Fixed pixel height for SVG
+                  const chartHeight = 350; // Increased height for better tooltip space
                   
                   // Make chart much wider for better readability - give each month more space
                   const monthWidth = 100; // 100px per month for much better spacing
@@ -1495,48 +1505,71 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                 
                 return (
                   <div className="relative w-full h-full">
-                    {/* React state-based tooltip */}
-                    {hoveredPoint && (
-                      <div
-                        className="absolute z-20 pointer-events-none"
-                        style={{
-                          left: `${(svgPoints[hoveredPoint.index].x / chartWidth) * 100}%`,
-                          top: `${(svgPoints[hoveredPoint.index].yTotal / chartHeight) * 100}%`,
-                          transform: 'translate(-50%, -120%)'
-                        }}
-                      >
-                        <div className="bg-gray-900 text-white p-3 rounded-lg shadow-lg text-sm whitespace-nowrap">
-                          <div className="font-bold text-center mb-1">{hoveredPoint.data.total.toFixed(1)} vessels total</div>
-                          <div className="text-green-400 text-xs">✓ {hoveredPoint.data.internal.toFixed(1)} from internal fleet</div>
-                          <div className="text-orange-400 text-xs">+ {hoveredPoint.data.external.toFixed(1)} external sourcing</div>
+                    {/* Enhanced tooltip with smart positioning */}
+                    {hoveredPoint && (() => {
+                      const point = svgPoints[hoveredPoint.index];
+                      // Smart positioning: show below if near top, above if there's space
+                      const showBelow = point.yTotal < 140; // If within 140px of top, show below (adjusted for taller chart)
+                      
+                      return (
+                        <div
+                          className="absolute z-30 pointer-events-none"
+                          style={{
+                            left: `${point.x}px`,
+                            top: showBelow ? `${point.yTotal + 25}px` : `${point.yTotal - 10}px`,
+                            transform: showBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)'
+                          }}
+                        >
+                        <div className="bg-gray-900 text-white p-3 rounded-lg shadow-xl border border-gray-700 text-sm whitespace-nowrap max-w-xs">
+                          <div className="font-bold text-center mb-1 text-blue-300">{hoveredPoint.data.total.toFixed(1)} vessels total</div>
+                          <div className="text-green-400 text-xs flex items-center gap-1">
+                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                            {hoveredPoint.data.internal.toFixed(1)} from internal fleet
+                          </div>
+                          <div className="text-orange-400 text-xs flex items-center gap-1">
+                            <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                            {hoveredPoint.data.external.toFixed(1)} external sourcing
+                          </div>
                           
                           {hoveredPoint.data.bothRigsInSameUltraDeep && (
-                            <>
-                              <div className="border-t border-gray-700 mt-2 pt-2">
-                                <div className="text-red-400 text-xs font-semibold">🚨 SAME ULTRA-DEEP LOCATION</div>
-                                <div className="text-red-300 text-xs">
-                                  Both Deepwater Invictus & Ocean Black Hornet in {hoveredPoint.data.sharedUltraDeepLocation?.replace('GOM.', '')}
-                                </div>
-                                <div className="text-red-200 text-xs">
-                                  Critical vessel coordination required
-                                </div>
+                            <div className="border-t border-gray-600 mt-2 pt-2">
+                              <div className="text-red-400 text-xs font-semibold flex items-center gap-1">
+                                <span role="img" aria-label="warning">🚨</span>
+                                SAME ULTRA-DEEP LOCATION
                               </div>
-                            </>
+                              <div className="text-red-300 text-xs">
+                                Both Deepwater Invictus & Ocean Black Hornet in {hoveredPoint.data.sharedUltraDeepLocation?.replace('GOM.', '')}
+                              </div>
+                              <div className="text-red-200 text-xs">
+                                Critical vessel coordination required
+                              </div>
+                            </div>
                           )}
                           
                           {hoveredPoint.data.hasBatchOps && (
-                            <>
-                              <div className="border-t border-gray-700 mt-2 pt-2">
-                                <div className="text-yellow-400 text-xs font-semibold">⚡ BATCH OPERATIONS</div>
-                                <div className="text-yellow-300 text-xs">
-                                  {hoveredPoint.data.batchDetails.length} rig{hoveredPoint.data.batchDetails.length > 1 ? 's' : ''}: {hoveredPoint.data.batchDetails.map((b: any) => `${b.rigName} (${b.activityType}B)`).join(', ')}
-                                </div>
+                            <div className="border-t border-gray-600 mt-2 pt-2">
+                              <div className="text-yellow-400 text-xs font-semibold flex items-center gap-1">
+                                <span role="img" aria-label="batch operations">⚡</span>
+                                BATCH OPERATIONS
                               </div>
-                            </>
+                              <div className="text-yellow-300 text-xs">
+                                {hoveredPoint.data.batchDetails.length} rig{hoveredPoint.data.batchDetails.length > 1 ? 's' : ''}: {hoveredPoint.data.batchDetails.map((b: any) => `${b.rigName} (${b.activityType}B)`).join(', ')}
+                              </div>
+                            </div>
                           )}
+                          
+                          {/* Smart tooltip arrow */}
+                          <div className={`absolute left-1/2 transform -translate-x-1/2 ${showBelow ? 'bottom-full' : 'top-full'}`}>
+                            <div className={`w-0 h-0 border-l-4 border-r-4 border-transparent ${
+                              showBelow 
+                                ? 'border-b-4 border-b-gray-900' 
+                                : 'border-t-4 border-t-gray-900'
+                            }`}></div>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                        </div>
+                      );
+                    })()}
                     
                     <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="overflow-visible" style={{minWidth: chartWidth}}>
                       {/* Internal fleet area (green) */}
@@ -1585,16 +1618,22 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                       {/* Data points with React state tooltip triggers */}
                       {svgPoints.map((point, index) => (
                         <g key={index}>
-                          {/* Invisible hover trigger area */}
+                          {/* Enhanced hover trigger area with better responsiveness */}
                           <circle
                             cx={point.x}
                             cy={point.yTotal}
-                            r="15"
+                            r="20"
                             fill="transparent"
                             className="cursor-pointer hover:fill-blue-200 hover:fill-opacity-20"
                             style={{ pointerEvents: 'all' }}
                             onMouseEnter={() => setHoveredPoint({ index, data: point })}
                             onMouseLeave={() => setHoveredPoint(null)}
+                            onMouseMove={() => {
+                              // Keep tooltip active during mouse movement within the trigger area
+                              if (!hoveredPoint || hoveredPoint.index !== index) {
+                                setHoveredPoint({ index, data: point });
+                              }
+                            }}
                           />
                           
                           {/* Visible data point circle - highlighted for same ultra-deep location operations */}
