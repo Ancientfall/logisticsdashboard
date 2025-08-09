@@ -154,9 +154,9 @@ export function calculateVesselsRequired(monthlyDemand: number, asset: string): 
 // ==================== MONTHLY ANALYSIS FUNCTIONS ====================
 
 /**
- * Generate monthly vessel demand analysis for 18-month forecast
+ * Generate monthly vessel demand analysis for specified time period
  */
-export function generateMonthlyVesselDemands(activities: RigActivity[]): MonthlyVesselDemand[] {
+export function generateMonthlyVesselDemands(activities: RigActivity[], months?: string[]): MonthlyVesselDemand[] {
   const monthlyDemands: MonthlyVesselDemand[] = [];
   
   console.log(`🔧 Generating monthly vessel demands for ${activities.length} activities`);
@@ -177,17 +177,33 @@ export function generateMonthlyVesselDemands(activities: RigActivity[]): Monthly
     });
   }
   
-  // Generate 18 months starting from Jan 2026
-  for (let i = 0; i < 18; i++) {
-    const date = new Date(2026, i, 1);
-    const monthStr = date.toLocaleDateString('en-US', { month: 'short' });
-    const yearStr = String(date.getFullYear()).slice(-2);
-    const monthKey = `${monthStr}-${yearStr}`;
+  // Generate monthly demands for the specified time period
+  const monthsToProcess = months || (() => {
+    // Default to 60 months starting from current month if no months provided
+    const defaultMonths: string[] = [];
+    const currentDate = new Date();
+    const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    
+    for (let i = 0; i < 60; i++) {
+      const date = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+      const monthStr = date.toLocaleDateString('en-US', { month: 'short' });
+      const yearStr = String(date.getFullYear()).slice(-2);
+      defaultMonths.push(`${monthStr}-${yearStr}`);
+    }
+    return defaultMonths;
+  })();
+
+  monthsToProcess.forEach((monthKey: string) => {
+    // Parse month key (e.g., "Jan-26") to get date
+    const [monthStr, yearStr] = monthKey.split('-');
+    const year = parseInt('20' + yearStr);
+    const monthIndex = new Date(`${monthStr} 1, 2000`).getMonth();
+    const date = new Date(year, monthIndex, 1);
     
     const monthlyDemand = calculateMonthlyDemand(activities, date);
     monthlyDemand.month = monthKey;
     monthlyDemands.push(monthlyDemand);
-  }
+  });
   
   return monthlyDemands;
 }
@@ -373,7 +389,7 @@ function calculateMonthlyDemand(activities: RigActivity[], targetMonth: Date): M
 /**
  * Generate complete vessel spotting analysis
  */
-export function generateVesselSpottingAnalysis(activities: RigActivity[]): VesselSpottingAnalysis {
+export function generateVesselSpottingAnalysis(activities: RigActivity[], months?: string[]): VesselSpottingAnalysis {
   console.log(`🔧 Generating vessel spotting analysis with ${activities.length} activities`);
   
   // Debug: Check for TBD activities at the start of analysis
@@ -392,7 +408,7 @@ export function generateVesselSpottingAnalysis(activities: RigActivity[]): Vesse
     console.log(`    - Dates: ${activity.startDate.toISOString().substring(0, 10)} to ${activity.endDate.toISOString().substring(0, 10)}`);
   });
   
-  const monthlyDemands = generateMonthlyVesselDemands(activities);
+  const monthlyDemands = generateMonthlyVesselDemands(activities, months);
   
   // Find peak demand month
   let peakDemandMonth = '';
@@ -497,7 +513,7 @@ export function generateTabularVesselForecast(
     console.log(`    - Dates: ${activity.startDate.toISOString().substring(0, 10)} to ${activity.endDate.toISOString().substring(0, 10)}`);
   });
   
-  const vesselSpottingAnalysis = generateVesselSpottingAnalysis(activities);
+  const vesselSpottingAnalysis = generateVesselSpottingAnalysis(activities, months);
   
   // Create location demands (simplified for compatibility)
   const locationDemands: LocationVesselDemand[] = [];

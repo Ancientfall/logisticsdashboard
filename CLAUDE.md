@@ -57,6 +57,9 @@ BP Logistics Analytics Dashboard built with React 19, TypeScript, and Tailwind C
 - **Activity Classification**: `src/utils/activityClassification.ts` - Event classification
 - **Data Processing**: `src/utils/dataProcessing.ts` - Main processing pipeline
 - **Vessel Codes**: `src/utils/vesselCodesProcessor.ts` - Activity classification
+- **Vessel Demand Calculation**: `src/utils/realVesselDemandCalculator.ts` - Core vessel forecast calculations with activity type multipliers and interactive editing
+- **Tabular Vessel Demand**: `src/utils/tabularVesselDemandCalculator.ts` - Excel-style vessel forecast presentation
+- **Rig Activity Profiles**: `src/utils/rigActivityDemandProfiles.ts` - Activity type configurations and demand multipliers
 
 ### Data Architecture
 - **CostAllocation.xlsx**: Master data source for location determination and LC validation
@@ -243,4 +246,27 @@ If deployment issues occur, follow these steps in order:
 - **Documentation**: Inline documentation and comprehensive README files
 - **Best Practices**: Security-first development with defensive programming
 
-**Last Updated**: July 30, 2025 - Complete quality assurance and deployment verification
+## Vessel Forecast Dashboard
+
+Recent major implementation for vessel demand forecasting with interactive editing capabilities.
+
+### Key Features
+- **Excel-Style Table**: Tabular presentation matching business Excel format with rig-by-month vessel requirements
+- **Activity Type Coloring**: Visual distinction of different activity types (DRL, CPL, WS, PROD, RM, etc.) with distinctive colors and borders  
+- **Interactive Editing**: Click-to-edit vessel counts with activity type selection dropdown
+- **Batch Operation Multipliers**: DRL B activities get 1.5x multiplier for standard locations, 3x for ultra-deep (Tiber, Kaskida, Paleogene)
+- **Real-time Calculations**: Dynamic vessel demand calculations based on activity types and location capabilities
+- **Calculation Transparency**: Tooltips showing demand calculation formulas (8.3 deliveries ÷ 6.5 capability = vessels)
+
+### Core Components
+- **VesselForecastDashboard.tsx**: Main dashboard with interactive table and editing functionality
+- **Vessel Forecast Types**: `src/types/vesselForecast.ts` - Comprehensive TypeScript interfaces for forecast data
+- **Real Vessel Demand Calculator**: Core calculation engine with activity type multipliers and location-based capabilities
+
+### Activity Type Configuration
+- **Standard Activities**: DRL, CPL, RSU, MOB, WWP, P&A, WWI, TAR, LWI (1.0x multiplier)
+- **Reduced Demand**: WS (White Space) 0.5x, RM (Rig Maintenance) 0.6x multipliers  
+- **Batch Operations**: Only DRL B gets multiplication - 1.5x standard locations, 3x ultra-deep
+- **Ultra-Deep Locations**: Tiber, Kaskida, Paleogene (4.9 del/mo capability vs 6.5 standard)
+
+**Last Updated**: August 8, 2025 - Added vessel forecast dashboard documentation and recent vessel demand calculation enhancements

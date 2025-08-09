@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Ship, 
   AlertTriangle, 
@@ -15,8 +15,11 @@ import {
   Settings,
   BarChart3,
   Table,
-  Clock
+  Clock,
+  Printer
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { loadBothScenarios } from '../../utils/rigScheduleProcessor';
 import { 
   generateTabularVesselForecast,
@@ -130,7 +133,6 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
   const [selectedScenario, setSelectedScenario] = useState<'MEAN' | 'EARLY'>('MEAN');
   const [error, setError] = useState<string | null>(null);
   const [showAssumptions, setShowAssumptions] = useState(true);
-  const [presentationMode, setPresentationMode] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'chart' | 'timeline'>('table');
   const [showSettings, setShowSettings] = useState(false);
   
@@ -148,6 +150,12 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
   // Processing status
   const [loadingStep, setLoadingStep] = useState<string>('Initializing...');
   const [processingProgress, setProcessingProgress] = useState<number>(0);
+  
+  // Tooltip state
+  const [hoveredPoint, setHoveredPoint] = useState<{index: number, data: any} | null>(null);
+  
+  // Ref for PDF capture
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // ==================== UTILITY FUNCTIONS ====================
   
@@ -298,16 +306,20 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
       setLoadingStep('Processing selected scenario...');
       setProcessingProgress(50);
       
-      // Generate extended forecast horizon to include Atlas activities (2028-2030)
+      // Generate forecast horizon starting from current month
       const months: string[] = [];
-      const startDate = new Date(2026, 0, 1);
-      for (let i = 0; i < 48; i++) { // Extended from 17 to 48 months to cover 2026-2030
+      const currentDate = new Date();
+      const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1); // Start of current month
+      
+      // Generate 60 months from current month forward (5 years of forecast)
+      for (let i = 0; i < 60; i++) {
         const month = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
         const monthStr = `${month.toLocaleDateString('en-US', { month: 'short' })}-${String(month.getFullYear()).slice(-2)}`;
         months.push(monthStr);
       }
       
       console.log(`🔍 Calculating forecast for ${selectedScenario} case with ${filteredActivities.length} activities`);
+      console.log(`📅 Forecast period: ${months[0]} to ${months[months.length - 1]} (${months.length} months)`);
       
       setLoadingStep('Applying real business logic for vessel demand...');
       setProcessingProgress(70);
@@ -378,8 +390,73 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
     setSelectedScenario(scenario);
   };
 
-  const handlePresentationModeToggle = () => {
-    setPresentationMode(!presentationMode);
+  const handlePrintToPDF = async () => {
+    if (!tableRef.current) return;
+    
+    try {
+      // Show loading state
+      setLoadingStep('Generating PDF...');
+      
+      // Create canvas from the table
+      const canvas = await html2canvas(tableRef.current, {
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff'
+      } as any);
+      
+      // Create PDF in landscape format
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      // Calculate dimensions for landscape A4 (297mm x 210mm)
+      const pdfWidth = 297;
+      const pdfHeight = 210;
+      const margin = 10;
+      const availableWidth = pdfWidth - (margin * 2);
+      const availableHeight = pdfHeight - (margin * 2);
+      
+      // Calculate image dimensions maintaining aspect ratio
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = imgWidth / imgHeight;
+      
+      let finalWidth = availableWidth;
+      let finalHeight = availableWidth / ratio;
+      
+      // If height is too large, scale by height instead
+      if (finalHeight > availableHeight) {
+        finalHeight = availableHeight;
+        finalWidth = availableHeight * ratio;
+      }
+      
+      // Center the image
+      const xOffset = (pdfWidth - finalWidth) / 2;
+      const yOffset = (pdfHeight - finalHeight) / 2;
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.setTextColor(0, 117, 79); // BP green
+      pdf.text('BP Offshore Location Vessel Requirements', margin, margin + 5);
+      
+      pdf.setFontSize(12);
+      pdf.setTextColor(100);
+      pdf.text(`${selectedScenario} Case - Generated ${new Date().toLocaleDateString()}`, margin, margin + 12);
+      
+      // Add the table image
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', xOffset, yOffset + 15, finalWidth, finalHeight - 15);
+      
+      // Save the PDF
+      const filename = `BP_Vessel_Requirements_${selectedScenario}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(filename);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    }
   };
 
   const handleExportSummary = () => {
@@ -450,26 +527,93 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
 
   // ==================== RENDER CONDITIONS ====================
   
-  // Loading state
+  // Enhanced Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <RefreshCw className="w-5 h-5 animate-spin text-[#00754F]" />
-            <span className="text-gray-600 font-medium">{loadingStep}</span>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+        <div className="bg-white/80 backdrop-blur-sm p-10 rounded-2xl shadow-2xl max-w-lg w-full border border-white/20">
+          {/* Loading Header */}
+          <div className="text-center mb-8">
+            <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-4 rounded-2xl inline-block mb-4">
+              <Ship className="w-10 h-10 text-white animate-pulse" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Loading Vessel Forecast</h2>
+            <p className="text-gray-600">Analyzing offshore operations data</p>
           </div>
           
+          {/* Loading Animation */}
+          <div className="flex items-center justify-center space-x-3 mb-6">
+            <div className="flex space-x-2">
+              <div className="w-3 h-3 bg-[#00754F] rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-[#00754F] rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-3 h-3 bg-[#00754F] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+            <span className="text-gray-700 font-semibold">{loadingStep}</span>
+          </div>
+          
+          {/* Enhanced Progress Bar */}
           {processingProgress > 0 && (
-            <div className="max-w-md mx-auto">
-              <div className="bg-gray-200 rounded-full h-3 mb-2">
-                <div 
-                  className="bg-[#00754F] h-3 rounded-full transition-all duration-500" 
-                  style={{ width: `${processingProgress}%` }}
-                />
+            <div className="space-y-4">
+              <div className="relative">
+                <div className="bg-gradient-to-r from-gray-200 to-gray-300 rounded-full h-4 overflow-hidden shadow-inner">
+                  <div 
+                    className="bg-gradient-to-r from-[#00754F] via-[#4B8B5C] to-[#6EC800] h-4 rounded-full transition-all duration-1000 relative shadow-lg" 
+                    style={{ width: `${processingProgress}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="absolute -top-8 right-0">
+                  <div className="bg-[#00754F] text-white text-xs px-2 py-1 rounded font-bold">
+                    {processingProgress}%
+                  </div>
+                </div>
               </div>
-              <div className="text-center text-sm text-gray-500">
-                Processing vessel forecast analysis ({processingProgress}%)
+              
+              <div className="text-center">
+                <div className="text-sm font-medium text-gray-700 mb-1">
+                  Processing vessel forecast analysis
+                </div>
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Analyzing VPS server data...</span>
+                </div>
+              </div>
+              
+              {/* Process Steps Indicator */}
+              <div className="grid grid-cols-4 gap-2 mt-6">
+                <div className={`flex flex-col items-center p-2 rounded-lg transition-all duration-300 ${
+                  processingProgress >= 25 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  <div className={`w-3 h-3 rounded-full mb-1 ${
+                    processingProgress >= 25 ? 'bg-green-500' : 'bg-gray-300'
+                  }`}></div>
+                  <span className="text-xs font-medium">Load Data</span>
+                </div>
+                <div className={`flex flex-col items-center p-2 rounded-lg transition-all duration-300 ${
+                  processingProgress >= 50 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  <div className={`w-3 h-3 rounded-full mb-1 ${
+                    processingProgress >= 50 ? 'bg-green-500' : 'bg-gray-300'
+                  }`}></div>
+                  <span className="text-xs font-medium">Process</span>
+                </div>
+                <div className={`flex flex-col items-center p-2 rounded-lg transition-all duration-300 ${
+                  processingProgress >= 75 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  <div className={`w-3 h-3 rounded-full mb-1 ${
+                    processingProgress >= 75 ? 'bg-green-500' : 'bg-gray-300'
+                  }`}></div>
+                  <span className="text-xs font-medium">Calculate</span>
+                </div>
+                <div className={`flex flex-col items-center p-2 rounded-lg transition-all duration-300 ${
+                  processingProgress >= 100 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  <div className={`w-3 h-3 rounded-full mb-1 ${
+                    processingProgress >= 100 ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                  }`}></div>
+                  <span className="text-xs font-medium">Complete</span>
+                </div>
               </div>
             </div>
           )}
@@ -524,115 +668,136 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
   // ==================== MAIN DASHBOARD UI ====================
   
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-emerald-50/20">
+      {/* Enhanced Header */}
+      <header className="bg-gradient-to-r from-[#00754F] via-[#00754F] to-[#6EC800] shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Ship className="w-8 h-8 text-[#00754F]" />
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3">
+                <Ship className="w-8 h-8 text-white drop-shadow-lg" />
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-3xl font-bold text-white drop-shadow-md">
                   Vessel Forecast Dashboard
-                  {presentationMode && <span className="text-sm font-normal text-gray-500 ml-2">(Presentation Mode)</span>}
                 </h1>
-                <p className="text-sm text-gray-600">BP Logistics - Offshore Location-Based Vessel Requirements</p>
+                <p className="text-[#E8F5E8] font-medium">
+                  BP Logistics - Offshore Location-Based Vessel Requirements
+                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-medium">
+                    Real-time Analytics
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-medium">
+                    VPS Server Data
+                  </div>
+                </div>
               </div>
             </div>
             
             <div className="flex items-center space-x-3">
               <button
-                onClick={handlePresentationModeToggle}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  presentationMode 
-                    ? 'bg-[#00754F] text-white' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                onClick={handlePrintToPDF}
+                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-all duration-300 border border-white/20 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
-                <Eye className="w-4 h-4" />
-                {presentationMode ? 'Exit' : 'Present'}
+                <Printer className="w-4 h-4" />
+                <span className="font-medium">Print PDF</span>
               </button>
               
               <button 
                 onClick={handleExportSummary}
-                className="flex items-center gap-2 px-4 py-2 bg-[#6EC800] text-white rounded-lg hover:bg-[#6EC800]/90 transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-all duration-300 border border-white/20 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 <Download className="w-4 h-4" />
-                Export
+                <span className="font-medium">Export</span>
               </button>
               
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 border shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                  showSettings 
+                    ? 'bg-white text-[#00754F] border-white/20' 
+                    : 'bg-white/10 backdrop-blur-sm text-white border-white/20 hover:bg-white/20'
+                }`}
               >
-                <Settings className="w-4 h-4" />
-                Settings
+                <Settings className={`w-4 h-4 transition-transform duration-300 ${showSettings ? 'rotate-90' : ''}`} />
+                <span className="font-medium">Settings</span>
               </button>
             </div>
           </div>
         </div>
       </header>
       
-      {/* Control Panel */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Enhanced Control Panel */}
+      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Scenario:</span>
-                <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] text-white px-2 py-1 rounded-lg text-xs font-bold">
+                  SCENARIO
+                </div>
+                <div className="flex bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-1.5 shadow-inner">
                   <button
                     onClick={() => handleScenarioToggle('MEAN')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`px-5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300 ${
                       selectedScenario === 'MEAN'
-                        ? 'bg-[#00754F] text-white shadow-sm'
-                        : 'text-gray-700 hover:text-gray-900'
+                        ? 'bg-gradient-to-r from-[#00754F] to-[#4B8B5C] text-white shadow-md transform scale-105'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
                     }`}
                   >
-                    MEAN Case (P50)
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${selectedScenario === 'MEAN' ? 'bg-white' : 'bg-gray-400'}`}></div>
+                      MEAN Case (P50)
+                    </div>
                   </button>
                   <button
                     onClick={() => handleScenarioToggle('EARLY')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`px-5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300 ${
                       selectedScenario === 'EARLY'
-                        ? 'bg-[#00754F] text-white shadow-sm'
-                        : 'text-gray-700 hover:text-gray-900'
+                        ? 'bg-gradient-to-r from-[#00754F] to-[#4B8B5C] text-white shadow-md transform scale-105'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
                     }`}
                   >
-                    EARLY Case (P10)
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${selectedScenario === 'EARLY' ? 'bg-white' : 'bg-gray-400'}`}></div>
+                      EARLY Case (P10)
+                    </div>
                   </button>
                 </div>
               </div>
               
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">View:</span>
-                <div className="flex bg-gray-100 rounded-lg p-1">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-r from-[#0099D4] to-[#6EC800] text-white px-2 py-1 rounded-lg text-xs font-bold">
+                  VIEW
+                </div>
+                <div className="flex bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-1.5 shadow-inner">
                   <button
                     onClick={() => setViewMode('table')}
-                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 ${
                       viewMode === 'table'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-[#00754F] shadow-md transform scale-105 ring-2 ring-[#00754F]/20'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                     }`}
                   >
                     <Table className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setViewMode('chart')}
-                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 ${
                       viewMode === 'chart'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-[#00754F] shadow-md transform scale-105 ring-2 ring-[#00754F]/20'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                     }`}
                   >
                     <BarChart3 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setViewMode('timeline')}
-                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 ${
                       viewMode === 'timeline'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-[#00754F] shadow-md transform scale-105 ring-2 ring-[#00754F]/20'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                     }`}
                   >
                     <Calendar className="w-4 h-4" />
@@ -640,10 +805,10 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
                 </div>
               </div>
               
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-xs text-gray-500">
-                  {tabularForecast ? `${tabularForecast.monthlyColumns.length} months` : '18 months'} forecast horizon
+              <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-4 py-2 border border-blue-200">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  {tabularForecast ? `${tabularForecast.monthlyColumns.length}` : '60'} months forecast
                 </span>
               </div>
             </div>
@@ -651,10 +816,10 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
             <button
               onClick={() => loadVesselForecast()}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-[#00754F] text-white rounded-lg hover:bg-[#00754F]/90 transition-colors disabled:opacity-50"
+              className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-[#00754F] to-[#4B8B5C] text-white rounded-xl hover:from-[#4B8B5C] hover:to-[#00754F] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="font-semibold">Refresh Data</span>
             </button>
           </div>
         </div>
@@ -726,62 +891,102 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
         </div>
       )}
       
-      {/* Summary Statistics */}
+      {/* Enhanced Summary Statistics */}
       {summaryStats && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-2xl shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Net Fleet Size</p>
-                  <p className="text-2xl font-bold text-gray-900">{summaryStats.totalFleet}</p>
-                  <p className="text-xs text-gray-500">total vessels</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Net Fleet</p>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-900 mb-1">{summaryStats.totalFleet}</p>
+                  <p className="text-xs text-blue-600 font-medium">total vessels</p>
                 </div>
-                <Ship className="w-8 h-8" style={{ color: BP_COLORS.accent }} />
+                <div className="bg-blue-100 p-3 rounded-xl">
+                  <Ship className="w-8 h-8 text-blue-600" />
+                </div>
+              </div>
+              <div className="mt-3 w-full bg-blue-200 rounded-full h-2">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{ width: '100%' }}></div>
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gradient-to-br from-white to-emerald-50 p-6 rounded-2xl shadow-lg border border-emerald-100 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Available for Drilling</p>
-                  <p className="text-2xl font-bold text-gray-900">{summaryStats.drillingFleet}</p>
-                  <p className="text-xs text-gray-500">vessels × 6.5 del/mo</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                    <p className="text-sm font-semibold text-emerald-700 uppercase tracking-wide">Drilling Fleet</p>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-900 mb-1">{summaryStats.drillingFleet}</p>
+                  <p className="text-xs text-emerald-600 font-medium">@ 6.5 del/mo each</p>
                 </div>
-                <Ship className="w-8 h-8 text-[#00754F]" />
+                <div className="bg-emerald-100 p-3 rounded-xl">
+                  <Ship className="w-8 h-8 text-emerald-600" />
+                </div>
+              </div>
+              <div className="mt-3 w-full bg-emerald-200 rounded-full h-2">
+                <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-2 rounded-full" style={{ width: `${(Number(summaryStats.drillingFleet) / Number(summaryStats.totalFleet)) * 100}%` }}></div>
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-2xl shadow-lg border border-green-100 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Avg Total Needed</p>
-                  <p className="text-2xl font-bold text-gray-900">{summaryStats.avgVessels}</p>
-                  <p className="text-xs text-gray-500">vessels per month</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                    <p className="text-sm font-semibold text-green-700 uppercase tracking-wide">Avg Demand</p>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-900 mb-1">{summaryStats.avgVessels}</p>
+                  <p className="text-xs text-green-600 font-medium">vessels per month</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-[#6EC800]" />
+                <div className="bg-green-100 p-3 rounded-xl">
+                  <TrendingUp className="w-8 h-8 text-green-600" />
+                </div>
+              </div>
+              <div className="mt-3 w-full bg-green-200 rounded-full h-2">
+                <div className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" style={{ width: `${Math.min((Number(summaryStats.avgVessels) / 15) * 100, 100)}%` }}></div>
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gradient-to-br from-white to-amber-50 p-6 rounded-2xl shadow-lg border border-amber-100 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Avg Additional</p>
-                  <p className="text-2xl font-bold text-green-700">+{summaryStats.avgAdditional}</p>
-                  <p className="text-xs text-gray-500">beyond 6 drilling vessels</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-amber-600 rounded-full animate-pulse"></div>
+                    <p className="text-sm font-semibold text-amber-700 uppercase tracking-wide">Avg External</p>
+                  </div>
+                  <p className="text-3xl font-bold text-amber-800 mb-1">+{summaryStats.avgAdditional}</p>
+                  <p className="text-xs text-amber-600 font-medium">beyond drilling fleet</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-green-500" />
+                <div className="bg-amber-100 p-3 rounded-xl">
+                  <TrendingUp className="w-8 h-8 text-amber-600" />
+                </div>
+              </div>
+              <div className="mt-3 w-full bg-amber-200 rounded-full h-2">
+                <div className="bg-gradient-to-r from-amber-500 to-amber-600 h-2 rounded-full" style={{ width: `${Math.min((Number(summaryStats.avgAdditional) / 10) * 100, 100)}%` }}></div>
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gradient-to-br from-white to-red-50 p-6 rounded-2xl shadow-lg border border-red-100 hover:shadow-xl transition-all duration-300 transform hover:scale-105 ring-2 ring-red-200/50">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Peak Additional</p>
-                  <p className="text-2xl font-bold text-red-700">+{summaryStats.peakAdditional}</p>
-                  <p className="text-xs text-gray-500">{summaryStats.peakMonth}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></div>
+                    <p className="text-sm font-semibold text-red-700 uppercase tracking-wide">Peak Risk</p>
+                  </div>
+                  <p className="text-3xl font-bold text-red-800 mb-1">+{summaryStats.peakAdditional}</p>
+                  <p className="text-xs text-red-600 font-medium">{summaryStats.peakMonth}</p>
                 </div>
-                <AlertTriangle className="w-8 h-8 text-orange-500" />
+                <div className="bg-red-100 p-3 rounded-xl">
+                  <AlertTriangle className="w-8 h-8 text-red-600" />
+                </div>
+              </div>
+              <div className="mt-3 w-full bg-red-200 rounded-full h-2">
+                <div className="bg-gradient-to-r from-red-500 to-red-600 h-2 rounded-full animate-pulse" style={{ width: `${Math.min((Number(summaryStats.peakAdditional) / 10) * 100, 100)}%` }}></div>
               </div>
             </div>
           </div>
@@ -873,12 +1078,17 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         {viewMode === 'table' && tabularForecast && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
+          <div ref={tableRef} className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#00754F]/5 to-[#6EC800]/5 p-6 border-b border-gray-200/50">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Ship className="w-5 h-5 text-[#00754F]" />
-                  Offshore Location Vessel Requirements - {selectedScenario} Case
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                  <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-2 rounded-xl">
+                    <Ship className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div>Offshore Location Vessel Requirements</div>
+                    <div className="text-sm font-medium text-[#00754F] mt-1">{selectedScenario} Case Scenario</div>
+                  </div>
                 </h2>
                 
                 {/* Interactive editing toolbar */}
@@ -1077,64 +1287,365 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
         )}
         
         {viewMode === 'chart' && tabularForecast && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-[#00754F]" />
-              Vessel Demand Trend - {selectedScenario} Case
-            </h2>
-            
-            
-            <div className="h-64 flex items-end justify-between gap-2">
-              {tabularForecast.monthlyColumns.length > 0 ? tabularForecast.monthlyColumns.map((month, index) => {
-                // Sum all rig demands for this month (using edited values if available)
-                const totalVesselsNeeded = tabularForecast.rigDemands.reduce((sum, rig) => {
-                  return sum + getVesselValue(rig.rigName, month);
-                }, 0);
-                
-                // Find max for height calculation across all months (using edited values)
-                const allMonthlyTotals = tabularForecast.monthlyColumns.map(m => {
-                  return tabularForecast.rigDemands.reduce((sum, rig) => sum + getVesselValue(rig.rigName, m), 0);
-                });
-                const maxVessels = Math.max(...allMonthlyTotals, 0.1); // Ensure we don't divide by 0
-                const height = (totalVesselsNeeded / maxVessels) * 100;
-                
-                // Calculate internal vs external (assume 8.5 internal fleet capacity)
-                const internalUsed = Math.min(totalVesselsNeeded, 8.5);
-                const externalNeeded = Math.max(0, totalVesselsNeeded - 8.5);
-                
-                return (
-                  <div key={month} className="flex-1 flex flex-col items-center">
-                    <div className="w-full bg-[#00754F] rounded-t hover:bg-[#00754F]/80 transition-colors relative group"
-                         style={{ height: `${Math.max(height, 2)}%` }}>
-                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                        <div className="font-semibold">{totalVesselsNeeded.toFixed(1)} vessels</div>
-                        <div className="text-xs text-gray-300">{internalUsed.toFixed(1)} internal + {externalNeeded.toFixed(1)} external</div>
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-600 mt-2 rotate-45 origin-left">{month.slice(0, 3)}</span>
-                  </div>
-                );
-              }) : (
-                <div className="w-full flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <Ship className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>No monthly columns found</p>
-                    <p className="text-xs mt-1">Check Excel data loading</p>
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                <div className="bg-gradient-to-r from-[#0099D4] to-[#6EC800] p-2 rounded-xl">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div>Vessel Demand Trend Analysis</div>
+                  <div className="text-sm font-medium text-[#0099D4] mt-1">{selectedScenario} Case Scenario</div>
+                </div>
+              </h2>
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-50 rounded-xl px-4 py-2 border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-[#00754F] rounded opacity-80"></div>
+                    <span className="text-sm font-medium text-blue-900">Internal Fleet</span>
                   </div>
                 </div>
-              )}
+                <div className="bg-orange-50 rounded-xl px-4 py-2 border border-orange-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-500 rounded opacity-70"></div>
+                    <span className="text-sm font-medium text-orange-900">External Sourcing</span>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Monthly Vessel Requirements</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-50 p-3 rounded">
-                  <h4 className="text-sm font-medium text-green-800">Internal Fleet</h4>
-                  <p className="text-xs text-green-700">Up to 8.5 vessels from our fleet</p>
+            {/* Data overview */}
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+              <div className="flex items-center justify-between">
+                <span>Analysis Period: <span className="font-semibold">{tabularForecast.monthlyColumns.length} months</span></span>
+                <span>Active Rigs: <span className="font-semibold">{tabularForecast.rigDemands.length}</span></span>
+                <span>Peak Demand: <span className="font-semibold text-[#00754F]">{Math.max(...tabularForecast.monthlyColumns.map(m => 
+                  tabularForecast.rigDemands.reduce((sum, rig) => sum + getVesselValue(rig.rigName, m), 0)
+                )).toFixed(1)} vessels</span></span>
+              </div>
+            </div>
+            
+            <div className="h-96 relative bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200/50 p-6 shadow-inner">
+              {/* Horizontal scroll instructions */}
+              <div className="text-xs text-gray-500 mb-2 text-center">
+                ← Scroll horizontally to view all {tabularForecast.monthlyColumns.length} months →
+              </div>
+              
+              {/* Horizontally Scrollable Chart Container */}
+              <div className="overflow-x-auto overflow-y-hidden h-full" style={{scrollBehavior: 'smooth'}}>
+                {tabularForecast.monthlyColumns.length > 0 && (() => {
+                  // Calculate vessel demands and positions
+                  const dataPoints = tabularForecast.monthlyColumns.map((month, index) => {
+                    const totalVessels = tabularForecast.rigDemands.reduce((sum, rig) => {
+                      return sum + getVesselValue(rig.rigName, month);
+                    }, 0);
+                    const internalUsed = Math.min(totalVessels, 6.5);
+                    const externalNeeded = Math.max(0, totalVessels - 6.5);
+                    
+                    // Check for batch operations in this month
+                    const batchRigs = tabularForecast.rigDemands.filter(rig => 
+                      rig.batchOperations && rig.batchOperations[month] && getVesselValue(rig.rigName, month) > 0
+                    );
+                    const hasBatchOps = batchRigs.length > 0;
+                    const batchDetails = batchRigs.map(rig => ({
+                      rigName: rig.rigDisplayName || rig.rigName,
+                      activityType: getActivityType(rig.rigName, month),
+                      vessels: getVesselValue(rig.rigName, month)
+                    }));
+
+                    // Check for Deepwater Invictus and Ocean Black Hornet both in the same ultra-deep location
+                    const activeRigs = tabularForecast.rigDemands.filter(rig => getVesselValue(rig.rigName, month) > 0);
+                    const monthDate = new Date(month + '-01');
+                    const ultraDeepLocations = ['GOM.Tiber', 'GOM.Kaskida', 'GOM.Paleogene'];
+                    
+                    // Helper function to get rig location for a specific month
+                    const getRigLocationForMonth = (rigName: string, targetMonth: Date) => {
+                      const rigActivitiesForMonth = rigActivities.filter(activity => {
+                        const activityStartMonth = new Date(activity.startDate.getFullYear(), activity.startDate.getMonth(), 1);
+                        const activityEndMonth = new Date(activity.endDate.getFullYear(), activity.endDate.getMonth(), 1);
+                        return activity.rigName.toLowerCase().includes(rigName.toLowerCase()) &&
+                               targetMonth >= activityStartMonth && targetMonth <= activityEndMonth;
+                      });
+                      return rigActivitiesForMonth.map(activity => activity.asset);
+                    };
+                    
+                    const invictusLocations = getRigLocationForMonth('deepwater invictus', monthDate);
+                    const blackhornetLocations = getRigLocationForMonth('ocean blackhornet', monthDate);
+                    
+                    // Find if both rigs are in the same ultra-deep location
+                    const invictusUltraDeepLocations = invictusLocations.filter(loc => ultraDeepLocations.includes(loc));
+                    const blackhornetUltraDeepLocations = blackhornetLocations.filter(loc => ultraDeepLocations.includes(loc));
+                    
+                    const sharedUltraDeepLocation = invictusUltraDeepLocations.find(loc => 
+                      blackhornetUltraDeepLocations.includes(loc)
+                    );
+                    
+                    const bothRigsInSameUltraDeep = !!sharedUltraDeepLocation;
+                    const invictusInUltraDeep = activeRigs.find(rig => 
+                      rig.rigName.toLowerCase().includes('deepwater invictus') && invictusUltraDeepLocations.length > 0
+                    );
+                    const blackhornetInUltraDeep = activeRigs.find(rig => 
+                      rig.rigName.toLowerCase().includes('ocean blackhornet') && blackhornetUltraDeepLocations.length > 0
+                    );
+                    
+                    return {
+                      month,
+                      total: totalVessels,
+                      internal: internalUsed,
+                      external: externalNeeded,
+                      hasBatchOps,
+                      batchDetails,
+                      bothRigsInSameUltraDeep,
+                      sharedUltraDeepLocation,
+                      invictusInUltraDeep,
+                      blackhornetInUltraDeep,
+                      invictusUltraDeepLocations,
+                      blackhornetUltraDeepLocations,
+                      index
+                    };
+                  });
+                  
+                  const maxVessels = Math.max(...dataPoints.map(d => d.total), 16);
+                  const chartHeight = 300; // Fixed pixel height for SVG
+                  
+                  // Make chart much wider for better readability - give each month more space
+                  const monthWidth = 100; // 100px per month for much better spacing
+                  const chartWidth = dataPoints.length * monthWidth + 80; // Scale with data plus padding
+                  const padding = 40; // More padding for labels
+                
+                // Convert data to SVG coordinates - evenly spaced with better month spacing
+                const svgPoints = dataPoints.map((point, index) => ({
+                  ...point,
+                  x: padding + (index * monthWidth) + (monthWidth / 2), // Center each point in its month slot
+                  yTotal: chartHeight - padding - ((point.total / maxVessels) * (chartHeight - 2 * padding)),
+                  yInternal: chartHeight - padding - ((point.internal / maxVessels) * (chartHeight - 2 * padding)),
+                  yBaseline: chartHeight - padding
+                }));
+                
+                // Create SVG paths
+                const internalAreaPath = [
+                  `M ${svgPoints[0].x} ${chartHeight - padding}`, // Start at bottom
+                  ...svgPoints.map(p => `L ${p.x} ${p.yInternal}`), // Line to internal level
+                  `L ${svgPoints[svgPoints.length - 1].x} ${chartHeight - padding}`, // Line to bottom right
+                  'Z' // Close path
+                ].join(' ');
+                
+                const externalAreaPath = [
+                  `M ${svgPoints[0].x} ${svgPoints[0].yInternal}`, // Start at internal level
+                  ...svgPoints.map(p => `L ${p.x} ${p.yTotal}`), // Line to total level
+                  ...svgPoints.slice().reverse().map(p => `L ${p.x} ${p.yInternal}`), // Back down to internal
+                  'Z' // Close path
+                ].join(' ');
+                
+                // Fleet capacity line position
+                const fleetCapacityY = chartHeight - padding - ((6.5 / maxVessels) * (chartHeight - 2 * padding));
+                
+                return (
+                  <div className="relative w-full h-full">
+                    {/* React state-based tooltip */}
+                    {hoveredPoint && (
+                      <div
+                        className="absolute z-20 pointer-events-none"
+                        style={{
+                          left: `${(svgPoints[hoveredPoint.index].x / chartWidth) * 100}%`,
+                          top: `${(svgPoints[hoveredPoint.index].yTotal / chartHeight) * 100}%`,
+                          transform: 'translate(-50%, -120%)'
+                        }}
+                      >
+                        <div className="bg-gray-900 text-white p-3 rounded-lg shadow-lg text-sm whitespace-nowrap">
+                          <div className="font-bold text-center mb-1">{hoveredPoint.data.total.toFixed(1)} vessels total</div>
+                          <div className="text-green-400 text-xs">✓ {hoveredPoint.data.internal.toFixed(1)} from internal fleet</div>
+                          <div className="text-orange-400 text-xs">+ {hoveredPoint.data.external.toFixed(1)} external sourcing</div>
+                          
+                          {hoveredPoint.data.bothRigsInSameUltraDeep && (
+                            <>
+                              <div className="border-t border-gray-700 mt-2 pt-2">
+                                <div className="text-red-400 text-xs font-semibold">🚨 SAME ULTRA-DEEP LOCATION</div>
+                                <div className="text-red-300 text-xs">
+                                  Both Deepwater Invictus & Ocean Black Hornet in {hoveredPoint.data.sharedUltraDeepLocation?.replace('GOM.', '')}
+                                </div>
+                                <div className="text-red-200 text-xs">
+                                  Critical vessel coordination required
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          
+                          {hoveredPoint.data.hasBatchOps && (
+                            <>
+                              <div className="border-t border-gray-700 mt-2 pt-2">
+                                <div className="text-yellow-400 text-xs font-semibold">⚡ BATCH OPERATIONS</div>
+                                <div className="text-yellow-300 text-xs">
+                                  {hoveredPoint.data.batchDetails.length} rig{hoveredPoint.data.batchDetails.length > 1 ? 's' : ''}: {hoveredPoint.data.batchDetails.map((b: any) => `${b.rigName} (${b.activityType}B)`).join(', ')}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="overflow-visible" style={{minWidth: chartWidth}}>
+                      {/* Internal fleet area (green) */}
+                      <path
+                        d={internalAreaPath}
+                        fill="#00754F"
+                        opacity="0.8"
+                        className="transition-opacity duration-200 hover:opacity-90"
+                        style={{
+                          filter: 'drop-shadow(0 2px 8px rgba(0,117,79,0.2))'
+                        }}
+                      />
+                      
+                      {/* External fleet area (orange) */}
+                      <path
+                        d={externalAreaPath}
+                        fill="#f97316"
+                        opacity="0.7"
+                        className="transition-opacity duration-200 hover:opacity-85"
+                        style={{
+                          filter: 'drop-shadow(0 2px 8px rgba(249,115,22,0.2))'
+                        }}
+                      />
+                      
+                      {/* Fleet capacity baseline */}
+                      <line
+                        x1={padding}
+                        x2={chartWidth - padding}
+                        y1={fleetCapacityY}
+                        y2={fleetCapacityY}
+                        stroke="#dc2626"
+                        strokeWidth="3"
+                        strokeDasharray="8,4"
+                      />
+                      <text
+                        x={chartWidth - padding}
+                        y={fleetCapacityY - 8}
+                        fill="#dc2626"
+                        fontSize="12"
+                        textAnchor="end"
+                        fontWeight="700"
+                      >
+                        6.5 Fleet Capacity
+                      </text>
+                      
+                      {/* Data points with React state tooltip triggers */}
+                      {svgPoints.map((point, index) => (
+                        <g key={index}>
+                          {/* Invisible hover trigger area */}
+                          <circle
+                            cx={point.x}
+                            cy={point.yTotal}
+                            r="15"
+                            fill="transparent"
+                            className="cursor-pointer hover:fill-blue-200 hover:fill-opacity-20"
+                            style={{ pointerEvents: 'all' }}
+                            onMouseEnter={() => setHoveredPoint({ index, data: point })}
+                            onMouseLeave={() => setHoveredPoint(null)}
+                          />
+                          
+                          {/* Visible data point circle - highlighted for same ultra-deep location operations */}
+                          <circle
+                            cx={point.x}
+                            cy={point.yTotal}
+                            r={point.bothRigsInSameUltraDeep ? "7" : "5"}
+                            fill={point.bothRigsInSameUltraDeep ? "#DC2626" : "#374151"}
+                            stroke={point.bothRigsInSameUltraDeep ? "#FEE2E2" : "white"}
+                            strokeWidth={point.bothRigsInSameUltraDeep ? "3" : "2"}
+                            style={{
+                              filter: point.bothRigsInSameUltraDeep 
+                                ? 'drop-shadow(0 0 8px rgba(220,38,38,0.6))' 
+                                : 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                              pointerEvents: 'none'
+                            }}
+                          />
+                          
+                          {/* Warning indicator for same ultra-deep location operations */}
+                          {point.bothRigsInSameUltraDeep && (
+                            <text
+                              x={point.x + 12}
+                              y={point.yTotal - 8}
+                              fill="#DC2626"
+                              fontSize="12"
+                              fontWeight="700"
+                              style={{ pointerEvents: 'none' }}
+                            >
+                              🚨
+                            </text>
+                          )}
+                          
+                          {/* Value label */}
+                          <text
+                            x={point.x}
+                            y={point.yTotal - 12}
+                            fill="#374151"
+                            fontSize="10"
+                            textAnchor="middle"
+                            fontWeight="600"
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            {point.total.toFixed(1)}
+                          </text>
+                        </g>
+                      ))}
+                      
+                      {/* Month labels - improved spacing and readability */}
+                      {svgPoints.map((point, index) => (
+                        <text
+                          key={index}
+                          x={point.x}
+                          y={chartHeight - 10}
+                          fill="#000000"
+                          fontSize="12"
+                          textAnchor="middle"
+                          fontWeight="600"
+                        >
+                          {point.month}
+                        </text>
+                      ))}
+                    </svg>
+                  </div>
+                );
+              })()}
+              </div>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-gray-200/50">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-gradient-to-r from-[#00754F] to-[#6EC800] rounded-full"></div>
+                Chart Elements Guide
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-4 rounded-xl border border-emerald-200 shadow-sm hover:shadow-md transition-all duration-300">
+                  <h4 className="text-sm font-bold text-emerald-900 flex items-center gap-2 mb-2">
+                    <div className="w-4 h-4 bg-[#00754F] opacity-80 rounded shadow-sm"></div>
+                    Internal Fleet
+                  </h4>
+                  <p className="text-xs text-emerald-700 leading-relaxed">Capacity from our 6.5 vessel drilling fleet</p>
                 </div>
-                <div className="bg-orange-50 p-3 rounded">
-                  <h4 className="text-sm font-medium text-orange-800">External Sourcing</h4>
-                  <p className="text-xs text-orange-700">Additional vessels needed beyond our fleet</p>
+                
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-4 rounded-xl border border-orange-200 shadow-sm hover:shadow-md transition-all duration-300">
+                  <h4 className="text-sm font-bold text-orange-900 flex items-center gap-2 mb-2">
+                    <div className="w-4 h-4 bg-orange-500 opacity-70 rounded shadow-sm"></div>
+                    External Sourcing
+                  </h4>
+                  <p className="text-xs text-orange-700 leading-relaxed">Additional vessels needed beyond internal fleet</p>
+                </div>
+                
+                <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-2">
+                    <div className="w-4 h-4 bg-gray-600 rounded-full border-2 border-white shadow-sm"></div>
+                    Demand Points
+                  </h4>
+                  <p className="text-xs text-gray-700 leading-relaxed">Total vessel requirement per month</p>
+                </div>
+                
+                <div className="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-xl border border-red-200 shadow-sm hover:shadow-md transition-all duration-300">
+                  <h4 className="text-sm font-bold text-red-900 flex items-center gap-2 mb-2">
+                    <div className="w-4 h-1 border-t-2 border-dashed border-red-600 bg-transparent rounded"></div>
+                    Fleet Baseline
+                  </h4>
+                  <p className="text-xs text-red-700 leading-relaxed">6.5 vessel internal capacity threshold</p>
                 </div>
               </div>
             </div>
@@ -1190,11 +1701,16 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
           </div>
         )}
         
-        {/* Data Foundation */}
-        <div className="mt-6 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#00754F]" />
-            Data Foundation & Quality (VPS Server Source)
+        {/* Enhanced Data Foundation */}
+        <div className="mt-6 bg-gradient-to-br from-white/95 to-blue-50/30 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/20">
+          <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+            <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-2 rounded-xl">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <div>Data Foundation & Quality</div>
+              <div className="text-sm font-medium text-[#00754F] mt-1">VPS Server Real-time Source</div>
+            </div>
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1250,11 +1766,16 @@ const VesselForecastDashboard: React.FC<VesselForecastDashboardProps> = () => {
           </div>
         </div>
         
-        {/* Activity Type Legend */}
-        <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">
-            Activity Type Legend
-            <span className="text-xs text-gray-500 ml-2">(Table cells use these colors with left border indicators)</span>
+        {/* Enhanced Activity Type Legend */}
+        <div className="mt-6 bg-gradient-to-br from-white/95 to-emerald-50/30 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-3">
+            <div className="bg-gradient-to-r from-[#00754F] to-[#6EC800] p-2 rounded-xl">
+              <Activity className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div>Activity Type Reference</div>
+              <div className="text-sm font-medium text-[#00754F] mt-1">Color coding and demand multipliers</div>
+            </div>
           </h3>
           <div className="grid grid-cols-5 gap-2 mb-4">
             {Object.entries(RIG_ACTIVITY_TYPES).map(([key, config]) => {
