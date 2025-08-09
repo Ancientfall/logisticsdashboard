@@ -12,7 +12,7 @@ import { RigActivity, TabularVesselForecast, LocationVesselDemand } from '../typ
 // Activity type styling configuration - all activities use 1.0 multiplier except WS (0.5)
 export const RIG_ACTIVITY_TYPES = {
   'DRL': { name: 'Drill', demandMultiplier: 1.0, color: 'bg-green-100 text-green-800', borderColor: 'border-l-green-500' },
-  'CPL': { name: 'Complete', demandMultiplier: 1.0, color: 'bg-orange-100 text-orange-800', borderColor: 'border-l-orange-500' },
+  'CPL': { name: 'Completion', demandMultiplier: 1.0, color: 'bg-orange-100 text-orange-800', borderColor: 'border-l-orange-500' },
   'P&A': { name: 'Plug & Abandon', demandMultiplier: 1.0, color: 'bg-red-100 text-red-800', borderColor: 'border-l-red-500' },
   'RSU': { name: 'Rig Setup', demandMultiplier: 1.0, color: 'bg-blue-100 text-blue-800', borderColor: 'border-l-blue-500' },
   'WWP': { name: 'Workover', demandMultiplier: 1.0, color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-l-yellow-500' },
